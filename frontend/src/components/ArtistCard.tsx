@@ -1,0 +1,104 @@
+'use client';
+
+import { ArtistProfile } from '../lib/marketplaceApi';
+import { BadgeCheck, Star, ArrowRight } from 'lucide-react';
+import { Link } from '@/i18n/routing';
+
+export default function ArtistCard({ artist }: { artist: ArtistProfile }) {
+  const isOpen = artist.commission_status === 'OPEN';
+
+  return (
+    <div className="bg-[var(--bg-surface,#121215)] border border-[var(--border-subtle,#27272a)] rounded-3xl overflow-hidden flex flex-col justify-between shadow-lg group hover:border-[var(--accent-primary,#3b82f6)] transition-all duration-300 hover:-translate-y-1">
+      <div>
+        {/* Cover Banner */}
+        <div className="h-32 w-full bg-neutral-800 relative overflow-hidden">
+          {artist.banner_url ? (
+            <img
+              src={artist.banner_url}
+              alt={artist.display_name}
+              className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700"
+            />
+          ) : (
+            <div className="w-full h-full bg-gradient-to-r from-blue-900 via-indigo-900 to-purple-900" />
+          )}
+
+          {/* Status Badge */}
+          <div className="absolute top-3 right-3">
+            <span className={`text-[10px] font-extrabold px-3 py-1 rounded-full border uppercase shadow-md backdrop-blur-md ${
+              isOpen
+                ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/40'
+                : 'bg-amber-500/20 text-amber-400 border-amber-500/40'
+            }`}>
+              {isOpen ? '● Open for Work' : '● Waitlist'}
+            </span>
+          </div>
+        </div>
+
+        {/* Avatar & Core Profile Info */}
+        <div className="px-6 pt-0 pb-4 relative">
+          <div className="-mt-10 mb-3 flex items-end justify-between">
+            <div className="relative">
+              <img
+                src={artist.avatar_url || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=300&q=80'}
+                alt={artist.display_name}
+                className="w-20 h-20 rounded-2xl object-cover border-4 border-[var(--bg-surface,#121215)] shadow-xl"
+              />
+              {artist.is_verified && (
+                <div className="absolute -bottom-1 -right-1 bg-blue-600 text-white rounded-full p-1 shadow-md">
+                  <BadgeCheck className="w-4 h-4" />
+                </div>
+              )}
+            </div>
+
+            <div className="text-right">
+              <span className="text-[10px] uppercase font-bold text-[var(--text-muted,#a1a1aa)] block">Starting at</span>
+              <span className="text-lg font-black text-[var(--accent-primary,#3b82f6)] font-mono">฿{artist.starting_price.toLocaleString()}</span>
+            </div>
+          </div>
+
+          <div className="space-y-1">
+            <h3 className="text-lg font-extrabold text-[var(--text-primary,#f4f4f5)] group-hover:text-[var(--accent-primary,#3b82f6)] transition-colors flex items-center gap-1.5 truncate">
+              {artist.display_name}
+            </h3>
+            <span className="text-xs font-mono text-[var(--text-muted,#a1a1aa)] block">@{artist.handle}</span>
+            <p className="text-xs text-[var(--text-muted,#a1a1aa)] line-clamp-2 leading-relaxed pt-1">
+              {artist.tagline || artist.bio}
+            </p>
+          </div>
+
+          {/* Style Chips */}
+          <div className="flex flex-wrap gap-1.5 pt-3.5">
+            {artist.styles.map((style, idx) => (
+              <span
+                key={idx}
+                className="text-[10px] font-semibold px-2.5 py-0.5 rounded-lg bg-[var(--bg-primary,#09090b)] text-[var(--text-primary,#f4f4f5)] border border-[var(--border-subtle,#27272a)]"
+              >
+                {style}
+              </span>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      {/* Footer Stats & Action CTA */}
+      <div className="px-6 pb-6 pt-3 border-t border-[var(--border-subtle,#27272a)] bg-[var(--bg-primary,#09090b)]/40 flex items-center justify-between gap-3">
+        <div className="flex items-center gap-3 text-xs">
+          <div className="flex items-center gap-1 font-bold text-amber-400">
+            <Star className="w-3.5 h-3.5 fill-amber-400" />
+            <span>{artist.rating}</span>
+          </div>
+          <span className="text-[var(--text-muted,#a1a1aa)] font-mono text-[11px]">
+            {artist.total_completed_orders} orders
+          </span>
+        </div>
+
+        <Link
+          href={`/artists/${artist.handle}`}
+          className="px-4 py-2 bg-[var(--accent-primary,#3b82f6)] hover:opacity-90 text-white rounded-xl text-xs font-extrabold transition-all shadow-md flex items-center gap-1 shrink-0"
+        >
+          ชมโปรไฟล์ <ArrowRight className="w-3.5 h-3.5" />
+        </Link>
+      </div>
+    </div>
+  );
+}

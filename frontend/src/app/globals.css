@@ -1,0 +1,569 @@
+@import "tailwindcss";
+
+:root {
+  --bg-primary: #faf7f2;
+  --bg-surface: #ffffff;
+  --bg-surface-hover: #f3efe6;
+  --border-subtle: #e4ddd3;
+  --border-hover: #d0c6b6;
+  --text-primary: #2c2623;
+  --text-muted: #6e655f;
+  --accent-primary: #c85a32;
+  --accent-hover: #b04c26;
+  --accent-secondary: #5f7a68;
+}
+
+/* 1. Warm Atelier Canvas (Default) */
+[data-theme="canvas"] {
+  --bg-primary: #faf7f2;
+  --bg-surface: #ffffff;
+  --bg-surface-hover: #f3efe6;
+  --border-subtle: #e4ddd3;
+  --border-hover: #d0c6b6;
+  --text-primary: #2c2623;
+  --text-muted: #6e655f;
+  --accent-primary: #c85a32;
+  --accent-hover: #b04c26;
+  --accent-secondary: #5f7a68;
+}
+
+/* 2. Obsidian Studio */
+[data-theme="obsidian"] {
+  --bg-primary: #09090b;
+  --bg-surface: #121215;
+  --bg-surface-hover: #1c1c21;
+  --border-subtle: #27272a;
+  --border-hover: #3f3f46;
+  --text-primary: #f4f4f5;
+  --text-muted: #a1a1aa;
+  --accent-primary: #3b82f6;
+  --accent-hover: #2563eb;
+  --accent-secondary: #e2b857;
+}
+
+/* 3. Neo-Tokyo Cyberpunk */
+[data-theme="cyberpunk"] {
+  --bg-primary: #0b0f19;
+  --bg-surface: #111827;
+  --bg-surface-hover: #1f2937;
+  --border-subtle: #374151;
+  --border-hover: #4b5563;
+  --text-primary: #f9fafb;
+  --text-muted: #9ca3af;
+  --accent-primary: #ec4899;
+  --accent-hover: #db2777;
+  --accent-secondary: #06b6d4;
+}
+
+/* 4. Emerald Atelier */
+[data-theme="emerald"] {
+  --bg-primary: #04120c;
+  --bg-surface: #0a2016;
+  --bg-surface-hover: #113123;
+  --border-subtle: #194a34;
+  --border-hover: #236749;
+  --text-primary: #f0fdf4;
+  --text-muted: #86efac;
+  --accent-primary: #10b981;
+  --accent-hover: #059669;
+  --accent-secondary: #f59e0b;
+}
+
+/* 5. Nordic Ice Slate */
+[data-theme="nordic"] {
+  --bg-primary: #0f172a;
+  --bg-surface: #1e293b;
+  --bg-surface-hover: #334155;
+  --border-subtle: #475569;
+  --border-hover: #64748b;
+  --text-primary: #f8fafc;
+  --text-muted: #94a3b8;
+  --accent-primary: #38bdf8;
+  --accent-hover: #0284c7;
+  --accent-secondary: #a855f7;
+}
+
+/* 6. Sakura Moonlight */
+[data-theme="sakura"] {
+  --bg-primary: #130912;
+  --bg-surface: #1f0f1d;
+  --bg-surface-hover: #2e172b;
+  --border-subtle: #4a2546;
+  --border-hover: #6b3565;
+  --text-primary: #fdf2f8;
+  --text-muted: #f472b6;
+  --accent-primary: #f472b6;
+  --accent-hover: #e11d48;
+  --accent-secondary: #c084fc;
+}
+
+/* 7. Cyber Sunset */
+[data-theme="sunset"] {
+  --bg-primary: #110a1f;
+  --bg-surface: #1c1130;
+  --bg-surface-hover: #2a1a47;
+  --border-subtle: #442a70;
+  --border-hover: #5e3b99;
+  --text-primary: #faf5ff;
+  --text-muted: #c084fc;
+  --accent-primary: #f97316;
+  --accent-hover: #ea580c;
+  --accent-secondary: #e11d48;
+}
+
+/* 8. Warm Espresso */
+[data-theme="coffee"] {
+  --bg-primary: #18110c;
+  --bg-surface: #261b14;
+  --bg-surface-hover: #38281e;
+  --border-subtle: #4f3a2c;
+  --border-hover: #6e523f;
+  --text-primary: #fef3c7;
+  --text-muted: #d97706;
+  --accent-primary: #d97706;
+  --accent-hover: #b45309;
+  --accent-secondary: #78350f;
+}
+
+/* 9. Midnight Violet (Dracula) */
+[data-theme="dracula"] {
+  --bg-primary: #0d0b14;
+  --bg-surface: #171324;
+  --bg-surface-hover: #241d38;
+  --border-subtle: #3c305c;
+  --border-hover: #554482;
+  --text-primary: #f3e8ff;
+  --text-muted: #c084fc;
+  --accent-primary: #9333ea;
+  --accent-hover: #7e22ce;
+  --accent-secondary: #dc2626;
+}
+
+/* 10. Abyssal Ocean */
+[data-theme="ocean"] {
+  --bg-primary: #04131a;
+  --bg-surface: #0a212c;
+  --bg-surface-hover: #113242;
+  --border-subtle: #1c4d63;
+  --border-hover: #276b8a;
+  --text-primary: #f0fdfa;
+  --text-muted: #2dd4bf;
+  --accent-primary: #14b8a6;
+  --accent-hover: #0d9488;
+  --accent-secondary: #0ea5e9;
+}
+
+/* 11. Noir Monochrome */
+[data-theme="monochrome"] {
+  --bg-primary: #050505;
+  --bg-surface: #121212;
+  --bg-surface-hover: #1e1e1e;
+  --border-subtle: #333333;
+  --border-hover: #525252;
+  --text-primary: #ffffff;
+  --text-muted: #a3a3a3;
+  --accent-primary: #e4e4e7;
+  --accent-hover: #ffffff;
+  --accent-secondary: #71717a;
+}
+
+/* 12. Kyoto Matcha */
+[data-theme="matcha"] {
+  --bg-primary: #0d170d;
+  --bg-surface: #152415;
+  --bg-surface-hover: #1f361f;
+  --border-subtle: #315231;
+  --border-hover: #457345;
+  --text-primary: #f7fee7;
+  --text-muted: #a3e635;
+  --accent-primary: #84cc16;
+  --accent-hover: #65a30d;
+  --accent-secondary: #eab308;
+}
+
+/* 13. 80s Arcade Neon */
+[data-theme="retro"] {
+  --bg-primary: #14131a;
+  --bg-surface: #1e1d26;
+  --bg-surface-hover: #2b2a38;
+  --border-subtle: #454359;
+  --border-hover: #605d7d;
+  --text-primary: #fef08a;
+  --text-muted: #facc15;
+  --accent-primary: #facc15;
+  --accent-hover: #eab308;
+  --accent-secondary: #06b6d4;
+}
+
+/* 14. Blueprint Draft (Light) */
+[data-theme="paper"] {
+  --bg-primary: #f1f5f9;
+  --bg-surface: #e2e8f0;
+  --bg-surface-hover: #cbd5e1;
+  --border-subtle: #94a3b8;
+  --border-hover: #64748b;
+  --text-primary: #0f172a;
+  --text-muted: #334155;
+  --accent-primary: #1e40af;
+  --accent-hover: #1e3a8a;
+  --accent-secondary: #0284c7;
+}
+
+/* 15. Rose Quartz (Light) */
+[data-theme="rose"] {
+  --bg-primary: #fff1f2;
+  --bg-surface: #ffe4e6;
+  --bg-surface-hover: #fecdd3;
+  --border-subtle: #fda4af;
+  --border-hover: #fb7185;
+  --text-primary: #4c0519;
+  --text-muted: #881337;
+  --accent-primary: #e11d48;
+  --accent-hover: #be123c;
+  --accent-secondary: #9f1239;
+}
+
+body {
+  background-color: var(--bg-primary);
+  color: var(--text-primary);
+  font-family: var(--font-geist-sans), system-ui, -apple-system, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  transition: background-color 0.3s ease, color 0.3s ease;
+}
+
+/* Dynamic CSS Variable Bindings for 15 Studio Themes */
+.bg-neutral-950, 
+.dark\:bg-neutral-950,
+.bg-black {
+  background-color: var(--bg-primary) !important;
+}
+
+.bg-neutral-900, 
+.bg-neutral-900\/50, 
+.bg-neutral-900\/40, 
+.bg-neutral-900\/60, 
+.bg-neutral-900\/80, 
+.bg-neutral-900\/90, 
+.bg-neutral-900\/95, 
+.bg-neutral-850,
+.bg-neutral-800,
+.bg-neutral-800\/80,
+.bg-neutral-800\/70,
+.bg-neutral-800\/60,
+.bg-neutral-800\/50,
+.hover\:bg-neutral-800:hover,
+.hover\:bg-neutral-800\/80:hover,
+.hover\:bg-neutral-800\/70:hover,
+.hover\:bg-neutral-800\/60:hover,
+.dark\:bg-neutral-900, 
+.dark\:bg-neutral-900\/20, 
+.dark\:bg-neutral-900\/30, 
+.dark\:bg-neutral-900\/40,
+.bg-neutral-950\/40,
+.bg-neutral-950\/50,
+.bg-neutral-950\/60,
+.bg-neutral-950\/80,
+.bg-neutral-950\/90 {
+  background-color: var(--bg-surface) !important;
+}
+
+.border-neutral-800, 
+.border-neutral-800\/50, 
+.border-neutral-800\/80, 
+.border-neutral-800\/90, 
+.dark\:border-neutral-800,
+.border-neutral-850 {
+  border-color: var(--border-subtle) !important;
+}
+
+.border-neutral-700, 
+.border-neutral-700\/50, 
+.border-neutral-700\/60, 
+.dark\:border-neutral-700 {
+  border-color: var(--border-hover) !important;
+}
+
+.text-white, .text-neutral-100, .dark\:text-white {
+  color: var(--text-primary) !important;
+}
+
+.text-neutral-400, .text-neutral-300, .dark\:text-neutral-400, .text-neutral-500, .text-neutral-200 {
+  color: var(--text-muted) !important;
+}
+
+.text-blue-400, .text-blue-500, .text-indigo-400, .text-indigo-500, .text-blue-300, .text-blue-200, .text-sky-400, .text-sky-300 {
+  color: var(--accent-primary) !important;
+}
+
+/* ==========================================================================
+   ✨ THEME-ADAPTIVE BUTTON ENGINE (เข้ากับทุกธีม 15 Palettes ชัดเจน สบายตา)
+   ========================================================================== */
+
+/* 1. Primary Accent Buttons across all pages */
+.bg-blue-600, .bg-blue-500, .bg-blue-700, .bg-indigo-600, .bg-indigo-500, .bg-indigo-700, .bg-sky-600 {
+  background-color: var(--accent-primary) !important;
+  color: #ffffff !important;
+  border-color: var(--accent-primary) !important;
+}
+
+.bg-blue-600 *, .bg-blue-500 *, .bg-indigo-600 *, .bg-indigo-500 *, .bg-blue-700 * {
+  color: #ffffff !important;
+}
+
+.bg-blue-600:hover, .bg-blue-500:hover, .bg-indigo-600:hover, .bg-indigo-500:hover, .bg-blue-700:hover,
+.hover\:bg-blue-500:hover, .hover\:bg-blue-600:hover, .hover\:bg-indigo-500:hover, .hover\:bg-indigo-600:hover {
+  background-color: var(--accent-hover) !important;
+}
+
+/* 2. Secondary & Soft Accent Chips/Buttons */
+.bg-blue-600\/10, .bg-blue-600\/15, .bg-blue-600\/20, .bg-blue-500\/10, .bg-blue-500\/15, .bg-blue-500\/20,
+.bg-indigo-500\/10, .bg-indigo-500\/15, .bg-indigo-500\/20, .bg-blue-900\/80, .bg-blue-900\/60, .bg-blue-900\/40 {
+  background-color: var(--bg-surface-hover) !important;
+  color: var(--accent-primary) !important;
+  border-color: var(--border-hover) !important;
+}
+
+.bg-blue-600\/10 *, .bg-blue-600\/15 *, .bg-blue-600\/20 *, .bg-blue-500\/10 *, .bg-blue-500\/15 *, .bg-blue-500\/20 * {
+  color: var(--accent-primary) !important;
+}
+
+/* 3. Accent Borders & Focus Rings */
+.border-indigo-500, .border-indigo-500\/30, .border-indigo-500\/40, .border-indigo-500\/50, .border-indigo-500\/60,
+.border-blue-500, .border-blue-500\/30, .border-blue-500\/40, .border-blue-500\/50, .border-blue-500\/60, .border-blue-600 {
+  border-color: var(--accent-primary) !important;
+}
+
+/* 4. Form Inputs & Select Controls Theme Adaptability */
+input[type="text"], input[type="url"], input[type="email"], input[type="password"], input[type="number"], select, textarea {
+  background-color: var(--bg-surface) !important;
+  color: var(--text-primary) !important;
+  border-color: var(--border-subtle) !important;
+}
+
+input[type="text"]:focus, input[type="url"]:focus, input[type="email"]:focus, input[type="password"]:focus, input[type="number"]:focus, select:focus, textarea:focus {
+  border-color: var(--accent-primary) !important;
+}
+
+/* Custom crisp scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--bg-primary);
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--border-subtle);
+  border-radius: 9999px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--border-hover);
+}
+
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+/* ==========================================================================
+   ✨ RICH ANIMATION SYSTEM & MICRO-INTERACTIONS
+   ========================================================================== */
+
+/* 1. Global Interactive Hover Effects */
+a, button, .card-interactive {
+  transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.hover-lift {
+  transition: transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.3s ease, border-color 0.3s ease;
+}
+.hover-lift:hover {
+  transform: translateY(-5px) scale(1.012);
+  box-shadow: 0 16px 32px -10px rgba(0, 0, 0, 0.35);
+}
+
+.hover-glow:hover {
+  box-shadow: 0 0 24px rgba(56, 189, 248, 0.35);
+  border-color: var(--accent-primary) !important;
+}
+
+.btn-press {
+  transition: transform 0.15s ease, background-color 0.2s ease, box-shadow 0.2s ease;
+}
+.btn-press:active {
+  transform: scale(0.96);
+}
+
+/* 2. Keyframe Animations */
+@keyframes fadeInUp {
+  from {
+    opacity: 0;
+    transform: translateY(16px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes fadeInScale {
+  from {
+    opacity: 0;
+    transform: scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes pulseGlow {
+  0%, 100% {
+    box-shadow: 0 0 15px rgba(56, 189, 248, 0.2);
+  }
+  50% {
+    box-shadow: 0 0 32px rgba(56, 189, 248, 0.6);
+  }
+}
+
+@keyframes floatSoft {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-8px); }
+}
+
+@keyframes shimmerSweep {
+  0% { transform: translateX(-100%); }
+  100% { transform: translateX(200%); }
+}
+
+@keyframes badgePing {
+  0% { transform: scale(1); opacity: 1; }
+  75%, 100% { transform: scale(2.2); opacity: 0; }
+}
+
+/* 3. Animation Classes */
+.animate-fade-in-up {
+  animation: fadeInUp 0.45s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+.animate-fade-in-scale {
+  animation: fadeInScale 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+.animate-pulse-glow {
+  animation: pulseGlow 3s infinite ease-in-out;
+}
+
+.animate-float-soft {
+  animation: floatSoft 4s ease-in-out infinite;
+}
+
+.shimmer-card {
+  position: relative;
+  overflow: hidden;
+}
+.shimmer-card::after {
+  content: '';
+  position: absolute;
+  top: 0; right: 0; bottom: 0; left: 0;
+  background: linear-gradient(90deg, transparent, rgba(255,255,255,0.12), transparent);
+  transform: translateX(-100%);
+  pointer-events: none;
+}
+.shimmer-card:hover::after {
+  animation: shimmerSweep 1.2s ease;
+}
+
+.ping-dot {
+  position: relative;
+  display: inline-flex;
+}
+.ping-dot::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: 9999px;
+  background-color: currentColor;
+  animation: badgePing 1.8s cubic-bezier(0, 0, 0.2, 1) infinite;
+}
+
+/* Stagger Animations for Lists & Grids */
+.stagger-container > *:nth-child(1) { animation-delay: 0.04s; }
+.stagger-container > *:nth-child(2) { animation-delay: 0.08s; }
+.stagger-container > *:nth-child(3) { animation-delay: 0.12s; }
+.stagger-container > *:nth-child(4) { animation-delay: 0.16s; }
+.stagger-container > *:nth-child(5) { animation-delay: 0.2s; }
+.stagger-container > *:nth-child(6) { animation-delay: 0.24s; }
+
+/* 4. Extra Rich Animations (Wiggle, Number Pop, Border Glow, Floating Cards) */
+@keyframes wiggle {
+  0%, 100% { transform: rotate(0deg); }
+  25% { transform: rotate(14deg); }
+  75% { transform: rotate(-14deg); }
+}
+
+@keyframes numberPop {
+  0% { transform: scale(1); }
+  50% { transform: scale(1.25); color: var(--accent-primary); }
+  100% { transform: scale(1); }
+}
+
+@keyframes borderGlow {
+  0%, 100% { border-color: rgba(56, 189, 248, 0.4); box-shadow: 0 0 15px rgba(56, 189, 248, 0.2); }
+  50% { border-color: rgba(192, 132, 252, 0.8); box-shadow: 0 0 25px rgba(192, 132, 252, 0.4); }
+}
+
+@keyframes cardFloat {
+  0%, 100% { transform: translateY(0px); }
+  50% { transform: translateY(-6px); }
+}
+
+.animate-wiggle {
+  animation: wiggle 0.6s ease-in-out;
+}
+
+.animate-wiggle-repeat {
+  animation: wiggle 2s ease-in-out infinite;
+}
+
+.animate-number-pop {
+  animation: numberPop 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.animate-border-glow {
+  animation: borderGlow 3s ease-in-out infinite;
+}
+
+.animate-card-float {
+  animation: cardFloat 5s ease-in-out infinite;
+}
+
+.hover-glow-accent:hover {
+  box-shadow: 0 0 25px var(--accent-primary);
+  border-color: var(--accent-primary) !important;
+}
+
+.active-nav-indicator {
+  position: relative;
+}
+.active-nav-indicator::after {
+  content: '';
+  position: absolute;
+  bottom: -4px;
+  left: 15%;
+  right: 15%;
+  height: 2px;
+  background: var(--accent-primary);
+  border-radius: 9999px;
+  box-shadow: 0 0 8px var(--accent-primary);
+  animation: fadeInScale 0.3s ease forwards;
+}
+
+
