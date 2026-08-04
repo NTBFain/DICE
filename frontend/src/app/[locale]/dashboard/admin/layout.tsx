@@ -44,12 +44,12 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     setMounted(true);
   }, []);
 
-  // Redirect non-admin users
+  // Redirect non-artist/non-admin users
   useEffect(() => {
     if (!authLoading) {
       if (!user) {
         router.push('/login');
-      } else if (!user.is_admin) {
+      } else if (!user.is_admin && !user.is_artist) {
         router.push('/dashboard/client');
       }
     }
@@ -71,7 +71,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
 
   const isCommissionOpen = artistProfile?.commission_status === 'OPEN';
 
-  if (authLoading || !user || !user.is_admin) {
+  if (authLoading || !user || (!user.is_admin && !user.is_artist)) {
     return (
       <div className="min-h-screen bg-neutral-950 flex flex-col items-center justify-center space-y-3">
         <Loader2 className="w-8 h-8 text-blue-500 animate-spin" />

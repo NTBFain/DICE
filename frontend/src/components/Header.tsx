@@ -67,14 +67,14 @@ export default function Header() {
           
           {user && (
             <Link
-              href={user.is_admin ? '/dashboard/admin' : '/dashboard/client'}
+              href={(user.is_admin || user.is_artist) ? '/dashboard/admin' : '/dashboard/client'}
               className={`text-sm font-medium transition-all flex items-center gap-1.5 hover-lift ${pathname.startsWith('/dashboard') ? 'text-[var(--accent-primary,#3b82f6)] font-semibold active-nav-indicator' : 'text-[var(--text-muted,#a1a1aa)] hover:text-[var(--text-primary,#f4f4f5)]'}`}
             >
-              <LayoutDashboard className="w-4 h-4" /> {user.is_admin ? t('adminPanel') : t('myOrders')}
+              <LayoutDashboard className="w-4 h-4" /> {(user.is_admin || user.is_artist) ? 'Artist Panel' : t('myOrders')}
             </Link>
           )}
 
-          {(!user || !user.is_admin) && (
+          {(!user || (!user.is_admin && !user.is_artist)) && (
             <Link
               href="/artists/register"
               className="text-xs font-extrabold text-[var(--accent-primary,#3b82f6)] bg-[var(--accent-primary,#3b82f6)]/10 px-3 py-1.5 rounded-xl border border-[var(--accent-primary,#3b82f6)]/30 hover:opacity-80 transition-all flex items-center gap-1"
@@ -99,7 +99,7 @@ export default function Header() {
             <div className="flex items-center gap-3">
               <span className="text-sm text-[var(--text-muted,#a1a1aa)] font-medium flex items-center gap-1">
                 {t('hi')} <span className="text-[var(--text-primary,#f4f4f5)] font-semibold">{user.full_name}</span>
-                {user.is_admin && <span className="ml-1 text-xs bg-[var(--accent-primary,#3b82f6)]/10 text-[var(--accent-primary,#3b82f6)] px-2 py-0.5 rounded-full border border-[var(--accent-primary,#3b82f6)]/30 font-semibold">{t('artist')}</span>}
+                {(user.is_admin || user.is_artist) && <span className="ml-1 text-xs bg-[var(--accent-primary,#3b82f6)]/10 text-[var(--accent-primary,#3b82f6)] px-2 py-0.5 rounded-full border border-[var(--accent-primary,#3b82f6)]/30 font-semibold">{t('artist')}</span>}
               </span>
               <NotificationBell />
               <button
@@ -160,7 +160,7 @@ export default function Header() {
                 <p className="text-xs text-[var(--text-muted,#a1a1aa)]">{t('hi')}</p>
                 <p className="text-sm font-semibold text-[var(--text-primary,#f4f4f5)] flex items-center gap-1.5">
                   {user.full_name}
-                  {user.is_admin && <span className="text-[10px] bg-[var(--accent-primary,#3b82f6)]/10 text-[var(--accent-primary,#3b82f6)] px-1.5 py-0.5 rounded-md border border-[var(--accent-primary,#3b82f6)]/30">{t('artist')}</span>}
+                  {(user.is_admin || user.is_artist) && <span className="text-[10px] bg-[var(--accent-primary,#3b82f6)]/10 text-[var(--accent-primary,#3b82f6)] px-1.5 py-0.5 rounded-md border border-[var(--accent-primary,#3b82f6)]/30">{t('artist')}</span>}
                 </p>
               </div>
               <button
@@ -211,7 +211,7 @@ export default function Header() {
 
             {user ? (
               <Link
-                href={user.is_admin ? '/dashboard/admin' : '/dashboard/client'}
+                href={(user.is_admin || user.is_artist) ? '/dashboard/admin' : '/dashboard/client'}
                 onClick={() => setMobileMenuOpen(false)}
                 className={`p-3 rounded-xl border flex flex-col items-center gap-1 text-center text-sm font-medium transition-all ${
                   pathname.startsWith('/dashboard')
@@ -219,7 +219,7 @@ export default function Header() {
                     : 'bg-[var(--bg-primary,#09090b)] border-[var(--border-subtle,#27272a)] text-[var(--text-muted,#a1a1aa)] hover:text-[var(--text-primary,#f4f4f5)]'
                 }`}
               >
-                <LayoutDashboard className="w-5 h-5" /> {user.is_admin ? t('adminPanel') : t('myOrders')}
+                <LayoutDashboard className="w-5 h-5" /> {(user.is_admin || user.is_artist) ? 'Artist Panel' : t('myOrders')}
               </Link>
             ) : (
               <Link
