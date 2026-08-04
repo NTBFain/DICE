@@ -6,20 +6,13 @@
 
 ---
 
-## 🏗️ โครงสร้างและการแยกโปรเจกต์ (Project Separation)
-
-1. 🎲 **`Dice` (`C:\Users\fainl\Desktop\Dice`):** แพลตฟอร์มกลางศูนย์รวมหลายศิลปิน (Multi-Artist Marketplace Platform) รองรับการลงทะเบียนศิลปินใหม่เข้าฐานข้อมูลจริง คลังค้นหาศิลปิน และหน้าโปรไฟล์ส่วนตัวศิลปินแต่ละท่าน
-2. 🎨 **`FFF_Projrct` (`C:\Users\fainl\Desktop\FFF_Projrct`):** แม่แบบเว็บประจำตัวสำหรับศิลปินเดี่ยว (Single-Artist Dedicated Atelier Studio Website Template)
-
----
-
 ## 📐 Tech Stack
 | Layer | Technology |
 |-------|-----------|
 | Frontend | Next.js 16 (App Router), TypeScript, Vanilla CSS (Theme Variables), TanStack Query v5, next-intl |
 | Backend | FastAPI (Python), SQLModel, Uvicorn, Pillow (Watermarking) |
 | Database | SQLite (WAL High-Speed Mode) — ฐานข้อมูลจริง 100% |
-| Real-time | WebSockets |
+| Real-time | WebSockets (FastAPI ConnectionManager) |
 
 ---
 
@@ -29,18 +22,19 @@
 
 | ไฟล์ | คำอธิบาย |
 |------|---------|
-| [PROJECT_INDEX.md](docs/PROJECT_INDEX.md) | คู่มือเทคนิคเชิงลึกและสารบัญฟังก์ชันระบบทั้งหมด |
-| [PROJECT_STATUS.md](docs/PROJECT_STATUS.md) | สรุปสถานะระบบสมัครสมาชิกศิลปิน และโมดูลที่เปิดใช้งาน |
-| [DATABASE_ERD.md](docs/DATABASE_ERD.md) | ผังความสัมพันธ์ฐานข้อมูลจริง (`User`, `ArtistProfile`, `ArtistService`, `Order`, `Auction`) |
-| [IMPLEMENTED_MODULES.md](docs/IMPLEMENTED_MODULES.md) | รายละเอียดโมดูลระบบหลายศิลปินและการลงทะเบียน DB จริง |
-| [PROPOSED_MODULES.md](docs/PROPOSED_MODULES.md) | แผนพัฒนา Dashboard บริหารสตูดิโอส่วนตัวของศิลปิน |
-| [ROADMAP.md](docs/ROADMAP.md) | แผนพัฒนา และแนวทางป้องกันปัญหาคอมพิวเตอร์ค้าง |
+| [PROJECT_STATUS.md](docs/PROJECT_STATUS.md) | สรุปสถานะระบบย่อยทั้ง 12 โมดูล พร้อมเปอร์เซ็นต์ Backend/Frontend |
 | [CHANGELOG_SUMMARY.md](docs/CHANGELOG_SUMMARY.md) | สรุปประวัติการแก้ไขและฟีเจอร์ล่าสุด |
 | [DESIGN.md](docs/DESIGN.md) | Design System, Dynamic Theme Engine, และ Design Tokens |
+| [Flat_Design.md](docs/Flat_Design.md) | Gallery Grid / Editorial Flat Design Specification |
+| [SYSTEM_REQUIREMENTS.md](docs/SYSTEM_REQUIREMENTS.md) | Functional Requirements สำหรับ 9 โมดูลหลัก |
+| [THESIS_CHAPTER_1.md](docs/THESIS_CHAPTER_1.md) | บทที่ 1 บทนำ (Introduction) |
+| [THESIS_CHAPTER_1_MODULES.md](docs/THESIS_CHAPTER_1_MODULES.md) | บทที่ 1 แบบแยก 6 Subsystems |
+| [THESIS_PROPOSAL.md](docs/THESIS_PROPOSAL.md) | ข้อเสนอโครงงาน (Full Proposal) |
+| [THESIS_PROPOSAL_SHORT.md](docs/THESIS_PROPOSAL_SHORT.md) | ข้อเสนอโครงงานแบบย่อ |
 
 ---
 
-## 🚀 การรันโปรเจกต์ (Quick Start & Safe Execution)
+## 🚀 การรันโปรเจกต์ (Quick Start)
 
 > [!TIP]
 > เพื่อความเสถียร ประหยัด CPU/RAM และป้องกันปัญหาเครื่องคอมพิวเตอร์ค้าง แนะนำให้รัน Frontend ในโหมด **Production Mode (`npx next start`)**

@@ -59,17 +59,17 @@
 ## ⚡ 5. การเร่งความเร็วฐานข้อมูลและระบบ Backend (Database Performance Engine)
 - **SQLite Write-Ahead Logging (`PRAGMA journal_mode = WAL`)**: สลับโหมด SQLite เป็น WAL Mode อ่านเขียนขนานกันได้โดยไม่ติดล็อกดิสก์
 - **RAM Cache 64MB & Memory-Mapped I/O 256MB**: ตั้งค่า `PRAGMA cache_size = -64000`, `temp_store = MEMORY`, `mmap_size = 268435456` ดึงข้อมูลตรงจาก RAM ด้วยความเร็ว 0 มิลลิวินาที
-- **Disabling Blocking Console Logs (`echo=False`)**: ปิดการบันทึก SQL String Logs ลง Console ใน [`db.py`](file:///c:/Users/fainl/Desktop/FFF_Projrct/backend/core/db.py) ลดภาระ IO ของ Python Event Loop ลง 300%-500%
+- **Disabling Blocking Console Logs (`echo=False`)**: ปิดการบันทึก SQL String Logs ลง Console ใน [`db.py`](file:///c:/Users/fainl/Desktop/Dice/backend/core/db.py) ลดภาระ IO ของ Python Event Loop ลง 300%-500%
 - **Database Indexing (`index=True`)**: สร้างดรรชนีค้นพบบนฟิลด์ `status`, `auction_type`, `client_id`, `auction_id`, `created_at` ในตาราง `Order`, `Auction`, `Bid`, `Artwork`
 
 ---
 
 ## 🌐 6. เครือข่ายและการแก้ไขความเร็วส่วนหน้า (Network & Frontend Optimizations)
-- **Direct IPv4 (127.0.0.1) Connection**: ปรับแต่ง [`api.ts`](file:///c:/Users/fainl/Desktop/FFF_Projrct/frontend/src/lib/api.ts) และ [`WebSocketContext.tsx`](file:///c:/Users/fainl/Desktop/FFF_Projrct/frontend/src/components/WebSocketContext.tsx) ให้ชี้ตรงไปยัง `127.0.0.1` เพื่อข้ามการรอ IPv6 Lookup Timeout ใน Linux/Chrome
+- **Direct IPv4 (127.0.0.1) Connection**: ปรับแต่ง [`api.ts`](file:///c:/Users/fainl/Desktop/Dice/frontend/src/lib/api.ts) และ [`WebSocketContext.tsx`](file:///c:/Users/fainl/Desktop/Dice/frontend/src/components/WebSocketContext.tsx) ให้ชี้ตรงไปยัง `127.0.0.1` เพื่อข้ามการรอ IPv6 Lookup Timeout ใน Linux/Chrome
 - **[2026-07-19] Added Comprehensive File Index**:
   - สร้างสคริปต์สแกนโค้ดและดึงรายชื่อฟังก์ชันจากทุกๆ ไฟล์ในโปรเจกต์ (73 ไฟล์)
   - นำข้อมูลบรรจุลงในส่วนที่ 5 ของ `PROJECT_INDEX.md` เพื่อให้ครอบคลุม "ทุกไฟล์" ตามที่กำหนด
-- **[2026-07-18] Performance & Architecture Optimization**: ตั้งค่า `staleTime: 30000` (แคช 30 วินาที) และปิด `refetchOnWindowFocus` ใน [`Providers.tsx`](file:///c:/Users/fainl/Desktop/FFF_Projrct/frontend/src/components/Providers.tsx) ป้องกันการยิง HTTP Request ซ้ำซ้อน
+- **[2026-07-18] Performance & Architecture Optimization**: ตั้งค่า `staleTime: 30000` (แคช 30 วินาที) และปิด `refetchOnWindowFocus` ใน [`Providers.tsx`](file:///c:/Users/fainl/Desktop/Dice/frontend/src/components/Providers.tsx) ป้องกันการยิง HTTP Request ซ้ำซ้อน
 - **Fix Public Auction Image Rendering**: ปรับปรุงตัวดึงรูปภาพด้วย `getAuctionImageUrl` แสดงผลรูปภาพประมูลสาธารณะได้ถูกต้อง 100% ทั้งแบบไฟล์อัปโหลดและแบบลิงก์ภายนอก
 
 ---
