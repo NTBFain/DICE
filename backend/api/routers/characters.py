@@ -7,7 +7,7 @@ import shutil
 import secrets
 
 from core.db import get_session
-from core.auth import get_admin_user
+from core.auth import get_admin_user, get_artist_user
 from models import Character, User, ArtistProfile
 from schemas import CharacterResponse
 
@@ -18,6 +18,17 @@ def get_characters(session: Session = Depends(get_session)):
     characters = session.exec(select(Character)).all()
     return characters
 
+
+@router.get("/admin", response_model=List[CharacterResponse])
+def get_characters_admin(session: Session = Depends(get_session), artist_user: User = Depends(get_artist_user)):
+    if artist_user.is_admin:
+        return session.exec(select(Character)).all()
+    else:
+        profile = session.exec(select(ArtistProfile).where(ArtistProfile.user_id == artist_user.id)).first()
+        if profile:
+            return session.exec(select(Character).where(Character.artist_id == profile.id)).all()
+        return []
+
 @router.post("", response_model=CharacterResponse)
 def create_character(
     name: str = Form(...),
@@ -25,9 +36,9 @@ def create_character(
     theme_color: str = Form(None),
     image: UploadFile = FormFile(None),
     session: Session = Depends(get_session),
-    admin_user: User = Depends(get_admin_user)
+    artist_user: User = Depends(get_artist_user)
 ):
-    profile = session.exec(select(ArtistProfile).where(ArtistProfile.user_id == admin_user.id)).first()
+    profile = session.exec(select(ArtistProfile).where(ArtistProfile.user_id == artist_user.id)).first()
     artist_id = profile.id if profile else None
 
     image_url = None
@@ -62,11 +73,17 @@ def update_character(
     theme_color: str = Form(None),
     image: UploadFile = FormFile(None),
     session: Session = Depends(get_session),
-    admin_user: User = Depends(get_admin_user)
+    artist_user: User = Depends(get_artist_user)
 ):
     character = session.get(Character, character_id)
     if not character:
         raise HTTPException(status_code=404, detail="Character not found")
+
+    if not artist_user.is_admin:
+        profile = session.exec(select(ArtistProfile).where(ArtistProfile.user_id == artist_user.id)).first()
+        if not profile or character.artist_id != profile.id:
+            raise HTTPException(status_code=403, detail="Not authorized to modify this character")
+
         
     if name is not None:
         character.name = name
@@ -103,11 +120,17 @@ def get_character_image(filename: str):
 def delete_character(
     character_id: int,
     session: Session = Depends(get_session),
-    admin_user: User = Depends(get_admin_user)
+    artist_user: User = Depends(get_artist_user)
 ):
     character = session.get(Character, character_id)
     if not character:
         raise HTTPException(status_code=404, detail="Character not found")
+
+    if not artist_user.is_admin:
+        profile = session.exec(select(ArtistProfile).where(ArtistProfile.user_id == artist_user.id)).first()
+        if not profile or character.artist_id != profile.id:
+            raise HTTPException(status_code=403, detail="Not authorized to modify this character")
+
     session.delete(character)
     session.commit()
     return {"message": "Character deleted successfully"}

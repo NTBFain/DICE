@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { getCharacters, createCharacter, updateCharacter, deleteCharacter } from '@/lib/api';
+import { getAdminCharacters, createCharacter, updateCharacter, deleteCharacter } from '@/lib/api';
 import { Loader2, Plus, Edit3, Trash2, Users, Sparkles, X } from 'lucide-react';
 
 export default function CharactersAdminModule() {
@@ -17,7 +17,7 @@ export default function CharactersAdminModule() {
 
   const { data: characters = [], isLoading: loadingCharacters } = useQuery({
     queryKey: ['characters'],
-    queryFn: getCharacters,
+    queryFn: getAdminCharacters,
   });
 
   const createCharacterMutation = useMutation({

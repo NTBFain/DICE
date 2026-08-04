@@ -32,24 +32,52 @@ def on_startup():
     os.makedirs("uploads/portfolio", exist_ok=True)
     with next(get_session()) as session:
 
-        # Seed mock testing accounts if not present
+        # Seed mock testing accounts: Admin, Artist, Client
         existing_admin = session.exec(select(User).where(User.email == "admin@example.com")).first()
         if not existing_admin:
             admin_user = User(
                 email="admin@example.com",
-                full_name="Main Artist",
+                full_name="System Admin",
                 hashed_password=get_password_hash("password123"),
-                is_admin=True
+                is_admin=True,
+                is_artist=False
             )
             session.add(admin_user)
             session.commit()
             session.refresh(admin_user)
             existing_admin = admin_user
+        else:
+            existing_admin.is_admin = True
+            existing_admin.is_artist = False
+            existing_admin.full_name = "System Admin"
+            session.add(existing_admin)
+            session.commit()
+
+        existing_artist = session.exec(select(User).where(User.email == "artist@example.com")).first()
+        if not existing_artist:
+            artist_user = User(
+                email="artist@example.com",
+                full_name="Main Artist",
+                hashed_password=get_password_hash("password123"),
+                is_admin=False,
+                is_artist=True
+            )
+            session.add(artist_user)
+            session.commit()
+            session.refresh(artist_user)
+            existing_artist = artist_user
+        else:
+            existing_artist.is_artist = True
+            session.add(existing_artist)
+            session.commit()
             
-        existing_profile = session.exec(select(ArtistProfile).where(ArtistProfile.user_id == existing_admin.id)).first()
+        existing_profile = session.exec(select(ArtistProfile).where(ArtistProfile.handle == "main_artist")).first()
+        if not existing_profile:
+            existing_profile = session.exec(select(ArtistProfile).where(ArtistProfile.user_id == existing_admin.id)).first()
+
         if not existing_profile:
             main_artist_profile = ArtistProfile(
-                user_id=existing_admin.id,
+                user_id=existing_artist.id,
                 handle="main_artist",
                 display_name="Main Artist Studio",
                 tagline="Professional 2D Illustrator & VTuber Rigger",
@@ -63,6 +91,9 @@ def on_startup():
                 banner_url="https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?auto=format&fit=crop&w=1200&q=80"
             )
             session.add(main_artist_profile)
+        else:
+            existing_profile.user_id = existing_artist.id
+            session.add(existing_profile)
             
         existing_client = session.exec(select(User).where(User.email == "client@example.com")).first()
         if not existing_client:
@@ -70,7 +101,8 @@ def on_startup():
                 email="client@example.com",
                 full_name="Valued Client",
                 hashed_password=get_password_hash("password123"),
-                is_admin=False
+                is_admin=False,
+                is_artist=False
             )
             session.add(client_user)
             

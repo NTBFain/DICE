@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { getPortfolio, createArtwork, updateArtwork, deleteArtwork, getCharacters } from '@/lib/api';
+import { getPortfolioAdmin, createArtwork, updateArtwork, deleteArtwork, getAdminCharacters } from '@/lib/api';
 import { Loader2, Plus, Eye, EyeOff, Trash2, Edit3, Image as ImageIcon, Sparkles, X } from 'lucide-react';
 
 export default function PortfolioAdminModule() {
@@ -19,12 +19,12 @@ export default function PortfolioAdminModule() {
 
   const { data: artworks = [], isLoading: loadingArtworks } = useQuery({
     queryKey: ['admin-portfolio'],
-    queryFn: getPortfolio,
+    queryFn: getPortfolioAdmin,
   });
 
   const { data: characters = [] } = useQuery({
     queryKey: ['characters'],
-    queryFn: getCharacters,
+    queryFn: getAdminCharacters,
   });
 
   const createArtworkMutation = useMutation({

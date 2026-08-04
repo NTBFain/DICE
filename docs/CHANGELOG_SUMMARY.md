@@ -2,6 +2,35 @@
 
 ---
 
+## 🚀 [2026-08-04] Major Updates: Role Separation, Admin Control Center, Artist Analytics & System Stability
+
+### 👑 1. ระบบแบ่งแยกสิทธิ์เด็ดขาด & Admin Command Center
+- **DICE System Command Center (`/dashboard/admin`)**:
+  - ออกแบบหน้าต่างควบคุมใหม่สำหรับ **System Admin** 👑 ธีม Obsidian Purple & Gold
+  - ถอด `ArtistProfile` ออกจากบัญชี Admin (`admin@example.com`) เพื่อแยกบทบาทแอดมินออกจากความเป็นศิลปินอย่างชัดเจน (`is_admin=True`, `is_artist=False`)
+  - เพิ่มระบบ **User Control Center** (`/dashboard/admin/users`) ให้แอดมินสามารถดูผู้ใช้ทั้งหมด สลับบทบาท Admin/Artist ได้แบบ Real-time และจัดการลบบัญชีผู้ใช้
+- **Atelier Artist Studio Panel (`/dashboard/artist`)**:
+  - สร้างแผงควบคุมสำหรับศิลปิน (`/dashboard/artist`) สไตล์ Atelier Studio 🎨 ธีม Blue/Cyan
+  - รองรับการสลับสถานะเปิดรับงาน (OPEN/CLOSED), คิวงาน (Queue), พอร์ตโฟลิโอ (Gallery), ตั้งค่าเรทราคา (Profile), ประมูล (Auctions), ชีตตัวละคร (OCs), และลายน้ำ (Watermark)
+- **Dedicated Test Accounts**:
+  - 👑 **System Admin**: `admin@example.com` / `password123`
+  - 🎨 **Main Artist**: `artist@example.com` / `password123` (ผูกแฮนเดิล `@main_artist`)
+  - 👤 **Client User**: `client@example.com` / `password123`
+
+### 📊 2. ระบบสถิติและวิเคราะห์รายได้สำหรับศิลปิน (Artist Earnings Analytics)
+- **Artist Analytics Dashboard (`/dashboard/artist/analytics`)**:
+  - เพิ่มหน้าสรุปสถิติการเงินและรายได้ของศิลปินโดยเฉพาะ
+  - **KPI Cards**: แสดงรายได้รวมสะสม (Total Revenue), รายได้คอมมิชชัน (Commissions), รายได้จากการประมูล (Adoptables), และจำนวนงานที่ส่งมอบแล้ว (Completed Orders)
+  - **Interactive Charts**: กราฟแท่งแสดงแนวโน้มรายได้ (สัปดาห์/เดือน/ไตรมาส/ปี) และ Pie Chart สรุปสัดส่วนที่มาของรายได้
+  - **Backend Filtering**: ปรับปรุง `/api/analytics` กรองสถิติตามข้อมูลของศิลปินท่านนั้นๆ โดยเฉพาะ
+
+### 🐛 3. การแก้ไขข้อผิดพลาดและความเสถียรของระบบ (Fixes & Production Build)
+- **Backend Startup Crash Fix**: แก้ไขปัญหานำเข้าฟังก์ชัน `get_artist_user` ที่ขาดหายไปใน `portfolio.py` และ `characters.py` ช่วยแก้ปัญหา Backend ล่มขณะเปิดเครื่องที่เคยส่งผลให้ล็อกอินไม่ได้
+- **Test Suite Port Fix**: แก้ไขพอร์ตในไฟล์ทดสอบ `test_login_api.py` และ `test_analytics.py` จาก 8080 เป็น 8000
+- **Production Build & Launchers**: คอนเฟิร์มการคอมไพล์ผ่าน 100% ด้วย `npx next build` พร้อมสร้างไฟล์สคริปต์ `run_prod.bat` สำหรับเปิดรันโหมด Production ในคลิกเดียว
+
+---
+
 ## 🚀 [2026-08-04] Recent Updates (Strict Uploads & Git Push)
 - **Strict File Upload Policy**: เปลี่ยนระบบจัดการรูปภาพทั้งหมด (Auctions, Characters, Portfolio, Artist Registration) ให้บังคับอัปโหลดไฟล์ผ่าน FormData จากเครื่องเท่านั้น ถอดฟิลด์กรอก URL ทิ้งทั้งหมดเพื่อป้องกันลิงก์เสียและเพิ่มความน่าเชื่อถือ
 - **Fake Data & Orphan Cleanup**: ลบข้อมูลจำลอง (Mockup) ออกทั้งหมด พร้อมทั้งเขียนสคริปต์ทำความสะอาดข้อมูลกำพร้า (Orphaned Data) เช่นรายการประมูลของศิลปินที่ถูกลบไปแล้ว เพื่อแก้ปัญหาหน้า Dashboard โหลดค้าง

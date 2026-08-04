@@ -5,7 +5,7 @@ from typing import List
 from datetime import datetime, timezone
 
 from core.db import get_session
-from core.auth import get_current_user, get_admin_user
+from core.auth import get_current_user, get_admin_user, get_artist_user
 from models import Auction, AuctionStatus, AuctionType, Bid, User, Notification, NotificationType, AuctionMessage
 from schemas import (
     AuctionCreateRequest, AuctionUpdateRequest, AuctionResponse, 
@@ -72,7 +72,7 @@ router = APIRouter(prefix="/api/auctions", tags=["auctions"])
 def upload_auction_image(
     file: UploadFile = FormFile(...),
     session: Session = Depends(get_session),
-    admin_user: User = Depends(get_admin_user)
+    artist_user: User = Depends(get_artist_user)
 ):
     ext = file.filename.split(".")[-1].lower() if file.filename and "." in file.filename else "jpg"
     if ext not in ["jpg", "jpeg", "png", "webp", "gif"]:
@@ -92,10 +92,49 @@ def get_auction_image(filename: str):
         raise HTTPException(status_code=404, detail="Image not found")
     return SecureFileResponse(path)
 
+
+@router.get("/admin", response_model=List[AuctionResponse])
+async def api_get_auctions_admin(background_tasks: BackgroundTasks, session: Session = Depends(get_session), artist_user: User = Depends(get_artist_user)):
+    statement = select(Auction).options(
+        selectinload(Auction.bids).joinedload(Bid.bidder),
+        selectinload(Auction.winner)
+    )
+    if not artist_user.is_admin:
+        from models import ArtistProfile
+        profile = session.exec(select(ArtistProfile).where(ArtistProfile.user_id == artist_user.id)).first()
+        if profile:
+            statement = statement.where(Auction.artist_id == profile.id)
+        else:
+            statement = statement.where(Auction.artist_id == -1) # no profile = no auctions
+            
+    auctions = session.exec(statement).all()
+    
+    now = datetime.utcnow()
+    for a in auctions:
+        if a.status == AuctionStatus.ACTIVE and now >= a.end_time:
+            background_tasks.add_task(background_close_auction, a.id)
+            
+    responses = []
+    for a in auctions:
+        sorted_bids = sorted(a.bids, key=lambda x: x.amount, reverse=True)
+        bid_res = []
+        for bid in sorted_bids:
+            bidder_name = bid.bidder.full_name if bid.bidder else "Unknown Bidder"
+            bid_res.append(BidResponse(
+                id=bid.id,
+                auction_id=bid.auction_id,
+                bidder_id=bid.bidder_id,
+                amount=bid.amount,
+                created_at=bid.created_at.replace(tzinfo=timezone.utc),
+                bidder_name=bidder_name
+            ))
+        responses.append(_build_auction_response(a, bid_res, session))
+    return responses
+
 @router.post("", response_model=AuctionResponse)
-def api_create_auction(request: AuctionCreateRequest, session: Session = Depends(get_session), admin_user: User = Depends(get_admin_user)):
+def api_create_auction(request: AuctionCreateRequest, session: Session = Depends(get_session), artist_user: User = Depends(get_artist_user)):
     from models import ArtistProfile
-    profile = session.exec(select(ArtistProfile).where(ArtistProfile.user_id == admin_user.id)).first()
+    profile = session.exec(select(ArtistProfile).where(ArtistProfile.user_id == artist_user.id)).first()
     artist_id = profile.id if profile else None
 
     start_dt = request.start_time.replace(tzinfo=None) if request.start_time.tzinfo else request.start_time
@@ -184,6 +223,13 @@ async def api_place_bid(auction_id: int, request: BidCreateRequest, session: Ses
     auction = session.get(Auction, auction_id)
     if not auction:
         raise HTTPException(status_code=404, detail="Auction not found")
+
+    if not artist_user.is_admin:
+        from models import ArtistProfile
+        profile = session.exec(select(ArtistProfile).where(ArtistProfile.user_id == artist_user.id)).first()
+        if not profile or auction.artist_id != profile.id:
+            raise HTTPException(status_code=403, detail="Not authorized to modify this auction")
+
         
     await check_and_close_auction(auction, session)
     
@@ -267,10 +313,17 @@ async def api_place_bid(auction_id: int, request: BidCreateRequest, session: Ses
     return response_data
 
 @router.post("/{auction_id}/close", response_model=AuctionResponse)
-async def api_close_auction_manually(auction_id: int, session: Session = Depends(get_session), admin_user: User = Depends(get_admin_user)):
+async def api_close_auction_manually(auction_id: int, session: Session = Depends(get_session), artist_user: User = Depends(get_artist_user)):
     auction = session.get(Auction, auction_id)
     if not auction:
         raise HTTPException(status_code=404, detail="Auction not found")
+
+    if not artist_user.is_admin:
+        from models import ArtistProfile
+        profile = session.exec(select(ArtistProfile).where(ArtistProfile.user_id == artist_user.id)).first()
+        if not profile or auction.artist_id != profile.id:
+            raise HTTPException(status_code=403, detail="Not authorized to modify this auction")
+
         
     if auction.status != AuctionStatus.ACTIVE:
         raise HTTPException(status_code=400, detail="Auction is already closed")
@@ -294,11 +347,18 @@ async def api_update_auction(
     auction_id: int,
     request: AuctionUpdateRequest,
     session: Session = Depends(get_session),
-    admin_user: User = Depends(get_admin_user)
+    artist_user: User = Depends(get_artist_user)
 ):
     auction = session.get(Auction, auction_id)
     if not auction:
         raise HTTPException(status_code=404, detail="Auction not found")
+
+    if not artist_user.is_admin:
+        from models import ArtistProfile
+        profile = session.exec(select(ArtistProfile).where(ArtistProfile.user_id == artist_user.id)).first()
+        if not profile or auction.artist_id != profile.id:
+            raise HTTPException(status_code=403, detail="Not authorized to modify this auction")
+
         
     if request.title is not None:
         auction.title = request.title
@@ -333,6 +393,13 @@ def api_get_auction_messages(auction_id: int, session: Session = Depends(get_ses
     auction = session.get(Auction, auction_id)
     if not auction:
         raise HTTPException(status_code=404, detail="Auction not found")
+
+    if not artist_user.is_admin:
+        from models import ArtistProfile
+        profile = session.exec(select(ArtistProfile).where(ArtistProfile.user_id == artist_user.id)).first()
+        if not profile or auction.artist_id != profile.id:
+            raise HTTPException(status_code=403, detail="Not authorized to modify this auction")
+
     return get_auction_messages_response(session, auction_id)
 
 @router.post("/{auction_id}/messages", response_model=AuctionMessageResponse)
@@ -345,6 +412,13 @@ async def api_create_auction_message(
     auction = session.get(Auction, auction_id)
     if not auction:
         raise HTTPException(status_code=404, detail="Auction not found")
+
+    if not artist_user.is_admin:
+        from models import ArtistProfile
+        profile = session.exec(select(ArtistProfile).where(ArtistProfile.user_id == artist_user.id)).first()
+        if not profile or auction.artist_id != profile.id:
+            raise HTTPException(status_code=403, detail="Not authorized to modify this auction")
+
         
     if not request.content.strip():
         raise HTTPException(status_code=400, detail="Message content cannot be empty")

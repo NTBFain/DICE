@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { 
-  getAuctions, 
+  getAdminAuctions, 
   createAuction, 
   closeAuction, 
   getAuctionMessages, 
@@ -44,7 +44,7 @@ export default function AuctionsAdminModule() {
 
   const { data: auctions = [], isLoading: loadingAuctions } = useQuery({
     queryKey: ['auctions'],
-    queryFn: getAuctions,
+    queryFn: getAdminAuctions,
   });
 
   // Fetch messages for active chat auction

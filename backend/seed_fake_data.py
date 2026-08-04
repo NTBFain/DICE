@@ -34,7 +34,8 @@ def seed_data():
                     email=ad["email"],
                     hashed_password=get_password_hash("password123"),
                     full_name=ad["name"],
-                    is_admin=True
+                    is_admin=False,
+                    is_artist=True
                 )
                 session.add(user)
                 session.commit()

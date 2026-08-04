@@ -20,7 +20,13 @@ export default function LoginPage() {
 
   useEffect(() => {
     if (user) {
-      router.push(user.is_admin ? '/dashboard/admin' : '/dashboard/client');
+      if (user.is_admin) {
+        router.push('/dashboard/admin/users');
+      } else if (user.is_artist) {
+        router.push('/dashboard/artist/orders');
+      } else {
+        router.push('/dashboard/client');
+      }
     }
   }, [user, router]);
 
@@ -62,7 +68,7 @@ export default function LoginPage() {
               <span className="text-[10px] font-bold uppercase tracking-wider text-neutral-400 block">
                 Quick Test Credentials
               </span>
-              <div className="grid grid-cols-2 gap-2">
+              <div className="grid grid-cols-3 gap-1.5 sm:gap-2">
                 <button
                   type="button"
                   onClick={() => {
@@ -71,8 +77,19 @@ export default function LoginPage() {
                   }}
                   className="p-2 bg-neutral-900 hover:bg-neutral-800 border border-neutral-800 rounded-lg text-left text-xs transition-colors cursor-pointer"
                 >
-                  <div className="font-bold text-blue-400 text-[11px]">Artist / Admin</div>
-                  <div className="text-[10px] text-neutral-400 truncate">admin@example.com</div>
+                  <div className="font-bold text-purple-400 text-[11px]">👑 Admin</div>
+                  <div className="text-[9px] text-neutral-400 truncate">admin@example.com</div>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setEmail('artist@example.com');
+                    setPassword('password123');
+                  }}
+                  className="p-2 bg-neutral-900 hover:bg-neutral-800 border border-neutral-800 rounded-lg text-left text-xs transition-colors cursor-pointer"
+                >
+                  <div className="font-bold text-blue-400 text-[11px]">🎨 Artist</div>
+                  <div className="text-[9px] text-neutral-400 truncate">artist@example.com</div>
                 </button>
                 <button
                   type="button"
@@ -82,8 +99,8 @@ export default function LoginPage() {
                   }}
                   className="p-2 bg-neutral-900 hover:bg-neutral-800 border border-neutral-800 rounded-lg text-left text-xs transition-colors cursor-pointer"
                 >
-                  <div className="font-bold text-emerald-400 text-[11px]">Client User</div>
-                  <div className="text-[10px] text-neutral-400 truncate">client@example.com</div>
+                  <div className="font-bold text-emerald-400 text-[11px]">👤 Client</div>
+                  <div className="text-[9px] text-neutral-400 truncate">client@example.com</div>
                 </button>
               </div>
             </div>

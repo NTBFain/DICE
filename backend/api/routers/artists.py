@@ -184,6 +184,8 @@ def get_my_profile(
     current_user: User = Depends(get_current_user)
 ):
     profile = session.exec(select(ArtistProfile).where(ArtistProfile.user_id == current_user.id)).first()
+    if not profile and current_user.is_admin:
+        profile = session.exec(select(ArtistProfile)).first()
     if not profile:
         raise HTTPException(status_code=404, detail="Artist profile not found")
     return _build_profile_res(profile, session)
@@ -195,6 +197,8 @@ def update_my_profile(
     current_user: User = Depends(get_current_user)
 ):
     profile = session.exec(select(ArtistProfile).where(ArtistProfile.user_id == current_user.id)).first()
+    if not profile and current_user.is_admin:
+        profile = session.exec(select(ArtistProfile)).first()
     if not profile:
         raise HTTPException(status_code=404, detail="Artist profile not found")
         

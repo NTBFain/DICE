@@ -34,7 +34,7 @@ import { useAuth } from '@/components/AuthContext';
 export default function ArtistRegisterPage() {
   const router = useRouter();
   const queryClient = useQueryClient();
-  const { user } = useAuth();
+  const { user, fetchUser } = useAuth();
 
   useEffect(() => {
     if (user?.is_admin) {
@@ -55,8 +55,11 @@ export default function ArtistRegisterPage() {
 
   const registerMutation = useMutation({
     mutationFn: (payload: ArtistRegisterPayload) => registerArtistProfile(payload),
-    onSuccess: (data) => {
+    onSuccess: async (data) => {
       queryClient.invalidateQueries({ queryKey: ['artists'] });
+      // Important: refresh user state so is_artist becomes true immediately
+      await fetchUser();
+      
       setSuccessMessage('ลงทะเบียนโปรไฟล์ศิลปินสำเร็จเรียบร้อยแล้ว!');
       setTimeout(() => {
         router.push(`/artists/${data.handle}`);

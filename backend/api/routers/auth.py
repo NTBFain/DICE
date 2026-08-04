@@ -1,10 +1,11 @@
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File as FastAPIFile
 from sqlmodel import Session, select
 from core.db import get_session
-from core.auth import get_password_hash, verify_password, create_access_token, get_current_user
-from models import User, Order, Auction, File
+from core.auth import get_password_hash, verify_password, create_access_token, get_current_user, get_admin_user
+from models import User, Order, Auction, File, ArtistProfile
 from schemas import UserRegisterRequest, UserLoginRequest, TokenResponse, UserResponse, UserUpdateRequest
-from typing import List, Dict, Any
+from pydantic import BaseModel
+from typing import List, Dict, Any, Optional
 import os
 import uuid
 import shutil
@@ -129,4 +130,64 @@ def get_my_collection(session: Session = Depends(get_session), current_user: Use
     collection.sort(key=lambda x: x["date"], reverse=True)
     
     return collection
+
+
+class UserRoleUpdateRequest(BaseModel):
+    is_admin: Optional[bool] = None
+    is_artist: Optional[bool] = None
+
+@router.get("/users")
+def get_all_users(session: Session = Depends(get_session), admin_user: User = Depends(get_admin_user)):
+    users = session.exec(select(User)).all()
+    res = []
+    for u in users:
+        profile = session.exec(select(ArtistProfile).where(ArtistProfile.user_id == u.id)).first()
+        res.append({
+            "id": u.id,
+            "email": u.email,
+            "full_name": u.full_name,
+            "is_admin": u.is_admin,
+            "is_artist": u.is_artist,
+            "avatar_url": u.avatar_url,
+            "created_at": u.created_at,
+            "artist_handle": profile.handle if profile else None
+        })
+    return res
+
+@router.put("/users/{user_id}/role")
+def update_user_role(
+    user_id: int,
+    request: UserRoleUpdateRequest,
+    session: Session = Depends(get_session),
+    admin_user: User = Depends(get_admin_user)
+):
+    user = session.get(User, user_id)
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    
+    if request.is_admin is not None:
+        user.is_admin = request.is_admin
+    if request.is_artist is not None:
+        user.is_artist = request.is_artist
+        
+    session.add(user)
+    session.commit()
+    session.refresh(user)
+    return {"message": "User role updated successfully", "user": {"id": user.id, "email": user.email, "is_admin": user.is_admin, "is_artist": user.is_artist}}
+
+@router.delete("/users/{user_id}")
+def delete_user(
+    user_id: int,
+    session: Session = Depends(get_session),
+    admin_user: User = Depends(get_admin_user)
+):
+    if user_id == admin_user.id:
+        raise HTTPException(status_code=400, detail="Cannot delete your own admin account")
+    user = session.get(User, user_id)
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    session.delete(user)
+    session.commit()
+    return {"message": "User deleted successfully"}
+
 

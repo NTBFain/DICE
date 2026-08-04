@@ -1,7 +1,5 @@
-'use client';
-
-import OrdersAdminModule from './orders/page';
+import UsersManagementPage from './users/page';
 
 export default function AdminDashboardIndex() {
-  return <OrdersAdminModule />;
+  return <UsersManagementPage />;
 }

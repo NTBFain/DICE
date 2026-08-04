@@ -7,7 +7,7 @@ from sqlmodel import Session, select
 from typing import List
 
 from core.db import get_session
-from core.auth import get_admin_user
+from core.auth import get_admin_user, get_artist_user
 from models import Artwork, VisibilityStatus, User, ArtistProfile
 from schemas import ArtworkResponse
 
@@ -20,12 +20,17 @@ def get_portfolio(session: Session = Depends(get_session)):
     return artworks
 
 @router.get("/admin", response_model=List[ArtworkResponse])
-def get_portfolio_admin(session: Session = Depends(get_session), admin_user: User = Depends(get_admin_user)):
-    profile = session.exec(select(ArtistProfile).where(ArtistProfile.user_id == admin_user.id)).first()
-    if profile:
-        artworks = session.exec(select(Artwork).where(Artwork.artist_id == profile.id)).all()
-    else:
+def get_portfolio_admin(session: Session = Depends(get_session), artist_user: User = Depends(get_artist_user)):
+    if artist_user.is_admin:
+        # Admins see all artworks
         artworks = session.exec(select(Artwork)).all()
+    else:
+        # Artists see only their own artworks
+        profile = session.exec(select(ArtistProfile).where(ArtistProfile.user_id == artist_user.id)).first()
+        if profile:
+            artworks = session.exec(select(Artwork).where(Artwork.artist_id == profile.id)).all()
+        else:
+            artworks = []
     return artworks
 
 @router.post("", response_model=ArtworkResponse)
@@ -37,9 +42,9 @@ def create_artwork(
     character_id: int = Form(None),
     image: UploadFile = FormFile(...),
     session: Session = Depends(get_session),
-    admin_user: User = Depends(get_admin_user)
+    artist_user: User = Depends(get_artist_user)
 ):
-    profile = session.exec(select(ArtistProfile).where(ArtistProfile.user_id == admin_user.id)).first()
+    profile = session.exec(select(ArtistProfile).where(ArtistProfile.user_id == artist_user.id)).first()
     artist_id = profile.id if profile else None
 
     ext = image.filename.split(".")[-1].lower() if image.filename and "." in image.filename else "jpg"
@@ -84,11 +89,16 @@ def update_artwork(
     work_type: str = Form(None),
     character_id: int = Form(None),
     session: Session = Depends(get_session),
-    admin_user: User = Depends(get_admin_user)
+    artist_user: User = Depends(get_artist_user)
 ):
     artwork = session.get(Artwork, artwork_id)
     if not artwork:
         raise HTTPException(status_code=404, detail="Artwork not found")
+        
+    if not artist_user.is_admin:
+        profile = session.exec(select(ArtistProfile).where(ArtistProfile.user_id == artist_user.id)).first()
+        if not profile or artwork.artist_id != profile.id:
+            raise HTTPException(status_code=403, detail="Not authorized to modify this artwork")
         
     if title is not None:
         artwork.title = title
@@ -111,10 +121,15 @@ def update_artwork(
     return artwork
 
 @router.delete("/{artwork_id}")
-def delete_artwork(artwork_id: int, session: Session = Depends(get_session), admin_user: User = Depends(get_admin_user)):
+def delete_artwork(artwork_id: int, session: Session = Depends(get_session), artist_user: User = Depends(get_artist_user)):
     artwork = session.get(Artwork, artwork_id)
     if not artwork:
         raise HTTPException(status_code=404, detail="Artwork not found")
+        
+    if not artist_user.is_admin:
+        profile = session.exec(select(ArtistProfile).where(ArtistProfile.user_id == artist_user.id)).first()
+        if not profile or artwork.artist_id != profile.id:
+            raise HTTPException(status_code=403, detail="Not authorized to delete this artwork")
     session.delete(artwork)
     session.commit()
     return {"message": "Artwork deleted"}

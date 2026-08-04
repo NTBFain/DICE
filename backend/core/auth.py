@@ -136,3 +136,11 @@ def get_admin_user(current_user: User = Depends(get_current_user)) -> User:
             detail="The user does not have enough privileges",
         )
     return current_user
+
+def get_artist_user(current_user: User = Depends(get_current_user)) -> User:
+    if not (current_user.is_admin or current_user.is_artist):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="The user must be an artist or admin",
+        )
+    return current_user

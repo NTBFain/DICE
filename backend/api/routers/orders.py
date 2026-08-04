@@ -8,7 +8,7 @@ from sqlalchemy.orm import joinedload
 from typing import List
 
 from core.db import get_session
-from core.auth import get_current_user, get_admin_user
+from core.auth import get_current_user, get_admin_user, get_artist_user
 from core.watermark import apply_watermark
 from models import Order, OrderStatus, MilestoneInvoice, Revision, Message, File as DBFile, User, NotificationType
 from schemas import (
@@ -71,8 +71,14 @@ def get_public_queue(session: Session = Depends(get_session)):
 @router.get("/orders", response_model=List[OrderResponse])
 def get_orders(session: Session = Depends(get_session), current_user: User = Depends(get_current_user)):
     if current_user.is_admin:
-        statement = select(Order).where(Order.artist_id == current_user.id).options(joinedload(Order.client))
+        # Admins see all orders globally
+        statement = select(Order).options(joinedload(Order.client))
+    elif current_user.is_artist:
+        # Artists see orders they are working on, OR orders they placed as a client
+        from sqlalchemy import or_
+        statement = select(Order).where(or_(Order.artist_id == current_user.id, Order.client_id == current_user.id)).options(joinedload(Order.client))
     else:
+        # Clients see their placed orders
         statement = select(Order).where(Order.client_id == current_user.id).options(joinedload(Order.client))
     orders = session.exec(statement).all()
     
@@ -91,7 +97,9 @@ def get_order_by_id(order_id: int, session: Session = Depends(get_session), curr
     if not order:
         raise HTTPException(status_code=404, detail="Order not found")
     if current_user.is_admin:
-        if order.artist_id != current_user.id:
+        pass # Admins can view any order
+    elif current_user.is_artist:
+        if order.artist_id != current_user.id and order.client_id != current_user.id:
             raise HTTPException(status_code=403, detail="Not authorized to view this order")
     else:
         if order.client_id != current_user.id:
@@ -110,8 +118,9 @@ def update_order(order_id: int, request: OrderUpdateRequest, background_tasks: B
         raise HTTPException(status_code=404, detail="Order not found")
         
     if current_user.is_admin:
-        if order.artist_id != current_user.id:
-            raise HTTPException(status_code=403, detail="Not authorized to update this order")
+        pass # Admins can update any order
+    elif current_user.is_artist and order.artist_id == current_user.id:
+        pass # Artists can update their own commissioned orders
     else:
         if order.client_id != current_user.id:
             raise HTTPException(status_code=403, detail="Not authorized to update this order")
@@ -119,8 +128,8 @@ def update_order(order_id: int, request: OrderUpdateRequest, background_tasks: B
             raise HTTPException(status_code=400, detail="Cannot modify order after acceptance")
         
     if request.status is not None:
-        if not current_user.is_admin:
-            raise HTTPException(status_code=403, detail="Only admins can update order status")
+        if not (current_user.is_admin or (current_user.is_artist and order.artist_id == current_user.id)):
+            raise HTTPException(status_code=403, detail="Only artists or admins can update order status")
         order.status = OrderStatus(request.status)
         background_tasks.add_task(
             background_create_notification,
@@ -132,13 +141,13 @@ def update_order(order_id: int, request: OrderUpdateRequest, background_tasks: B
         )
         
     if request.agreed_price is not None:
-        if not current_user.is_admin:
-            raise HTTPException(status_code=403, detail="Only admins can update agreed price")
+        if not (current_user.is_admin or (current_user.is_artist and order.artist_id == current_user.id)):
+            raise HTTPException(status_code=403, detail="Only artists or admins can update agreed price")
         order.agreed_price = request.agreed_price
         
     if request.revision_quota is not None:
-        if not current_user.is_admin:
-            raise HTTPException(status_code=403, detail="Only admins can update revision quota")
+        if not (current_user.is_admin or (current_user.is_artist and order.artist_id == current_user.id)):
+            raise HTTPException(status_code=403, detail="Only artists or admins can update revision quota")
         order.revision_quota = request.revision_quota
 
     if request.start_date is not None:
@@ -160,10 +169,12 @@ def update_order(order_id: int, request: OrderUpdateRequest, background_tasks: B
 # --- Milestone Invoices ---
 
 @router.post("/orders/{order_id}/invoices", response_model=MilestoneInvoiceResponse)
-def create_invoice(order_id: int, request: MilestoneInvoiceCreateRequest, background_tasks: BackgroundTasks, session: Session = Depends(get_session), admin_user: User = Depends(get_admin_user)):
+def create_invoice(order_id: int, request: MilestoneInvoiceCreateRequest, background_tasks: BackgroundTasks, session: Session = Depends(get_session), artist_user: User = Depends(get_artist_user)):
     order = session.get(Order, order_id)
     if not order:
         raise HTTPException(status_code=404, detail="Order not found")
+    if not artist_user.is_admin and order.artist_id != artist_user.id:
+        raise HTTPException(status_code=403, detail="Not authorized")
     
     invoice = MilestoneInvoice(
         title=request.title,
@@ -258,10 +269,13 @@ def get_invoice_slip(invoice_id: int, session: Session = Depends(get_session), c
     raise HTTPException(status_code=404, detail="Slip file not found on disk")
 
 @router.post("/invoices/{invoice_id}/approve", response_model=MilestoneInvoiceResponse)
-def approve_invoice_payment(invoice_id: int, background_tasks: BackgroundTasks, session: Session = Depends(get_session), admin_user: User = Depends(get_admin_user)):
+def approve_invoice_payment(invoice_id: int, background_tasks: BackgroundTasks, session: Session = Depends(get_session), artist_user: User = Depends(get_artist_user)):
     invoice = session.get(MilestoneInvoice, invoice_id)
     if not invoice:
         raise HTTPException(status_code=404, detail="Invoice not found")
+    order = session.get(Order, invoice.order_id)
+    if not artist_user.is_admin and order.artist_id != artist_user.id:
+        raise HTTPException(status_code=403, detail="Not authorized")
         
     invoice.is_paid = True
     session.add(invoice)
@@ -329,10 +343,13 @@ def get_order_revisions(order_id: int, session: Session = Depends(get_session), 
     return order.revisions
 
 @router.post("/revisions/{revision_id}/resolve", response_model=RevisionResponse)
-def resolve_revision(revision_id: int, session: Session = Depends(get_session), admin_user: User = Depends(get_admin_user)):
+def resolve_revision(revision_id: int, session: Session = Depends(get_session), artist_user: User = Depends(get_artist_user)):
     revision = session.get(Revision, revision_id)
     if not revision:
         raise HTTPException(status_code=404, detail="Revision not found")
+    order = session.get(Order, revision.order_id)
+    if not artist_user.is_admin and order.artist_id != artist_user.id:
+        raise HTTPException(status_code=403, detail="Not authorized")
         
     revision.is_addressed = True
     session.add(revision)
@@ -486,10 +503,12 @@ def _apply_configured_watermark(original_path: str, watermarked_path: str, sessi
 # --- File Delivery ---
 
 @router.post("/orders/{order_id}/files", response_model=FileResponse)
-def upload_order_file(order_id: int, background_tasks: BackgroundTasks, file_type: str = Form(...), file: UploadFile = FormFile(...), session: Session = Depends(get_session), admin_user: User = Depends(get_admin_user)):
+def upload_order_file(order_id: int, background_tasks: BackgroundTasks, file_type: str = Form(...), file: UploadFile = FormFile(...), session: Session = Depends(get_session), artist_user: User = Depends(get_artist_user)):
     order = session.get(Order, order_id)
     if not order:
         raise HTTPException(status_code=404, detail="Order not found")
+    if not artist_user.is_admin and order.artist_id != artist_user.id:
+        raise HTTPException(status_code=403, detail="Not authorized")
         
     if file_type not in ["WIP", "FINAL", "REFERENCE"]:
         raise HTTPException(status_code=400, detail="Invalid file type")
@@ -605,10 +624,12 @@ def download_order_file(order_id: int, file_id: int, session: Session = Depends(
     raise HTTPException(status_code=404, detail="File not found on disk")
 
 @router.delete("/orders/{order_id}/files/{file_id}")
-def delete_order_file(order_id: int, file_id: int, session: Session = Depends(get_session), admin_user: User = Depends(get_admin_user)):
+def delete_order_file(order_id: int, file_id: int, session: Session = Depends(get_session), artist_user: User = Depends(get_artist_user)):
     order = session.get(Order, order_id)
     if not order:
         raise HTTPException(status_code=404, detail="Order not found")
+    if not artist_user.is_admin and order.artist_id != artist_user.id:
+        raise HTTPException(status_code=403, detail="Not authorized")
     db_file = session.get(DBFile, file_id)
     if not db_file or db_file.order_id != order_id:
         raise HTTPException(status_code=404, detail="File not found")

@@ -67,10 +67,10 @@ export default function Header() {
           
           {user && (
             <Link
-              href={(user.is_admin || user.is_artist) ? '/dashboard/admin' : '/dashboard/client'}
+              href={user.is_admin ? '/dashboard/admin' : (user.is_artist ? '/dashboard/artist' : '/dashboard/client')}
               className={`text-sm font-medium transition-all flex items-center gap-1.5 hover-lift ${pathname.startsWith('/dashboard') ? 'text-[var(--accent-primary,#3b82f6)] font-semibold active-nav-indicator' : 'text-[var(--text-muted,#a1a1aa)] hover:text-[var(--text-primary,#f4f4f5)]'}`}
             >
-              <LayoutDashboard className="w-4 h-4" /> {(user.is_admin || user.is_artist) ? 'Artist Panel' : t('myOrders')}
+              <LayoutDashboard className="w-4 h-4" /> {user.is_admin ? '👑 Admin Control' : (user.is_artist ? '🎨 Artist Studio' : t('myOrders'))}
             </Link>
           )}
 
@@ -99,7 +99,11 @@ export default function Header() {
             <div className="flex items-center gap-3">
               <span className="text-sm text-[var(--text-muted,#a1a1aa)] font-medium flex items-center gap-1">
                 {t('hi')} <span className="text-[var(--text-primary,#f4f4f5)] font-semibold">{user.full_name}</span>
-                {(user.is_admin || user.is_artist) && <span className="ml-1 text-xs bg-[var(--accent-primary,#3b82f6)]/10 text-[var(--accent-primary,#3b82f6)] px-2 py-0.5 rounded-full border border-[var(--accent-primary,#3b82f6)]/30 font-semibold">{t('artist')}</span>}
+                {user.is_admin ? (
+                  <span className="ml-1 text-xs bg-purple-500/20 text-purple-300 px-2 py-0.5 rounded-full border border-purple-500/30 font-extrabold">👑 Admin</span>
+                ) : user.is_artist ? (
+                  <span className="ml-1 text-xs bg-blue-500/20 text-blue-300 px-2 py-0.5 rounded-full border border-blue-500/30 font-semibold">🎨 Artist</span>
+                ) : null}
               </span>
               <NotificationBell />
               <button
@@ -211,7 +215,7 @@ export default function Header() {
 
             {user ? (
               <Link
-                href={(user.is_admin || user.is_artist) ? '/dashboard/admin' : '/dashboard/client'}
+                href={user.is_admin ? '/dashboard/admin' : (user.is_artist ? '/dashboard/artist' : '/dashboard/client')}
                 onClick={() => setMobileMenuOpen(false)}
                 className={`p-3 rounded-xl border flex flex-col items-center gap-1 text-center text-sm font-medium transition-all ${
                   pathname.startsWith('/dashboard')
@@ -219,7 +223,7 @@ export default function Header() {
                     : 'bg-[var(--bg-primary,#09090b)] border-[var(--border-subtle,#27272a)] text-[var(--text-muted,#a1a1aa)] hover:text-[var(--text-primary,#f4f4f5)]'
                 }`}
               >
-                <LayoutDashboard className="w-5 h-5" /> {(user.is_admin || user.is_artist) ? 'Artist Panel' : t('myOrders')}
+                <LayoutDashboard className="w-5 h-5" /> {user.is_admin ? '👑 Admin Control' : (user.is_artist ? '🎨 Artist Studio' : t('myOrders'))}
               </Link>
             ) : (
               <Link

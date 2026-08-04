@@ -63,6 +63,7 @@ export type User = {
   email: string;
   full_name: string;
   is_admin: boolean;
+  is_artist: boolean;
   avatar_url?: string;
 };
 
@@ -187,12 +188,19 @@ export type AnalyticsResponse = {
   adoptable_revenue: number;
   commission_revenue: number;
   average_winning_bid: number;
+  completed_orders_count?: number;
+  total_clients_count?: number;
 };
 
 // API Endpoints
 
 export const getCharacters = async () => {
   const response = await apiClient.get<Character[]>('/characters');
+  return response.data;
+};
+
+export const getAdminCharacters = async () => {
+  const response = await apiClient.get<Character[]>('/characters/admin');
   return response.data;
 };
 
@@ -310,6 +318,32 @@ export const getMe = async () => {
 
 export const updateMe = async (data: { full_name?: string; avatar_url?: string }) => {
   const response = await apiClient.put<User>('/auth/me', data);
+  return response.data;
+};
+
+export type SystemUser = {
+  id: number;
+  email: string;
+  full_name: string;
+  is_admin: boolean;
+  is_artist: boolean;
+  avatar_url?: string;
+  created_at: string;
+  artist_handle?: string;
+};
+
+export const getAllUsers = async () => {
+  const response = await apiClient.get<SystemUser[]>('/auth/users');
+  return response.data;
+};
+
+export const updateUserRole = async (userId: number, data: { is_admin?: boolean; is_artist?: boolean }) => {
+  const response = await apiClient.put(`/auth/users/${userId}/role`, data);
+  return response.data;
+};
+
+export const deleteUser = async (userId: number) => {
+  const response = await apiClient.delete<{ message: string }>(`/auth/users/${userId}`);
   return response.data;
 };
 
@@ -472,8 +506,13 @@ export const deleteOrderFile = async (orderId: number, fileId: number) => {
 
 // Auctions & Bidding
 export const getAuctions = async () => {
-  const response = await apiClient.get<Auction[]>('/auctions');
-  return response.data;
+  const { data } = await apiClient.get<Auction[]>('/auctions');
+  return data;
+};
+
+export const getAdminAuctions = async () => {
+  const { data } = await apiClient.get<Auction[]>('/auctions/admin');
+  return data;
 };
 
 export const getAuctionById = async (id: number) => {
