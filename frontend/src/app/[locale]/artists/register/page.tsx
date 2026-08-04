@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, Link } from '@/i18n/routing';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { registerArtistProfile, ArtistRegisterPayload } from '@/lib/api';
 import { 
@@ -15,7 +15,7 @@ import {
   DollarSign,
   Globe
 } from 'lucide-react';
-import { Link } from '@/i18n/routing';
+
 
 const STYLE_OPTIONS = [
   'VTuber 2D',

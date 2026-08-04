@@ -1,66 +1,158 @@
-# Design Specification: "The Gallery Grid"
-For DICE Platform (Digital Illustration Commission Exchange)
+# Universal Web Design Specification & Accessibility Guidelines
+A Reusable Design System Standard for Inclusive, Barrier-Free Web Applications
 
-## 1. Core Philosophy
-This design utilizes the **"Editorial Flat"** approach, inspired by high-end art editorial publications and Swiss Design. It discards elements commonly found in generic or AI-generated UIs, such as soft drop shadows, symmetrical rounded corners, or gradients.
+---
 
-The goal is to create an "empty, quiet gallery" to let the artist's artwork stand out, whether in an active auction, a portfolio showcase, or a commission workspace. The system must feel intentional, mathematically ordered, and highly professional.
+## 1. Core Philosophy & Universal Design Integration
+This design specification defines a universal, framework-agnostic standard for building web interfaces based on the **7 Principles of Universal Design** and **WCAG 2.2 AAA/AA Accessibility Standards**.
 
-## 2. Color Palette
-Avoid muddy grays typical of generic software. Colors must be decisive and purposeful.
+The primary objective is to guarantee equal access, seamless navigation, and optimal user experience across all digital products—regardless of user abilities, age, assistive technologies (screen readers, eye-trackers, keyboard-only controls), network conditions, or device types.
 
-### 2.1 Light Mode: "The White Cube"
-Mimics a well-lit physical art gallery with pristine white walls.
-*   **Background:** `#FDFDFD` (Alabaster White) - Near-perfect white to prevent color distortion of digital illustrations.
-*   **Surface (Toolboxes/Secondary):** `#F4F4F4` (Gallery Light Grey) - Used to separate structural zones (like bid history or chat logs) without drawing lines.
-*   **Text Primary (Headers):** `#111111` (Ink Black) - Deep black for maximum contrast.
-*   **Text Secondary (Dates/Data):** `#666666` (Graphite)
-*   **Borders & Grids:** `#E0E0E0` (Sharp Silver) - Crisp 1px solid borders.
-*   **Accent:** `#002BDC` (Ultramarine Blue) - A vibrant blue evoking both classic and modern art. Used strictly for critical actions like "Place Bid" or "Accept Commission".
+### The 7 Universal Design Principles for Web Interfaces:
+1. **Equitable Use (การใช้งานอย่างเท่าเทียม):** Every feature must provide an identical or equivalent experience for all users (e.g., text alternatives for images, screen-reader landmark structures, multi-modal feedback).
+2. **Flexibility in Use (ความยืดหยุ่นในการใช้งาน):** Accommodate individual preferences and adaptive settings (light/dark modes, font scaling up to 200%, motion reduction, high-contrast modes).
+3. **Simple and Intuitive Use (ความเรียบง่ายและเข้าใจง่าย):** Predictable navigation, clean information architecture, clear visual hierarchy, eliminating unnecessary cognitive load.
+4. **Perceptible Information (ข้อมูลที่รับรู้ได้ง่าย):** Multi-sensory communication (combining text, icons, and colors), AAA contrast ratios, legible typography, and ARIA live regions for dynamic updates.
+5. **Tolerance for Error (ความผิดพลาดต่ำ):** Safeguard users against accidental destructive actions (confirmation prompts, undo windows, clear error identification and inline recovery instructions).
+6. **Low Physical Effort (การออกแรงน้อย):** Generous click/touch targets (minimum 44x44px / 48x48px), full keyboard accessibility, logical tab sequences, and avoidance of complex gesture requirements.
+7. **Size and Space for Approach and Use (ขนาดและพื้นที่ที่เหมาะสม):** Responsive layout reflow without horizontal scrolling, adaptive spacing, comfortable reading line lengths, and flexible container bounds.
 
-### 2.2 Dark Mode: "The Darkroom"
-Mimics a photographic darkroom or a sleek digital studio, emphasizing artwork against a dark void.
-*   **Background:** `#09090B` (Obsidian Dark) - Avoid pure black (`#000`) to reduce eye strain.
-*   **Surface:** `#121215` (Studio Slate)
-*   **Text Primary:** `#F4F4F5` (Zinc White) - Bright but comfortable to read.
-*   **Text Secondary:** `#A1A1AA` (Muted Zinc)
-*   **Borders & Grids:** `#27272A` (Crisp Zinc) - 1px borders that blend subtly into the dark mode.
-*   **Accent:** `#E2B857` (Warm Gold) or `#3B82F6` (Studio Cobalt) - For high-end, premium transaction actions like "Auto Buy (AB)" or "Pay Invoice".
+---
 
-## 3. Typography
-Typography acts as the primary decorative element. We use font pairing to create a smart, engaging structure.
+## 2. Inclusive Color System & Contrast Standards
+All color tokens strictly satisfy **WCAG 2.2 Level AA / AAA standards** for contrast ratios:
+- **Normal Body Text:** Minimum **4.5:1** (AA) / **7:1** (AAA) against background.
+- **Large Text (>= 24px or 18px Bold):** Minimum **3:1** (AA) / **4.5:1** (AAA).
+- **UI Components & Graphical Controls:** Minimum **3:1** against adjacent colors.
 
-*   **Display / Headers (Artist Names, Auction Titles):**
-    *   Use **"Helvetica Now Display"** or **"Inter"** (Bold/Black weight).
-    *   Oversized (e.g., 48px or 64px for Adoptable names) with slight negative tracking (Tracking: -0.02em) for a dense, impactful look.
-*   **Body (Descriptions, Terms of Service, Chat):**
-    *   Use **"Inter"** or **"Roboto"** (Regular/Medium weight).
-    *   14px to 16px for clean readability.
-*   **Meta Data (Bid Prices, Timers, Invoice IDs, Status):**
-    *   Use **"Space Mono"** or **"JetBrains Mono"** (Regular weight).
-    *   11px to 12px. Injecting a developer-style monospace font into financial data (e.g., `$150.00`, `02:15:30`, `[SKETCHING]`) makes the interface feel like a raw, precise financial tool.
+### 2.1 Color Tokens & Palettes
 
-## 4. UI Components
+#### Light Mode
+*   **Canvas Background:** `#FFFFFF` or `#FDFDFD` (High-clarity canvas).
+*   **Surface / Card Background:** `#F4F4F6` (Subtle boundary separation with >= 15:1 text contrast).
+*   **Text Primary:** `#111111` (Ink Black) — **18.1:1** contrast ratio (Exceeds AAA).
+*   **Text Secondary:** `#4A4A4A` (Deep Graphite) — **7.2:1** contrast ratio (AAA Compliant).
+*   **Structural Borders:** `#CCCCCC` (Solid border) — **3.2:1** UI component contrast.
+*   **Primary Accent:** `#002BDC` or `#1D4ED8` — Contrast ratio >= **7:1** against white.
+*   **Focus Ring Outline:** `#002BDC` or `#111111` (3px width, 2px offset).
 
-### 4.1 The Grid Architecture
-*   **No Floating Cards:** Eliminate floating card systems. Everything must be bound by grid lines.
-*   The screen is divided by 1px solid borders running full-bleed. For example, the Auction view features a 2-column or 3-column strict grid separating the Artwork, Bidding History, and Artist Details without underlying gray backgrounds.
-*   Dashboards and Client/Artist Portals use thin vertical and horizontal lines to separate status sections (Pending, WIP, Completed) like a highly organized spreadsheet.
+#### Dark Mode
+*   **Canvas Background:** `#09090B` or `#121214` (Eye-strain-free background).
+*   **Surface / Card Background:** `#18181B` or `#1F1F23`.
+*   **Text Primary:** `#F4F4F5` (Zinc White) — **16.5:1** contrast ratio (Exceeds AAA).
+*   **Text Secondary:** `#D1D5DB` (Light Zinc) — **10.5:1** contrast ratio (AAA Compliant).
+*   **Structural Borders:** `#3F3F46` (Crisp Zinc) — **3.5:1** UI component contrast.
+*   **Primary Accent:** `#60A5FA` or `#E2B857` — Contrast ratio >= **7:1** against dark canvas.
+*   **Focus Ring Outline:** `#FACC15` or `#FFFFFF` (3px width, 2px offset).
 
-### 4.2 Art & Adoptable Cards: Visual-First
-Cards act as "picture frames" for artwork.
-*   **Proportions:** Focus entirely on the illustration thumbnail (flexible ratios depending on the piece, standardizing to 1:1, 4:5, or 16:9 grids).
-*   **Structure:** Images sit flush to the top, left, and right edges (0px padding). The bottom retains minimal white space for the piece's name and monospace meta data (e.g., current bid or `[CLOSED]`).
-*   **Corners:** Sharp 90-degree angles (0px border-radius) or extremely subtle curves (max 2px).
-*   **Shadowless:** Zero drop shadows. Depth is indicated solely by solid borders (black in Light Mode, zinc in Dark Mode).
+### 2.2 Color-Blind Safe & Multi-Modal Status Rules
+*   **Dual-Coding Rule:** Information MUST NEVER be conveyed by color alone. Every status, warning, or badge must combine **Color + Icon + Text Label**:
+    *   **Success / Active:** Green background + Checkmark `✓` + Label `[Active / Success]`
+    *   **Warning / Pending:** Amber background + Alert triangle `⚠️` + Label `[Warning / Pending]`
+    *   **Error / Destructive:** Red background + Cross `✕` + Label `[Error / Failed]`
+    *   **Info / Neutral:** Blue/Gray background + Info `ℹ` + Label `[Info]`
 
-### 4.3 Buttons & Micro-interactions
-*   **Buttons:** Sharp rectangular shapes, shadowless, solid color backgrounds.
-*   **Hover States (Instant Crisp):** No soft fade-in/out transitions (Transition: 0s). On hover, colors should invert instantly (e.g., from white background/black text to black background/white text) to feel decisive, especially crucial in live auctions.
-*   **Active States:** Use thicker solid borders (2px or 3px) to highlight focus areas or currently selected order stages.
+---
 
-## 5. Strict Anti-AI & Anti-Generic SaaS Rules
-1.  **No Gradients:** All elements must use solid colors exclusively. (No colorful gradient text for "Premium" features).
-2.  **No Drop Shadows:** To elevate an element (e.g., a Bid Modal, Upload Dropzone, or Dropdown), use thicker borders and a solid block shadow (e.g., `box-shadow: 4px 4px 0px #111`) instead of blurred shadows.
-3.  **No 3D or Glassmorphism:** Use simple, monoline vector icons. Avoid blurred backgrounds (`backdrop-filter: blur`) unless strictly necessary for a sticky header overlaid on artwork.
-4.  **No Unnecessary Fill Colors:** Let whitespace (or dark space) do the heavy lifting. If an Auction detail page feels too empty, increase the typography size of the current bid rather than filling the space with background boxes.
+## 3. Accessible Typography & Scaling
+Typography acts as the structural foundation of the interface. It must scale gracefully and remain readable across all device sizes and browser zoom levels.
+
+### 3.1 Typography Guidelines
+*   **Base Font Size:** `1rem` (16px minimum). Never use text smaller than 14px (`0.875rem`).
+*   **Fluid Headings:** Use CSS `clamp()` for responsive, unclipped headings:
+    ```css
+    h1 { font-size: clamp(2rem, 4vw, 3.5rem); line-height: 1.2; }
+    h2 { font-size: clamp(1.5rem, 3vw, 2.25rem); line-height: 1.3; }
+    h3 { font-size: clamp(1.25rem, 2vw, 1.75rem); line-height: 1.4; }
+    ```
+*   **Body Line Height & Line Length:** Minimum line-height `1.5` (150%). Limit body text width to **60–75 characters per line** (`max-width: 65ch`) for comfortable scanning.
+*   **Tabular Numbers for Data:** Apply `font-variant-numeric: tabular-nums` to financial tables, counters, or timers to prevent horizontal layout jitter during updates.
+*   **Zoom & Reflow Support (WCAG 1.4.10):** Layout must support **200% browser zoom** without text overlapping, clipping, or inducing horizontal scrolling.
+
+---
+
+## 4. Universal Layout Architecture & UI Components
+
+### 4.1 Touch Targets & Spacing (Low Physical Effort)
+*   **Minimum Target Size:** All interactive elements (buttons, links, inputs, checkboxes, icon toggles) MUST have a minimum clickable/touchable boundary of **44x44px** (preferably **48x48px**).
+*   **Spacing Between Controls:** Maintain at least **8px** of clear space between adjacent interactive touch targets to prevent accidental taps.
+
+### 4.2 Form Controls & Labels
+*   **Explicit Label Linkage:** Every input field must be programmatically paired with a `<label>` via `for="id"` or enclosed within the label element.
+*   **Helper & Error Text:** Link helper descriptions and error messages using `aria-describedby="helper-id"` and indicate invalid inputs with `aria-invalid="true"`.
+
+### 4.3 Images & Media Accessibility
+*   **Mandatory Alt Text:** Every non-decorative image must include a descriptive `alt` attribute (e.g., `alt="Summary chart showing quarterly revenue growth"`). Decorative images must use `alt=""` or `aria-hidden="true"`.
+*   **Audio/Video Alternatives:** Videos must provide captions (`<track kind="captions">`) and audio transcripts where applicable.
+
+---
+
+## 5. Keyboard Navigation & Focus Indicators
+
+### 5.1 Focus Ring Standard
+*   **Mandatory Focus Rings:** Never set `outline: none` or `outline: 0` without providing a custom high-contrast focus indicator.
+*   **Focus Ring Style:**
+    ```css
+    :focus-visible {
+      outline: 3px solid var(--accent-color);
+      outline-offset: 2px;
+      border-radius: 2px;
+    }
+    ```
+
+### 5.2 Navigation & Modal Behavior
+*   **Logical Tab Order:** Ensure the interactive tab sequence matches the visual reading order (`tabindex="0"` for custom interactive controls; avoid `tabindex > 0`).
+*   **Modal Focus Lock:** Dialogs and drawers MUST trap keyboard focus inside while active and restore focus to the triggering element upon closing.
+*   **Escape Key Exit:** All modals, dropdowns, and overlays must close immediately when the `Escape` key is pressed.
+
+---
+
+## 6. Motion Sensitivity & Reduced Motion
+
+Respect user OS settings for reduced motion (`prefers-reduced-motion`).
+
+```css
+@media (prefers-reduced-motion: reduce) {
+  *, ::before, ::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+```
+
+- Avoid auto-playing looping animations, flashing elements (> 3 flashes/sec), or parallax scrolling that causes vestibular motion sickness.
+
+---
+
+## 7. Assistive Technology & ARIA Standards
+
+1.  **HTML5 Landmark Regions:** Structure pages cleanly using semantic tags:
+    - `<header>` (Site Banner)
+    - `<nav>` (Primary Navigation)
+    - `<main>` (Core Page Content)
+    - `<aside>` (Sidebar / Auxiliary Content)
+    - `<footer>` (Footer Information)
+2.  **Dynamic Content (ARIA Live):** Use `aria-live="polite"` for asynchronous updates (toasts, live counters, search results) so screen readers announce changes without interrupting active focus.
+3.  **Headings Hierarchy:** Maintain strict sequential heading levels (`<h1>` -> `<h2>` -> `<h3>`). Never skip heading levels for visual styling.
+
+---
+
+## 8. Error Prevention & User Recovery
+
+1.  **High-Stakes Confirmation:** Critical or irreversible actions (deleting data, making financial transactions, sending broadcast messages) must require an explicit double-confirmation step (modal or typed verification).
+2.  **Undo Grace Period:** Provide a short undo window (e.g., 5-10 seconds) for accidental actions like deleting items or sending messages.
+3.  **Clear Validation Feedback:** Display inline validation error messages directly adjacent to the input field, formatted with clear text and error icons.
+
+---
+
+## 9. Universal Web Accessibility Checklist (Anti-Patterns to Ban)
+
+- ❌ **NO Color-Only Indicators:** Always combine Color + Icon + Text Label.
+- ❌ **NO Tiny Text:** Baseline text starts at 16px (`1rem`); minimum text size is 14px (`0.875rem`).
+- ❌ **NO Hidden Focus Rings:** Always provide a high-visibility 3px `:focus-visible` ring.
+- ❌ **NO Low Contrast:** Ensure text contrast ratio is >= 4.5:1 (AA) or >= 7:1 (AAA).
+- ❌ **NO Sub-standard Touch Targets:** All interactive controls must be at least 44x44px.
+- ❌ **NO Horizontal Scroll on Zoom:** Layout must reflow smoothly up to 200% zoom.
+- ❌ **NO Flashing or Jarring Motion:** Respect `prefers-reduced-motion` settings.

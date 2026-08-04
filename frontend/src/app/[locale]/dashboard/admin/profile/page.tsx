@@ -2,8 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useAuth } from '@/components/AuthContext';
-import { updateArtistProfile, uploadProfileImage } from '@/lib/api';
-import { getArtistByHandle, ArtistProfile } from '@/lib/marketplaceApi';
+import { updateArtistProfile, uploadProfileImage, getMyArtistProfile, ArtistProfile } from '@/lib/api';
 import { 
   UserCircle, 
   Save, 
@@ -45,8 +44,7 @@ export default function ProfileSetupPage() {
 
   const fetchProfile = async () => {
     try {
-      // Admin account is seeded with 'main_artist' handle
-      const data = await getArtistByHandle('main_artist');
+      const data = await getMyArtistProfile();
       if (data) {
         setProfile(data);
         setFormData({

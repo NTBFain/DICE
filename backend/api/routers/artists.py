@@ -253,9 +253,15 @@ def upload_profile_image(
 @router.post("/register", response_model=ArtistProfileResponse)
 def register_artist(
     req: ArtistRegisterRequest, 
-    session: Session = Depends(get_session)
+    session: Session = Depends(get_session),
+    current_user: User = Depends(get_current_user)
 ):
     """Register a new artist profile on the platform with DB persistence"""
+    # Check if user already registered
+    existing_user_profile = session.exec(select(ArtistProfile).where(ArtistProfile.user_id == current_user.id)).first()
+    if existing_user_profile:
+        raise HTTPException(status_code=400, detail="You already have an artist profile registered.")
+
     existing = session.exec(select(ArtistProfile).where(ArtistProfile.handle == req.handle.lower())).first()
     if existing:
         raise HTTPException(status_code=400, detail=f"Artist handle @{req.handle} is already registered!")
@@ -263,6 +269,7 @@ def register_artist(
     styles_str = ", ".join(req.styles) if isinstance(req.styles, list) else req.styles
     
     artist = ArtistProfile(
+        user_id=current_user.id,
         handle=req.handle.lower().strip(),
         display_name=req.display_name,
         tagline=req.tagline,
@@ -281,6 +288,8 @@ def register_artist(
         is_featured=True
     )
     
+    current_user.is_artist = True
+    session.add(current_user)
     session.add(artist)
     session.commit()
     session.refresh(artist)
