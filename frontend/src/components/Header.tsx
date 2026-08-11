@@ -30,7 +30,7 @@ export default function Header() {
 
   return (
     <header className="border-b border-[var(--border-subtle,#27272a)] bg-[var(--bg-surface,#121215)]/90 text-[var(--text-primary,#f4f4f5)] backdrop-blur-md sticky top-0 z-50 transition-colors duration-200">
-      <div className="container mx-auto px-4 h-16 flex items-center justify-between">
+      <div className="max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
         <Link href="/" className="font-bold text-xl tracking-tight text-[var(--text-primary,#f4f4f5)] flex items-center hover:opacity-90 transition-all group">
           <span className="group-hover:scale-105 transition-transform duration-300">DI<span className="text-[var(--accent-primary,#3b82f6)] inline-block group-hover:rotate-12 transition-transform duration-300">CE</span></span>
         </Link>
@@ -41,7 +41,7 @@ export default function Header() {
             href="/"
             className={`text-sm font-medium transition-all flex items-center gap-1.5 hover-lift ${pathname === '/' ? 'text-[var(--accent-primary,#3b82f6)] font-semibold active-nav-indicator' : 'text-[var(--text-muted,#a1a1aa)] hover:text-[var(--text-primary,#f4f4f5)]'}`}
           >
-            <Users className="w-4 h-4 text-[var(--accent-primary,#3b82f6)]" /> ศิลปิน (Artists)
+            <Users className="w-4 h-4 text-[var(--accent-primary,#3b82f6)]" /> {t('artists')}
           </Link>
 
           <Link
@@ -70,7 +70,7 @@ export default function Header() {
               href={user.is_admin ? '/dashboard/admin' : (user.is_artist ? '/dashboard/artist' : '/dashboard/client')}
               className={`text-sm font-medium transition-all flex items-center gap-1.5 hover-lift ${pathname.startsWith('/dashboard') ? 'text-[var(--accent-primary,#3b82f6)] font-semibold active-nav-indicator' : 'text-[var(--text-muted,#a1a1aa)] hover:text-[var(--text-primary,#f4f4f5)]'}`}
             >
-              <LayoutDashboard className="w-4 h-4" /> {user.is_admin ? '👑 Admin Control' : (user.is_artist ? '🎨 Artist Studio' : t('myOrders'))}
+              <LayoutDashboard className="w-4 h-4" /> {user.is_admin ? '👑 Admin Control' : (user.is_artist ? `🎨 ${t('artistStudio')}` : t('myOrders'))}
             </Link>
           )}
 
@@ -79,7 +79,7 @@ export default function Header() {
               href="/artists/register"
               className="text-xs font-extrabold text-[var(--accent-primary,#3b82f6)] bg-[var(--accent-primary,#3b82f6)]/10 px-3 py-1.5 rounded-xl border border-[var(--accent-primary,#3b82f6)]/30 hover:opacity-80 transition-all flex items-center gap-1"
             >
-              + ลงทะเบียนศิลปิน
+              {t('registerArtist')}
             </Link>
           )}
 

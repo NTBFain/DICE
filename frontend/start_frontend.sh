@@ -29,5 +29,5 @@ npm run build
 echo "=========================================="
 echo "    Starting Frontend Server"
 echo "=========================================="
-# Runs the production server on port 3000
-npm run start
+# Runs the production server on port 3000 (bind to 0.0.0.0)
+npx next start -H 0.0.0.0 -p 3000

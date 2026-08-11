@@ -16,7 +16,7 @@ export default function BottomNav() {
   }
 
   const navItems = [
-    { href: '/', label: 'Home', icon: Home, exact: true },
+    { href: '/', label: t('artists'), icon: Home, exact: true },
     { href: '/portfolio', label: t('portfolio'), icon: LayoutTemplate },
     { href: '/characters', label: t('characters'), icon: Users },
     { href: '/auctions', label: t('auctions'), icon: Gavel },
@@ -29,7 +29,7 @@ export default function BottomNav() {
 
   return (
     <div className="md:hidden fixed bottom-0 left-0 right-0 z-50 px-3 pb-3 pt-1 pointer-events-none">
-      <nav className="pointer-events-auto bg-white/90 dark:bg-neutral-900/90 backdrop-blur-xl border border-neutral-200 dark:border-neutral-800/80 rounded-2xl shadow-xl flex items-center justify-around p-1.5 max-w-md mx-auto">
+      <nav className="pointer-events-auto bg-[var(--bg-surface,#121215)]/95 text-[var(--text-primary,#f4f4f5)] backdrop-blur-xl border border-[var(--border-subtle,#27272a)] rounded-2xl shadow-2xl flex items-center justify-around p-1.5 max-w-md mx-auto transition-colors duration-300">
         {navItems.map((item) => {
           const Icon = item.icon;
           const active = isItemActive(item.href, item.exact);
@@ -39,8 +39,8 @@ export default function BottomNav() {
               href={item.href}
               className={`flex flex-col items-center justify-center py-1.5 px-3 rounded-xl transition-all ${
                 active
-                  ? 'text-blue-600 dark:text-blue-400 font-semibold bg-blue-600/10 dark:bg-blue-600/15 scale-105'
-                  : 'text-neutral-500 hover:text-neutral-900 dark:text-neutral-400 dark:hover:text-neutral-200'
+                  ? 'text-[var(--accent-primary,#3b82f6)] font-extrabold bg-[var(--accent-primary,#3b82f6)]/15 border border-[var(--accent-primary,#3b82f6)]/30 scale-105 shadow-xs'
+                  : 'text-[var(--text-muted,#a1a1aa)] hover:text-[var(--text-primary,#f4f4f5)]'
               }`}
             >
               <Icon className="w-5 h-5 mb-0.5" />
@@ -55,8 +55,8 @@ export default function BottomNav() {
             href={user.is_admin ? '/dashboard/admin' : '/dashboard/client'}
             className={`flex flex-col items-center justify-center py-1.5 px-3 rounded-xl transition-all ${
               pathname.startsWith('/dashboard')
-                ? 'text-blue-600 dark:text-blue-400 font-semibold bg-blue-600/10 dark:bg-blue-600/15 scale-105'
-                : 'text-neutral-500 hover:text-neutral-900 dark:text-neutral-400 dark:hover:text-neutral-200'
+                ? 'text-[var(--accent-primary,#3b82f6)] font-extrabold bg-[var(--accent-primary,#3b82f6)]/15 border border-[var(--accent-primary,#3b82f6)]/30 scale-105 shadow-xs'
+                : 'text-[var(--text-muted,#a1a1aa)] hover:text-[var(--text-primary,#f4f4f5)]'
             }`}
           >
             <LayoutDashboard className="w-5 h-5 mb-0.5" />
@@ -67,8 +67,8 @@ export default function BottomNav() {
             href="/login"
             className={`flex flex-col items-center justify-center py-1.5 px-3 rounded-xl transition-all ${
               pathname === '/login'
-                ? 'text-blue-600 dark:text-blue-400 font-semibold bg-blue-600/10 dark:bg-blue-600/15 scale-105'
-                : 'text-neutral-500 hover:text-neutral-900 dark:text-neutral-400 dark:hover:text-neutral-200'
+                ? 'text-[var(--accent-primary,#3b82f6)] font-extrabold bg-[var(--accent-primary,#3b82f6)]/15 border border-[var(--accent-primary,#3b82f6)]/30 scale-105 shadow-xs'
+                : 'text-[var(--text-muted,#a1a1aa)] hover:text-[var(--text-primary,#f4f4f5)]'
             }`}
           >
             <UserCircle className="w-5 h-5 mb-0.5" />

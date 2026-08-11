@@ -32,3 +32,6 @@ Thumbs.db
 
 # Archives (large binary files)
 archives/
+
+# Tooling
+agy-termux-lse/

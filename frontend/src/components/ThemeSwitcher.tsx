@@ -53,7 +53,7 @@ export default function ThemeSwitcher() {
       </button>
 
       {open && (
-        <div className="absolute right-0 mt-2 w-80 bg-neutral-900 border border-neutral-800 rounded-2xl p-3 shadow-xl z-50 animate-in fade-in zoom-in-95 duration-200 text-xs">
+        <div className="fixed left-3 right-3 top-16 max-w-sm mx-auto sm:max-w-none sm:absolute sm:left-auto sm:right-0 sm:top-full sm:mt-2 sm:w-80 bg-neutral-900 border border-neutral-800 rounded-2xl p-3.5 shadow-2xl z-50 animate-in fade-in zoom-in-95 duration-200 text-xs">
           {/* Header & Tabs */}
           <div className="flex items-center justify-between border-b border-neutral-800 pb-2 mb-3">
             <div className="flex items-center gap-1 bg-neutral-950 p-1 rounded-xl border border-neutral-800">

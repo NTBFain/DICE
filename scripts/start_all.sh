@@ -32,17 +32,25 @@ cd frontend
 npm install
 
 echo "--> Starting Frontend (Dev mode for live updates)..."
-# Start in background
-npm run dev &
+# Start in background on 0.0.0.0:3000
+npx next dev -H 0.0.0.0 -p 3000 &
 FRONTEND_PID=$!
 cd ..
 
 echo "=========================================="
 echo "✅ Both services are now running!"
-echo "   - Backend is at http://localhost:8000"
-echo "   - Frontend is at http://localhost:3000"
+echo "   - Backend:  http://localhost:8000"
+echo "   - Frontend: http://localhost:3000/th"
+echo "   - Android Browser: เปิด Chrome/Brave ไปที่ http://localhost:3000/th"
 echo "   Press [CTRL+C] to stop both services."
 echo "=========================================="
+
+# Automatically try to open Android browser if termux-open-url or am is available
+if command -v termux-open-url &> /dev/null; then
+    termux-open-url http://localhost:3000/th 2>/dev/null || true
+elif command -v am &> /dev/null; then
+    am start -a android.intent.action.VIEW -d http://localhost:3000/th 2>/dev/null || true
+fi
 
 # Cleanup function to kill both processes when script is stopped
 cleanup() {
