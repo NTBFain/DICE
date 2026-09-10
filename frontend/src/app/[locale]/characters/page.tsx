@@ -51,15 +51,18 @@ export default function CharactersPage() {
       {!isLoading && characters && characters.length > 0 && (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
           {characters.map((char) => (
-            <Link 
+            <div 
               key={char.id}
-              href={`/portfolio?character=${char.id}`}
-              className="group block bg-neutral-900 border border-neutral-800 rounded-2xl overflow-hidden hover:border-blue-500/50 transition-all duration-300 relative shadow-sm"
+              onClick={() => router.push(`/portfolio?character=${char.id}`)}
+              role="button"
+              tabIndex={0}
+              onKeyDown={(e) => { if (e.key === 'Enter') router.push(`/portfolio?character=${char.id}`); }}
+              className="group block bg-neutral-900 border border-neutral-800 rounded-2xl overflow-hidden hover:border-blue-500/50 transition-all duration-300 relative shadow-sm cursor-pointer"
             >
               {char.image_url ? (
                 <div className="h-64 w-full relative overflow-hidden bg-neutral-950">
                   <img
-                    src={char.image_url.startsWith('/') ? `http://127.0.0.1:8000${char.image_url}` : char.image_url}
+                    src={char.image_url.startsWith('http') ? char.image_url : (char.image_url.startsWith('/') ? char.image_url : `/${char.image_url}`)}
                     alt={char.name}
                     className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700"
                   />
@@ -83,7 +86,6 @@ export default function CharactersPage() {
                     {char.artist && (
                       <div 
                         onClick={(e) => {
-                          e.preventDefault();
                           e.stopPropagation();
                           router.push(`/artists/${char.artist!.handle}`);
                         }}
@@ -134,7 +136,6 @@ export default function CharactersPage() {
                       {char.artist && (
                         <div 
                           onClick={(e) => {
-                            e.preventDefault();
                             e.stopPropagation();
                             router.push(`/artists/${char.artist!.handle}`);
                           }}
@@ -161,7 +162,7 @@ export default function CharactersPage() {
                   </div>
                 </>
               )}
-            </Link>
+            </div>
           ))}
         </div>
       )}

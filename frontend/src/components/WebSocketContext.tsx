@@ -27,7 +27,6 @@ export const WebSocketProvider = ({ children }: { children: React.ReactNode }) =
 
   useEffect(() => {
     if (typeof window === 'undefined' || !user) {
-      setIsConnected(false);
       return;
     }
 
@@ -76,10 +75,23 @@ export const WebSocketProvider = ({ children }: { children: React.ReactNode }) =
             });
             queryClient.invalidateQueries({ queryKey: ['auction-messages', payload.auction_id] });
           } else if (type === 'auction_ended') {
-            // Invalidate auctions list to trigger status changes
+            const auctionId = data?.auction_id;
+            if (auctionId) {
+              queryClient.invalidateQueries({ queryKey: ['auction', auctionId] });
+              queryClient.invalidateQueries({ queryKey: ['auction', String(auctionId)] });
+            }
             queryClient.invalidateQueries({ queryKey: ['auctions'] });
+          } else if (type === 'order_status_updated' || type === 'invoice_updated' || type === 'revision_updated') {
+            queryClient.invalidateQueries({ queryKey: ['orders'] });
+            queryClient.invalidateQueries({ queryKey: ['client-orders'] });
+            if (data?.order_id) {
+              queryClient.invalidateQueries({ queryKey: ['order', data.order_id] });
+              queryClient.invalidateQueries({ queryKey: ['invoices', data.order_id] });
+              queryClient.invalidateQueries({ queryKey: ['order-invoices', data.order_id] });
+              queryClient.invalidateQueries({ queryKey: ['revisions', data.order_id] });
+              queryClient.invalidateQueries({ queryKey: ['order-revisions', data.order_id] });
+            }
           } else if (type === 'notification') {
-            // Invalidate notifications query to load new notification
             queryClient.invalidateQueries({ queryKey: ['notifications'] });
           }
         } catch (err) {
@@ -88,9 +100,13 @@ export const WebSocketProvider = ({ children }: { children: React.ReactNode }) =
       };
 
       ws.onclose = (event) => {
-        console.log('WebSocket connection closed.');
+        console.log('WebSocket connection closed. Code:', event.code);
         setIsConnected(false);
-        // Attempt reconnect after 5 seconds if unmounted
+        // Do NOT reconnect if authentication failed
+        if (event.code === 4003 || event.code === 1008) {
+          console.warn('WebSocket authentication rejected (Code 4003/1008). Reconnect aborted.');
+          return;
+        }
         reconnectTimeoutRef.current = setTimeout(() => {
           connect();
         }, 5000);

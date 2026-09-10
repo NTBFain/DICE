@@ -15,6 +15,7 @@ env/
 .env
 
 # Database
+*.db
 backend/dice.db
 backend/dice.db-journal
 *.db-shm

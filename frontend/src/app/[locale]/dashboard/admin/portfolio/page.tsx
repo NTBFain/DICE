@@ -139,7 +139,7 @@ export default function PortfolioAdminModule() {
           <div key={art.id} className="bg-neutral-900 border border-neutral-800 rounded-3xl overflow-hidden shadow-xs flex flex-col justify-between">
             <div className="aspect-square bg-neutral-950 relative border-b border-neutral-800 overflow-hidden group">
               <img
-                src={art.image_url.startsWith('/') ? `http://127.0.0.1:8000${art.image_url}` : art.image_url}
+                src={art.image_url.startsWith('http') ? art.image_url : (art.image_url.startsWith('/') ? art.image_url : `/${art.image_url}`)}
                 alt={art.title}
                 className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
               />

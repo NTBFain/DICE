@@ -1,6 +1,7 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect, Suspense } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { useQuery } from '@tanstack/react-query';
 import { getPortfolio, getArtists, Artwork } from '@/lib/api';
 import { Loader2, Eye, X, Image as ImageIcon, Sparkles, User, Search, Filter } from 'lucide-react';
@@ -14,13 +15,43 @@ const WORK_TYPES = [
   { id: 'VTUBER_MODEL', label: 'VTuber 2D Asset' },
 ];
 
+const getImageUrl = (url?: string) => {
+  if (!url) return '';
+  if (url.startsWith('http://') || url.startsWith('https://')) return url;
+  return url.startsWith('/') ? url : `/${url}`;
+};
+
 export default function PortfolioPage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen flex items-center justify-center bg-neutral-50 dark:bg-neutral-950">
+        <Loader2 className="w-8 h-8 animate-spin text-blue-500" />
+      </div>
+    }>
+      <PortfolioContent />
+    </Suspense>
+  );
+}
+
+function PortfolioContent() {
   const [activeArtwork, setActiveArtwork] = useState<Artwork | null>(null);
   const [selectedArtist, setSelectedArtist] = useState<number | 'all'>('all');
   const [selectedWorkType, setSelectedWorkType] = useState<string>('all');
   const [hoveredCard, setHoveredCard] = useState<number | null>(null);
   const t = useTranslations('Portfolio');
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const characterParam = searchParams?.get('character');
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        setActiveArtwork(null);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, []);
 
   const { data: artworks, isLoading: isLoadingArtworks, isError: isErrorArtworks } = useQuery({
     queryKey: ['portfolio'],
@@ -35,13 +66,14 @@ export default function PortfolioPage() {
   const filteredArtworks = artworks?.filter(artwork => {
     const matchArtist = selectedArtist === 'all' || artwork.artist?.id === selectedArtist;
     const matchWorkType = selectedWorkType === 'all' || artwork.work_type === selectedWorkType;
-    return matchArtist && matchWorkType;
+    const matchCharacter = !characterParam || artwork.character_id === Number(characterParam) || artwork.character?.id === Number(characterParam);
+    return matchArtist && matchWorkType && matchCharacter;
   }) || [];
 
   return (
     <div className="min-h-screen bg-neutral-50 dark:bg-neutral-950 pb-20">
       {/* 🖼️ HERO & FILTER STICKY HEADER */}
-      <div className="sticky top-[72px] z-30 bg-white/70 dark:bg-neutral-950/70 backdrop-blur-2xl border-b border-neutral-200/50 dark:border-neutral-800/50 shadow-sm transition-all">
+      <div className="sticky top-16 z-30 bg-white/70 dark:bg-neutral-950/70 backdrop-blur-2xl border-b border-neutral-200/50 dark:border-neutral-800/50 shadow-sm transition-all">
         <div className="container mx-auto px-4 sm:px-8 py-6 max-w-7xl">
           <div className="flex flex-col md:flex-row md:items-end justify-between gap-6">
             <motion.div 
@@ -198,7 +230,7 @@ export default function PortfolioPage() {
                     className="w-full h-full"
                   >
                     <img
-                      src={artwork.image_url.startsWith('/') ? `http://127.0.0.1:8000${artwork.image_url}` : artwork.image_url}
+                      src={getImageUrl(artwork.image_url)}
                       alt={artwork.title}
                       className="w-full h-auto object-cover"
                       loading="lazy"
@@ -262,6 +294,9 @@ export default function PortfolioPage() {
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
+            role="dialog"
+            aria-modal="true"
+            aria-label={activeArtwork.title}
             className="fixed inset-0 z-50 bg-black/95 backdrop-blur-3xl flex items-center justify-center p-4 sm:p-8"
           >
             <motion.button
@@ -269,6 +304,7 @@ export default function PortfolioPage() {
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.5 }}
               onClick={() => setActiveArtwork(null)}
+              aria-label="Close artwork inspector"
               className="absolute top-6 right-6 z-10 p-3 bg-white/10 hover:bg-white/20 text-white rounded-full backdrop-blur-md border border-white/20 transition-all cursor-pointer shadow-2xl"
             >
               <X className="w-6 h-6" />
@@ -284,7 +320,7 @@ export default function PortfolioPage() {
               {/* Image Section */}
               <div className="flex-1 bg-black flex items-center justify-center overflow-hidden p-6 relative group">
                 <img
-                  src={activeArtwork.image_url.startsWith('/') ? `http://127.0.0.1:8000${activeArtwork.image_url}` : activeArtwork.image_url}
+                  src={getImageUrl(activeArtwork.image_url)}
                   alt={activeArtwork.title}
                   className="max-h-[80vh] w-auto object-contain rounded-xl shadow-2xl transition-transform duration-500 group-hover:scale-[1.02]"
                 />

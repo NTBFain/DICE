@@ -300,6 +300,11 @@ export const SAMPLE_ARTISTS_LIST: ArtistProfile[] = [
   }
 ];
 
+const getBaseApiUrl = () => {
+  if (typeof window !== 'undefined') return '/api';
+  return 'http://127.0.0.1:8000/api';
+};
+
 export const getMarketplaceArtists = async (filters?: {
   query?: string;
   style?: string;
@@ -313,7 +318,7 @@ export const getMarketplaceArtists = async (filters?: {
     if (filters?.status && filters.status !== 'ALL') params.append('status', filters.status);
     if (filters?.maxPrice) params.append('max_price', filters.maxPrice.toString());
 
-    const res = await fetch(`http://127.0.0.1:8000/api/artists?${params.toString()}`);
+    const res = await fetch(`${getBaseApiUrl()}/artists?${params.toString()}`);
     if (res.ok) {
       return await res.json();
     }
@@ -325,7 +330,7 @@ export const getMarketplaceArtists = async (filters?: {
 
 export const getArtistByHandle = async (handle: string): Promise<ArtistProfile | null> => {
   try {
-    const res = await fetch(`http://127.0.0.1:8000/api/artists/${handle}`);
+    const res = await fetch(`${getBaseApiUrl()}/artists/${handle}`);
     if (res.ok) {
       return await res.json();
     }

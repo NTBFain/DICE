@@ -22,6 +22,7 @@
 
 | ไฟล์ | คำอธิบาย |
 |------|---------|
+| [MASTER_PROMPT.md](MASTER_PROMPT.md) | **Master System Prompt** สเปกและพิมพ์เขียวครบวงจรสำหรับสร้างโปรเจกต์ใหม่ด้วย AI |
 | [PROJECT_STATUS.md](docs/PROJECT_STATUS.md) | สรุปสถานะระบบย่อยทั้ง 12 โมดูล พร้อมเปอร์เซ็นต์ Backend/Frontend |
 | [CHANGELOG_SUMMARY.md](docs/CHANGELOG_SUMMARY.md) | สรุปประวัติการแก้ไขและฟีเจอร์ล่าสุด |
 | [DESIGN.md](docs/DESIGN.md) | Design System, Dynamic Theme Engine, และ Design Tokens |
@@ -36,21 +37,23 @@
 
 ## 🚀 การรันโปรเจกต์ (Quick Start)
 
-> [!TIP]
-> เพื่อความเสถียร ประหยัด CPU/RAM และป้องกันปัญหาเครื่องคอมพิวเตอร์ค้าง แนะนำให้รัน Frontend ในโหมด **Production Mode (`npx next start`)**
-
-**1. รัน Backend FastAPI (Port 8000):**
+### บน Linux / macOS:
 ```bash
-cd backend
-uv run uvicorn main:app --port 8000
+# รันโหมด Development (Hot Reload ทั้ง Backend และ Frontend)
+./run.sh
+# หรือ ./run_dev.sh
+
+# รันโหมด Production
+./run.sh prod
+# หรือ ./run_prod.sh
+
+# ปิดทุก Services ที่รันอยู่บน Port 8000 และ 3000
+./stop.sh
 ```
 
-**2. บิลด์และรัน Frontend Next.js (Port 3000):**
-```bash
-cd frontend
-npx next build
-npx next start -p 3000
-```
+### บน Windows:
+* รัน `run_dev.bat` (โหมด Development)
+* รัน `run_prod.bat` (โหมด Production)
 
 ---
 

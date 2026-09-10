@@ -10,8 +10,8 @@ export default function BottomNav() {
   const pathname = usePathname();
   const t = useTranslations('Navigation');
 
-  // Hide public bottom nav when in admin dashboard to prevent overlapping with admin dock
-  if (pathname.startsWith('/dashboard/admin')) {
+  // Hide public bottom nav when in admin or artist dashboard to prevent overlapping with floating dock
+  if (pathname.startsWith('/dashboard/admin') || pathname.startsWith('/dashboard/artist')) {
     return null;
   }
 
@@ -27,8 +27,20 @@ export default function BottomNav() {
     return pathname.startsWith(href);
   };
 
+  const getDashboardHref = () => {
+    if (user?.is_admin) return '/dashboard/admin';
+    if (user?.is_artist) return '/dashboard/artist';
+    return '/dashboard/client';
+  };
+
+  const getDashboardLabel = () => {
+    if (user?.is_admin) return t('adminPanel');
+    if (user?.is_artist) return 'Artist Studio';
+    return t('myOrders');
+  };
+
   return (
-    <div className="md:hidden fixed bottom-0 left-0 right-0 z-50 px-3 pb-3 pt-1 pointer-events-none">
+    <div className="md:hidden fixed bottom-0 left-0 right-0 z-50 px-3 pt-1 pointer-events-none pb-[max(0.75rem,env(safe-area-inset-bottom))]">
       <nav className="pointer-events-auto bg-[var(--bg-surface,#121215)]/95 text-[var(--text-primary,#f4f4f5)] backdrop-blur-xl border border-[var(--border-subtle,#27272a)] rounded-2xl shadow-2xl flex items-center justify-around p-1.5 max-w-md mx-auto transition-colors duration-300">
         {navItems.map((item) => {
           const Icon = item.icon;
@@ -52,7 +64,7 @@ export default function BottomNav() {
         {/* Dashboard / Login Button */}
         {user ? (
           <Link
-            href={user.is_admin ? '/dashboard/admin' : '/dashboard/client'}
+            href={getDashboardHref()}
             className={`flex flex-col items-center justify-center py-1.5 px-3 rounded-xl transition-all ${
               pathname.startsWith('/dashboard')
                 ? 'text-[var(--accent-primary,#3b82f6)] font-extrabold bg-[var(--accent-primary,#3b82f6)]/15 border border-[var(--accent-primary,#3b82f6)]/30 scale-105 shadow-xs'
@@ -60,7 +72,7 @@ export default function BottomNav() {
             }`}
           >
             <LayoutDashboard className="w-5 h-5 mb-0.5" />
-            <span className="text-[10px] tracking-tight">{user.is_admin ? t('adminPanel') : t('myOrders')}</span>
+            <span className="text-[10px] tracking-tight">{getDashboardLabel()}</span>
           </Link>
         ) : (
           <Link

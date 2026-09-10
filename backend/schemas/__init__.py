@@ -9,16 +9,24 @@ from .order import (
 )
 from .auction import BidCreateRequest, BidResponse, AuctionCreateRequest, AuctionUpdateRequest, AuctionResponse, AuctionMessageCreateRequest, AuctionMessageResponse
 from .system import CommissionStatusResponse, CommissionStatusUpdateRequest
+from .artist import (
+    ArtistBasicResponse, ArtistProfileResponse, ArtistUpdateRequest,
+    ArtistServiceResponse, ArtistReviewResponse, ArtistRegisterRequest,
+    ArtistServiceCreateRequest, ArtistReviewCreateRequest
+)
 
 __all__ = [
     "UserRegisterRequest", "UserLoginRequest", "TokenResponse", "UserResponse", "UserUpdateRequest",
     "ArtworkResponse", "ArtworkCreateRequest",
-    "CharacterResponse", "CharacterCreateRequest",
+    "CharacterResponse",
     "OrderCreateRequest", "OrderUpdateRequest", "OrderResponse",
     "MilestoneInvoiceCreateRequest", "MilestoneInvoiceResponse",
     "RevisionCreateRequest", "RevisionResponse", "FileResponse",
     "MessageCreateRequest", "MessageResponse",
     "BidCreateRequest", "BidResponse", "AuctionCreateRequest", "AuctionUpdateRequest", "AuctionResponse",
     "AuctionMessageCreateRequest", "AuctionMessageResponse",
-    "CommissionStatusResponse", "CommissionStatusUpdateRequest"
+    "CommissionStatusResponse", "CommissionStatusUpdateRequest",
+    "ArtistBasicResponse", "ArtistProfileResponse", "ArtistUpdateRequest",
+    "ArtistServiceResponse", "ArtistReviewResponse", "ArtistRegisterRequest",
+    "ArtistServiceCreateRequest", "ArtistReviewCreateRequest"
 ]

@@ -2,32 +2,32 @@ from fastapi import APIRouter, Depends, HTTPException, UploadFile, File as FastA
 from sqlmodel import Session, select
 from core.db import get_session
 from core.auth import get_password_hash, verify_password, create_access_token, get_current_user, get_admin_user
+from core.security_file import validate_and_save_upload
 from models import User, Order, Auction, File, ArtistProfile
 from schemas import UserRegisterRequest, UserLoginRequest, TokenResponse, UserResponse, UserUpdateRequest
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from typing import List, Dict, Any, Optional
 import os
 import uuid
-import shutil
 
 router = APIRouter(prefix="/api/auth", tags=["auth"])
 
 @router.post("/register", response_model=UserResponse)
 def register_user(request: UserRegisterRequest, session: Session = Depends(get_session)):
-    existing = session.exec(select(User).where(User.email == request.email)).first()
+    clean_email = request.email.strip().lower()
+    existing = session.exec(select(User).where(User.email == clean_email)).first()
     if existing:
         raise HTTPException(status_code=400, detail="Email already registered")
     
-    # First user registered in the system will automatically become Admin
-    has_users = session.exec(select(User)).first()
-    is_admin = False if has_users else True
-    
+    if len(request.password) < 8 or len(request.password) > 128:
+        raise HTTPException(status_code=400, detail="Password must be between 8 and 128 characters long")
+        
     hashed_pwd = get_password_hash(request.password)
     user = User(
-        email=request.email,
-        full_name=request.full_name,
+        email=clean_email,
+        full_name=request.full_name.strip(),
         hashed_password=hashed_pwd,
-        is_admin=is_admin,
+        is_admin=False,  # Enforce False for standard public registrations
         is_artist=request.is_artist,
         facebook_id=request.facebook_id,
         avatar_url=request.avatar_url
@@ -39,7 +39,8 @@ def register_user(request: UserRegisterRequest, session: Session = Depends(get_s
 
 @router.post("/login", response_model=TokenResponse)
 def login_user(request: UserLoginRequest, session: Session = Depends(get_session)):
-    user = session.exec(select(User).where(User.email == request.email)).first()
+    clean_email = request.email.strip().lower()
+    user = session.exec(select(User).where(User.email == clean_email)).first()
     if not user or not verify_password(request.password, user.hashed_password):
         raise HTTPException(status_code=401, detail="Invalid email or password")
     
@@ -59,7 +60,7 @@ def get_me(current_user: User = Depends(get_current_user)):
 @router.put("/me", response_model=UserResponse)
 def update_me(request: UserUpdateRequest, session: Session = Depends(get_session), current_user: User = Depends(get_current_user)):
     if request.full_name is not None:
-        current_user.full_name = request.full_name
+        current_user.full_name = request.full_name.strip()
     if request.avatar_url is not None:
         current_user.avatar_url = request.avatar_url
         
@@ -74,17 +75,19 @@ def upload_avatar(
     session: Session = Depends(get_session),
     current_user: User = Depends(get_current_user)
 ):
-    ext = file.filename.split(".")[-1].lower() if file.filename and "." in file.filename else "jpg"
-    filename = f"{uuid.uuid4().hex}.{ext}"
-    upload_dir = "uploads/avatars"
+    ext = os.path.splitext(file.filename or "")[1].lower()
+    if ext not in [".jpg", ".jpeg", ".png", ".webp"]:
+        raise HTTPException(status_code=400, detail="Invalid avatar format. Allowed: JPG, PNG, WebP")
+        
+    filename = f"avatar_{uuid.uuid4().hex}{ext}"
+    upload_dir = "uploads/portfolio"
     os.makedirs(upload_dir, exist_ok=True)
     file_path = os.path.join(upload_dir, filename)
     
-    with open(file_path, "wb") as buffer:
-        shutil.copyfileobj(file.file, buffer)
+    # Enforce magic bytes verification and 5MB size limit
+    validate_and_save_upload(file, file_path, max_size=5 * 1024 * 1024, is_deliverable=False)
         
-    url = f"http://127.0.0.1:8000/api/portfolio/images/{filename}" # re-using portfolio static files or maybe just standard
-    
+    url = f"/api/portfolio/images/{filename}"
     current_user.avatar_url = url
     session.add(current_user)
     session.commit()
@@ -94,16 +97,11 @@ def upload_avatar(
 
 @router.get("/me/collection")
 def get_my_collection(session: Session = Depends(get_session), current_user: User = Depends(get_current_user)):
-    # 1. Get COMPLETED orders
     orders = session.exec(select(Order).where(Order.client_id == current_user.id, Order.status == "COMPLETED")).all()
-    
-    # 2. Get WON auctions
     auctions = session.exec(select(Auction).where(Auction.winner_id == current_user.id)).all()
     
     collection = []
-    
     for order in orders:
-        # Get final files for this order
         final_files = session.exec(select(File).where(File.order_id == order.id, File.file_type == "FINAL")).all()
         for f in final_files:
             collection.append({
@@ -111,7 +109,7 @@ def get_my_collection(session: Session = Depends(get_session), current_user: Use
                 "title": order.title,
                 "type": "Commission",
                 "image_url": f"/api/orders/{order.id}/files/{f.id}/download",
-                "artist_name": order.artist.display_name if order.artist else "Unknown Artist",
+                "artist_name": order.artist.display_name if getattr(order, "artist", None) else "DICE Artist",
                 "date": order.created_at
             })
             
@@ -122,15 +120,12 @@ def get_my_collection(session: Session = Depends(get_session), current_user: Use
                 "title": auction.title,
                 "type": "Auction/Adoptable",
                 "image_url": auction.image_url,
-                "artist_name": auction.artist.display_name if auction.artist else "Unknown Artist",
+                "artist_name": "DICE Artist",
                 "date": auction.created_at
             })
             
-    # Sort by date
     collection.sort(key=lambda x: x["date"], reverse=True)
-    
     return collection
-
 
 class UserRoleUpdateRequest(BaseModel):
     is_admin: Optional[bool] = None
@@ -189,5 +184,3 @@ def delete_user(
     session.delete(user)
     session.commit()
     return {"message": "User deleted successfully"}
-
-

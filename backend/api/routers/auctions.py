@@ -1,17 +1,31 @@
-from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks
+from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks, UploadFile, File as FormFile, Form
+from fastapi.responses import FileResponse as SecureFileResponse
 from sqlmodel import Session, select
 from sqlalchemy.orm import selectinload
 from typing import List
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
+import os
+import secrets
+import math
 
 from core.db import get_session
 from core.auth import get_current_user, get_admin_user, get_artist_user
-from models import Auction, AuctionStatus, AuctionType, Bid, User, Notification, NotificationType, AuctionMessage
+from core.security_file import validate_and_save_upload
+from models import Auction, AuctionStatus, AuctionType, Bid, User, Notification, NotificationType, AuctionMessage, ArtistProfile
 from schemas import (
     AuctionCreateRequest, AuctionUpdateRequest, AuctionResponse, 
     BidCreateRequest, BidResponse, AuctionMessageCreateRequest, AuctionMessageResponse
 )
-from services.auction_service import check_and_close_auction, get_bid_responses, background_close_auction
+from services.auction_service import check_and_close_auction, get_bid_responses, background_close_auction, finalize_auto_buy
+
+router = APIRouter(prefix="/api/auctions", tags=["auctions"])
+
+ALLOWED_AUCTION_IMAGE_EXTENSIONS = {".jpg", ".jpeg", ".png", ".webp", ".gif"}
+
+def to_naive_utc(dt: datetime) -> datetime:
+    if dt.tzinfo is not None:
+        return dt.astimezone(timezone.utc).replace(tzinfo=None)
+    return dt
 
 def get_auction_messages_response(session: Session, auction_id: int) -> List[AuctionMessageResponse]:
     statement = select(AuctionMessage).where(AuctionMessage.auction_id == auction_id).order_by(AuctionMessage.created_at.asc())
@@ -20,7 +34,7 @@ def get_auction_messages_response(session: Session, auction_id: int) -> List[Auc
     for m in msgs:
         sender = session.get(User, m.sender_id)
         sender_name = sender.full_name if sender else "Anonymous"
-        is_artist = sender.is_admin if sender else False
+        is_artist = sender.is_artist or sender.is_admin if sender else False
         res.append(
             AuctionMessageResponse(
                 id=m.id,
@@ -36,8 +50,10 @@ def get_auction_messages_response(session: Session, auction_id: int) -> List[Auc
 
 def _build_auction_response(a: Auction, bid_res: List, session: Session, msg_res: List = None) -> AuctionResponse:
     winner_name = None
-    if a.winner_id and getattr(a, "winner", None):
-        winner_name = a.winner.full_name
+    if a.winner_id:
+        winner = session.get(User, a.winner_id)
+        if winner:
+            winner_name = winner.full_name
     if msg_res is None:
         msg_res = get_auction_messages_response(session, a.id)
     return AuctionResponse(
@@ -60,28 +76,21 @@ def _build_auction_response(a: Auction, bid_res: List, session: Session, msg_res
         messages=msg_res
     )
 
-import os
-import shutil
-import secrets
-from fastapi.responses import FileResponse as SecureFileResponse
-from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks, UploadFile, File as FormFile, Form
-
-router = APIRouter(prefix="/api/auctions", tags=["auctions"])
-
 @router.post("/upload_image")
 def upload_auction_image(
     file: UploadFile = FormFile(...),
     session: Session = Depends(get_session),
     artist_user: User = Depends(get_artist_user)
 ):
-    ext = file.filename.split(".")[-1].lower() if file.filename and "." in file.filename else "jpg"
-    if ext not in ["jpg", "jpeg", "png", "webp", "gif"]:
-        raise HTTPException(status_code=400, detail="Invalid image extension. Allowed: jpg, jpeg, png, webp, gif")
+    ext = os.path.splitext(file.filename or "")[1].lower()
+    if ext not in ALLOWED_AUCTION_IMAGE_EXTENSIONS:
+        raise HTTPException(status_code=400, detail=f"Invalid image extension. Allowed: {ALLOWED_AUCTION_IMAGE_EXTENSIONS}")
+        
     os.makedirs("uploads/auctions", exist_ok=True)
-    filename = f"auc_{secrets.token_hex(8)}.{ext}"
+    filename = f"auc_{secrets.token_hex(8)}{ext}"
     filepath = os.path.join("uploads/auctions", filename)
-    with open(filepath, "wb") as f:
-        shutil.copyfileobj(file.file, f)
+    
+    validate_and_save_upload(file, filepath, max_size=25 * 1024 * 1024, is_deliverable=False)
     return {"image_url": f"/api/auctions/images/{filename}"}
 
 @router.get("/images/{filename}")
@@ -92,21 +101,15 @@ def get_auction_image(filename: str):
         raise HTTPException(status_code=404, detail="Image not found")
     return SecureFileResponse(path)
 
-
-@router.get("/admin", response_model=List[AuctionResponse])
-async def api_get_auctions_admin(background_tasks: BackgroundTasks, session: Session = Depends(get_session), artist_user: User = Depends(get_artist_user)):
+@router.get("", response_model=List[AuctionResponse])
+async def api_get_auctions(
+    background_tasks: BackgroundTasks, 
+    session: Session = Depends(get_session)
+):
     statement = select(Auction).options(
         selectinload(Auction.bids).joinedload(Bid.bidder),
         selectinload(Auction.winner)
     )
-    if not artist_user.is_admin:
-        from models import ArtistProfile
-        profile = session.exec(select(ArtistProfile).where(ArtistProfile.user_id == artist_user.id)).first()
-        if profile:
-            statement = statement.where(Auction.artist_id == profile.id)
-        else:
-            statement = statement.where(Auction.artist_id == -1) # no profile = no auctions
-            
     auctions = session.exec(statement).all()
     
     now = datetime.utcnow()
@@ -131,47 +134,30 @@ async def api_get_auctions_admin(background_tasks: BackgroundTasks, session: Ses
         responses.append(_build_auction_response(a, bid_res, session))
     return responses
 
-@router.post("", response_model=AuctionResponse)
-def api_create_auction(request: AuctionCreateRequest, session: Session = Depends(get_session), artist_user: User = Depends(get_artist_user)):
-    from models import ArtistProfile
-    profile = session.exec(select(ArtistProfile).where(ArtistProfile.user_id == artist_user.id)).first()
-    artist_id = profile.id if profile else None
-
-    start_dt = request.start_time.replace(tzinfo=None) if request.start_time.tzinfo else request.start_time
-    end_dt = request.end_time.replace(tzinfo=None) if request.end_time.tzinfo else request.end_time
-
-    auction = Auction(
-        title=request.title,
-        description=request.description,
-        image_url=request.image_url,
-        auction_type=AuctionType(request.auction_type),
-        status=AuctionStatus.ACTIVE,
-        starting_bid=request.starting_bid,
-        bid_increment=request.bid_increment,
-        auto_buy=request.auto_buy,
-        start_time=start_dt,
-        end_time=end_dt,
-        artist_id=artist_id
-    )
-    session.add(auction)
-    session.commit()
-    session.refresh(auction)
-    return _build_auction_response(auction, [], session)
-
-@router.get("", response_model=List[AuctionResponse])
-async def api_get_auctions(background_tasks: BackgroundTasks, session: Session = Depends(get_session)):
+@router.get("/admin", response_model=List[AuctionResponse])
+async def api_get_auctions_admin(
+    background_tasks: BackgroundTasks, 
+    session: Session = Depends(get_session), 
+    artist_user: User = Depends(get_artist_user)
+):
     statement = select(Auction).options(
         selectinload(Auction.bids).joinedload(Bid.bidder),
         selectinload(Auction.winner)
     )
+    if not artist_user.is_admin:
+        profile = session.exec(select(ArtistProfile).where(ArtistProfile.user_id == artist_user.id)).first()
+        if profile:
+            statement = statement.where(Auction.artist_id == profile.id)
+        else:
+            statement = statement.where(Auction.artist_id == -1)
+            
     auctions = session.exec(statement).all()
     
-    # Check closing only for expired active auctions to avoid unnecessary commits
     now = datetime.utcnow()
     for a in auctions:
         if a.status == AuctionStatus.ACTIVE and now >= a.end_time:
             background_tasks.add_task(background_close_auction, a.id)
-        
+            
     responses = []
     for a in auctions:
         sorted_bids = sorted(a.bids, key=lambda x: x.amount, reverse=True)
@@ -190,47 +176,91 @@ async def api_get_auctions(background_tasks: BackgroundTasks, session: Session =
     return responses
 
 @router.get("/{auction_id}", response_model=AuctionResponse)
-async def api_get_auction_by_id(auction_id: int, background_tasks: BackgroundTasks, session: Session = Depends(get_session)):
-    statement = select(Auction).where(Auction.id == auction_id).options(
-        selectinload(Auction.bids).joinedload(Bid.bidder),
-        selectinload(Auction.winner)
-    )
-    auction = session.exec(statement).first()
+async def api_get_auction(
+    auction_id: int, 
+    background_tasks: BackgroundTasks, 
+    session: Session = Depends(get_session)
+):
+    auction = session.get(Auction, auction_id)
     if not auction:
         raise HTTPException(status_code=404, detail="Auction not found")
         
     now = datetime.utcnow()
     if auction.status == AuctionStatus.ACTIVE and now >= auction.end_time:
-        background_tasks.add_task(background_close_auction, auction.id)
-    
-    sorted_bids = sorted(auction.bids, key=lambda x: x.amount, reverse=True)
-    bid_res = []
-    for bid in sorted_bids:
-        bidder_name = bid.bidder.full_name if bid.bidder else "Unknown Bidder"
-        bid_res.append(BidResponse(
-            id=bid.id,
-            auction_id=bid.auction_id,
-            bidder_id=bid.bidder_id,
-            amount=bid.amount,
-            created_at=bid.created_at.replace(tzinfo=timezone.utc),
-            bidder_name=bidder_name
-        ))
-    
+        await check_and_close_auction(auction, session)
+        session.refresh(auction)
+        
+    sorted_bids = session.exec(
+        select(Bid).where(Bid.auction_id == auction.id).order_by(Bid.amount.desc())
+    ).all()
+    bid_res = get_bid_responses(sorted_bids, session)
     return _build_auction_response(auction, bid_res, session)
 
+@router.post("", response_model=AuctionResponse)
+def api_create_auction(
+    request: AuctionCreateRequest, 
+    session: Session = Depends(get_session), 
+    artist_user: User = Depends(get_artist_user)
+):
+    profile = session.exec(select(ArtistProfile).where(ArtistProfile.user_id == artist_user.id)).first()
+    if not profile and not artist_user.is_admin:
+        raise HTTPException(status_code=400, detail="You must register an artist profile before creating auctions")
+        
+    artist_id = profile.id if profile else None
+
+    start_dt = to_naive_utc(request.start_time)
+    end_dt = to_naive_utc(request.end_time)
+
+    if end_dt <= start_dt:
+        raise HTTPException(status_code=400, detail="End time must be after start time")
+
+    try:
+        auc_type = AuctionType(request.auction_type)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid auction_type. Allowed: COMMISSION_SLOT, ADOPTABLE")
+
+    auction = Auction(
+        title=request.title.strip(),
+        description=request.description.strip(),
+        image_url=request.image_url,
+        auction_type=auc_type,
+        status=AuctionStatus.ACTIVE,
+        starting_bid=round(request.starting_bid, 2),
+        bid_increment=round(request.bid_increment, 2),
+        auto_buy=round(request.auto_buy, 2) if request.auto_buy is not None else None,
+        start_time=start_dt,
+        end_time=end_dt,
+        artist_id=artist_id
+    )
+    session.add(auction)
+    session.commit()
+    session.refresh(auction)
+    return _build_auction_response(auction, [], session)
+
 @router.post("/{auction_id}/bid", response_model=AuctionResponse)
-async def api_place_bid(auction_id: int, request: BidCreateRequest, session: Session = Depends(get_session), current_user: User = Depends(get_current_user)):
-    auction = session.get(Auction, auction_id)
+async def api_place_bid(
+    auction_id: int, 
+    request: BidCreateRequest, 
+    session: Session = Depends(get_session), 
+    current_user: User = Depends(get_current_user)
+):
+    if request.amount <= 0 or not math.isfinite(request.amount):
+        raise HTTPException(status_code=400, detail="Bid amount must be a positive finite number")
+        
+    bid_amount = round(request.amount, 2)
+
+    # Acquire pessimistic row lock
+    auction = session.exec(
+        select(Auction).where(Auction.id == auction_id).with_for_update()
+    ).first()
     if not auction:
         raise HTTPException(status_code=404, detail="Auction not found")
 
-    if not artist_user.is_admin:
-        from models import ArtistProfile
-        profile = session.exec(select(ArtistProfile).where(ArtistProfile.user_id == artist_user.id)).first()
-        if not profile or auction.artist_id != profile.id:
-            raise HTTPException(status_code=403, detail="Not authorized to modify this auction")
+    if auction.artist_id:
+        artist_profile = session.get(ArtistProfile, auction.artist_id)
+        if artist_profile and artist_profile.user_id == current_user.id:
+            raise HTTPException(status_code=400, detail="Artists cannot place bids on their own auctions")
 
-        
     await check_and_close_auction(auction, session)
     
     if auction.status != AuctionStatus.ACTIVE:
@@ -241,89 +271,93 @@ async def api_place_bid(auction_id: int, request: BidCreateRequest, session: Ses
         raise HTTPException(status_code=400, detail="Auction is outside bidding time")
         
     highest_bid = session.exec(
-        select(Bid).where(Bid.auction_id == auction_id).order_by(Bid.amount.desc())
+        select(Bid).where(Bid.auction_id == auction_id).order_by(Bid.amount.desc()).with_for_update()
     ).first()
+    
+    if highest_bid and highest_bid.bidder_id == current_user.id:
+        raise HTTPException(status_code=400, detail="You currently hold the highest bid on this auction")
+        
     previous_highest = highest_bid
     
-    min_required_bid = auction.starting_bid
+    min_required_bid = round(auction.starting_bid, 2)
     if highest_bid:
-        min_required_bid = highest_bid.amount + auction.bid_increment
+        min_required_bid = round(highest_bid.amount + auction.bid_increment, 2)
         
-    if request.amount < min_required_bid:
-        raise HTTPException(status_code=400, detail=f"Bid amount must be at least ${min_required_bid}")
+    if bid_amount < min_required_bid:
+        raise HTTPException(status_code=400, detail=f"Bid amount must be at least ฿{min_required_bid:.2f}")
         
     new_bid = Bid(
         auction_id=auction_id,
         bidder_id=current_user.id,
-        amount=request.amount
+        amount=bid_amount,
+        created_at=now
     )
     session.add(new_bid)
+    
+    # Sniper Protection (Anti-Sniping) inside atomic block
+    time_left_seconds = (auction.end_time - now).total_seconds()
+    if 0 <= time_left_seconds <= 300:
+        extended_end_time = now + timedelta(minutes=5)
+        if extended_end_time > auction.end_time:
+            auction.end_time = extended_end_time
+            session.add(auction)
+            
     session.commit()
     session.refresh(new_bid)
-    
-    # Sniper Protection (Anti-Sniping)
-    time_left_seconds = (auction.end_time - now).total_seconds()
-    if 0 < time_left_seconds <= 300:
-        from datetime import timedelta
-        auction.end_time = auction.end_time + timedelta(minutes=5)
-        session.add(auction)
-        session.commit()
-        session.refresh(auction)
+    session.refresh(auction)
         
     # Notify previous highest bidder
     if previous_highest and previous_highest.bidder_id != current_user.id:
         from services.notification_service import create_notification
-        await create_notification(
-            session=session,
-            user_id=previous_highest.bidder_id,
-            title="Outbid Alert!",
-            message=f"You have been outbid on auction '{auction.title}' by ฿{request.amount}.",
-            link=f"/auctions/{auction.id}",
-            type=NotificationType.AUCTION
-        )
+        try:
+            await create_notification(
+                session=session,
+                user_id=previous_highest.bidder_id,
+                title="Outbid Alert!",
+                message=f"You have been outbid on auction '{auction.title}' with ฿{bid_amount:.2f}.",
+                link=f"/auctions/{auction.id}",
+                type=NotificationType.AUCTION
+            )
+        except Exception:
+            pass
     
     # Check Auto Buy
-    if auction.auto_buy is not None and request.amount >= auction.auto_buy:
-        auction.status = AuctionStatus.ENDED
-        auction.winner_id = current_user.id
-        auction.winning_bid = request.amount
-        session.add(auction)
-        session.commit()
+    if auction.auto_buy is not None and bid_amount >= auction.auto_buy:
+        await finalize_auto_buy(auction, current_user.id, bid_amount, session)
+        session.refresh(auction)
         
-        await check_and_close_auction(auction, session)
-        
-    # Refresh to get updated bids
-    session.refresh(auction)
-    
     sorted_bids = session.exec(
         select(Bid).where(Bid.auction_id == auction.id).order_by(Bid.amount.desc())
     ).all()
     bid_res = get_bid_responses(sorted_bids, session)
-    
     response_data = _build_auction_response(auction, bid_res, session)
     
-    # Broadcast updated auction to WebSocket
-    from fastapi.encoders import jsonable_encoder
-    from core.websocket import manager
-    await manager.broadcast({
-        "type": "auction_updated",
-        "data": jsonable_encoder(response_data)
-    })
+    try:
+        from fastapi.encoders import jsonable_encoder
+        from core.websocket import manager
+        await manager.broadcast({
+            "type": "auction_updated",
+            "data": jsonable_encoder(response_data)
+        })
+    except Exception:
+        pass
     
     return response_data
 
 @router.post("/{auction_id}/close", response_model=AuctionResponse)
-async def api_close_auction_manually(auction_id: int, session: Session = Depends(get_session), artist_user: User = Depends(get_artist_user)):
+async def api_close_auction_manually(
+    auction_id: int, 
+    session: Session = Depends(get_session), 
+    artist_user: User = Depends(get_artist_user)
+):
     auction = session.get(Auction, auction_id)
     if not auction:
         raise HTTPException(status_code=404, detail="Auction not found")
 
     if not artist_user.is_admin:
-        from models import ArtistProfile
         profile = session.exec(select(ArtistProfile).where(ArtistProfile.user_id == artist_user.id)).first()
         if not profile or auction.artist_id != profile.id:
-            raise HTTPException(status_code=403, detail="Not authorized to modify this auction")
-
+            raise HTTPException(status_code=403, detail="Not authorized to close this auction")
         
     if auction.status != AuctionStatus.ACTIVE:
         raise HTTPException(status_code=400, detail="Auction is already closed")
@@ -334,12 +368,12 @@ async def api_close_auction_manually(auction_id: int, session: Session = Depends
     session.refresh(auction)
     
     await check_and_close_auction(auction, session)
+    session.refresh(auction)
     
     sorted_bids = session.exec(
         select(Bid).where(Bid.auction_id == auction.id).order_by(Bid.amount.desc())
     ).all()
     bid_res = get_bid_responses(sorted_bids, session)
-    
     return _build_auction_response(auction, bid_res, session)
 
 @router.patch("/{auction_id}", response_model=AuctionResponse)
@@ -354,20 +388,18 @@ async def api_update_auction(
         raise HTTPException(status_code=404, detail="Auction not found")
 
     if not artist_user.is_admin:
-        from models import ArtistProfile
         profile = session.exec(select(ArtistProfile).where(ArtistProfile.user_id == artist_user.id)).first()
         if not profile or auction.artist_id != profile.id:
             raise HTTPException(status_code=403, detail="Not authorized to modify this auction")
-
         
     if request.title is not None:
-        auction.title = request.title
+        auction.title = request.title.strip()
     if request.description is not None:
-        auction.description = request.description
+        auction.description = request.description.strip()
     if request.auto_buy is not None:
-        auction.auto_buy = request.auto_buy
+        auction.auto_buy = round(request.auto_buy, 2)
     if request.end_time is not None:
-        auction.end_time = request.end_time
+        auction.end_time = to_naive_utc(request.end_time)
         
     session.add(auction)
     session.commit()
@@ -379,13 +411,16 @@ async def api_update_auction(
     bid_res = get_bid_responses(sorted_bids, session)
     response_data = _build_auction_response(auction, bid_res, session)
     
-    # Broadcast to WebSocket
-    from fastapi.encoders import jsonable_encoder
-    from core.websocket import manager
-    await manager.broadcast({
-        "type": "auction_updated",
-        "data": jsonable_encoder(response_data)
-    })
+    try:
+        from fastapi.encoders import jsonable_encoder
+        from core.websocket import manager
+        await manager.broadcast({
+            "type": "auction_updated",
+            "data": jsonable_encoder(response_data)
+        })
+    except Exception:
+        pass
+        
     return response_data
 
 @router.get("/{auction_id}/messages", response_model=List[AuctionMessageResponse])
@@ -393,13 +428,6 @@ def api_get_auction_messages(auction_id: int, session: Session = Depends(get_ses
     auction = session.get(Auction, auction_id)
     if not auction:
         raise HTTPException(status_code=404, detail="Auction not found")
-
-    if not artist_user.is_admin:
-        from models import ArtistProfile
-        profile = session.exec(select(ArtistProfile).where(ArtistProfile.user_id == artist_user.id)).first()
-        if not profile or auction.artist_id != profile.id:
-            raise HTTPException(status_code=403, detail="Not authorized to modify this auction")
-
     return get_auction_messages_response(session, auction_id)
 
 @router.post("/{auction_id}/messages", response_model=AuctionMessageResponse)
@@ -412,13 +440,6 @@ async def api_create_auction_message(
     auction = session.get(Auction, auction_id)
     if not auction:
         raise HTTPException(status_code=404, detail="Auction not found")
-
-    if not artist_user.is_admin:
-        from models import ArtistProfile
-        profile = session.exec(select(ArtistProfile).where(ArtistProfile.user_id == artist_user.id)).first()
-        if not profile or auction.artist_id != profile.id:
-            raise HTTPException(status_code=403, detail="Not authorized to modify this auction")
-
         
     if not request.content.strip():
         raise HTTPException(status_code=400, detail="Message content cannot be empty")
@@ -433,17 +454,22 @@ async def api_create_auction_message(
     session.commit()
     session.refresh(msg)
     
+    is_artist_user = False
+    if auction.artist_id:
+        profile = session.get(ArtistProfile, auction.artist_id)
+        if profile and profile.user_id == current_user.id:
+            is_artist_user = True
+            
     msg_response = AuctionMessageResponse(
         id=msg.id,
         auction_id=msg.auction_id,
         sender_id=msg.sender_id,
         sender_name=current_user.full_name,
-        is_artist=current_user.is_admin,
+        is_artist=is_artist_user or current_user.is_admin,
         content=msg.content,
         created_at=msg.created_at.replace(tzinfo=timezone.utc)
     )
     
-    # Broadcast to WebSocket for live real-time chat update
     try:
         from fastapi.encoders import jsonable_encoder
         from core.websocket import manager
@@ -456,6 +482,3 @@ async def api_create_auction_message(
         print(f"Error broadcasting auction message: {e}")
         
     return msg_response
-
-    
-    return response_data

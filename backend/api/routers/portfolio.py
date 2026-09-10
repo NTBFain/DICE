@@ -1,5 +1,4 @@
 import os
-import shutil
 import secrets
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File as FormFile, Form
 from fastapi.responses import FileResponse as SecureFileResponse
@@ -8,10 +7,13 @@ from typing import List
 
 from core.db import get_session
 from core.auth import get_admin_user, get_artist_user
-from models import Artwork, VisibilityStatus, User, ArtistProfile
+from core.security_file import validate_and_save_upload
+from models import Artwork, VisibilityStatus, User, ArtistProfile, Character
 from schemas import ArtworkResponse
 
 router = APIRouter(prefix="/api/portfolio", tags=["portfolio"])
+
+ALLOWED_IMAGE_EXTENSIONS = {".jpg", ".jpeg", ".png", ".webp", ".gif"}
 
 @router.get("", response_model=List[ArtworkResponse])
 def get_portfolio(session: Session = Depends(get_session)):
@@ -22,10 +24,8 @@ def get_portfolio(session: Session = Depends(get_session)):
 @router.get("/admin", response_model=List[ArtworkResponse])
 def get_portfolio_admin(session: Session = Depends(get_session), artist_user: User = Depends(get_artist_user)):
     if artist_user.is_admin:
-        # Admins see all artworks
         artworks = session.exec(select(Artwork)).all()
     else:
-        # Artists see only their own artworks
         profile = session.exec(select(ArtistProfile).where(ArtistProfile.user_id == artist_user.id)).first()
         if profile:
             artworks = session.exec(select(Artwork).where(Artwork.artist_id == profile.id)).all()
@@ -45,26 +45,42 @@ def create_artwork(
     artist_user: User = Depends(get_artist_user)
 ):
     profile = session.exec(select(ArtistProfile).where(ArtistProfile.user_id == artist_user.id)).first()
+    if not profile and not artist_user.is_admin:
+        raise HTTPException(status_code=400, detail="You must register an artist profile before adding portfolio items")
+        
     artist_id = profile.id if profile else None
 
-    ext = image.filename.split(".")[-1].lower() if image.filename and "." in image.filename else "jpg"
-    if ext not in ["jpg", "jpeg", "png", "webp", "gif"]:
-        raise HTTPException(status_code=400, detail="Invalid image extension. Allowed: jpg, jpeg, png, webp, gif")
-    filename = f"{secrets.token_hex(8)}.{ext}"
+    try:
+        vis_enum = VisibilityStatus(visibility_status.upper())
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid visibility_status. Allowed: PUBLIC, PRIVATE")
+
+    # Character ownership check
+    if character_id and character_id > 0:
+        character = session.get(Character, character_id)
+        if not character:
+            raise HTTPException(status_code=404, detail="Referenced character not found")
+        if not artist_user.is_admin and profile and character.artist_id != profile.id:
+            raise HTTPException(status_code=403, detail="Cannot link artwork to a character belonging to another artist")
+
+    ext = os.path.splitext(image.filename or "")[1].lower()
+    if ext not in ALLOWED_IMAGE_EXTENSIONS:
+        raise HTTPException(status_code=400, detail=f"Invalid image extension. Allowed: {ALLOWED_IMAGE_EXTENSIONS}")
+        
+    filename = f"port_{secrets.token_hex(8)}{ext}"
     filepath = os.path.join("uploads/portfolio", filename)
     
-    with open(filepath, "wb") as f:
-        shutil.copyfileobj(image.file, f)
+    validate_and_save_upload(image, filepath, max_size=25 * 1024 * 1024, is_deliverable=False)
         
     image_url = f"/api/portfolio/images/{filename}"
     
     artwork = Artwork(
-        title=title,
-        description=description,
+        title=title.strip(),
+        description=description.strip() if description else None,
         image_url=image_url,
-        visibility_status=VisibilityStatus(visibility_status),
-        work_type=work_type,
-        character_id=character_id,
+        visibility_status=vis_enum,
+        work_type=work_type.strip(),
+        character_id=character_id if (character_id and character_id > 0) else None,
         artist_id=artist_id
     )
     session.add(artwork)
@@ -95,24 +111,33 @@ def update_artwork(
     if not artwork:
         raise HTTPException(status_code=404, detail="Artwork not found")
         
+    profile = session.exec(select(ArtistProfile).where(ArtistProfile.user_id == artist_user.id)).first()
     if not artist_user.is_admin:
-        profile = session.exec(select(ArtistProfile).where(ArtistProfile.user_id == artist_user.id)).first()
         if not profile or artwork.artist_id != profile.id:
             raise HTTPException(status_code=403, detail="Not authorized to modify this artwork")
         
     if title is not None:
-        artwork.title = title
+        artwork.title = title.strip()
     if description is not None:
-        artwork.description = description
+        artwork.description = description.strip()
     if visibility_status is not None:
-        artwork.visibility_status = VisibilityStatus(visibility_status)
+        try:
+            artwork.visibility_status = VisibilityStatus(visibility_status.upper())
+        except ValueError:
+            raise HTTPException(status_code=400, detail="Invalid visibility_status. Allowed: PUBLIC, PRIVATE")
+            
     if work_type is not None:
-        artwork.work_type = work_type
+        artwork.work_type = work_type.strip()
+        
     if character_id is not None:
-        # 0 means unsetting the character
         if character_id == 0:
             artwork.character_id = None
         else:
+            character = session.get(Character, character_id)
+            if not character:
+                raise HTTPException(status_code=404, detail="Referenced character not found")
+            if not artist_user.is_admin and profile and character.artist_id != profile.id:
+                raise HTTPException(status_code=403, detail="Cannot link artwork to a character belonging to another artist")
             artwork.character_id = character_id
             
     session.add(artwork)
@@ -130,6 +155,17 @@ def delete_artwork(artwork_id: int, session: Session = Depends(get_session), art
         profile = session.exec(select(ArtistProfile).where(ArtistProfile.user_id == artist_user.id)).first()
         if not profile or artwork.artist_id != profile.id:
             raise HTTPException(status_code=403, detail="Not authorized to delete this artwork")
+            
+    # Delete image file from disk if local
+    if artwork.image_url and "/api/portfolio/images/" in artwork.image_url:
+        filename = os.path.basename(artwork.image_url)
+        path = os.path.join("uploads/portfolio", filename)
+        if os.path.exists(path):
+            try:
+                os.remove(path)
+            except OSError:
+                pass
+                
     session.delete(artwork)
     session.commit()
     return {"message": "Artwork deleted"}

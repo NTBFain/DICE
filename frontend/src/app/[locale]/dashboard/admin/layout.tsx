@@ -72,7 +72,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   return (
     <div className="min-h-screen bg-neutral-950 text-white flex flex-col font-sans pb-28 sm:pb-32">
       {/* 👑 SYSTEM ADMIN TOP HEADER */}
-      <header className="bg-neutral-900/90 backdrop-blur-md border-b border-purple-900/30 px-4 sm:px-6 py-3 flex items-center justify-between sticky top-0 z-40">
+      <header className="bg-neutral-900/90 backdrop-blur-md border-b border-purple-900/30 px-4 sm:px-6 py-3 flex items-center justify-between sticky top-16 z-40">
         <div className="flex items-center gap-2.5 sm:gap-3 truncate">
           <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-xl bg-purple-600 border border-amber-500/40 flex items-center justify-center text-white font-black shrink-0 shadow-lg shadow-purple-900/30">
             <Crown className="w-4 h-4 sm:w-5 sm:h-5 text-amber-300" />

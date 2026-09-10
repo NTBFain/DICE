@@ -21,3 +21,5 @@ api_router.include_router(analytics_router)
 api_router.include_router(characters_router)
 api_router.include_router(notifications_router)
 api_router.include_router(artists_router)
+
+

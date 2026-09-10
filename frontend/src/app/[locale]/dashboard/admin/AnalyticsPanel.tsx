@@ -1,3 +1,5 @@
+'use client';
+
 import { useQuery } from '@tanstack/react-query';
 import { getAnalytics } from '@/lib/api';
 import { Loader2, DollarSign, TrendingUp, Briefcase, Gavel } from 'lucide-react';

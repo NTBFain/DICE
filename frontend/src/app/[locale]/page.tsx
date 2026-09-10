@@ -25,23 +25,43 @@ export default function Home() {
   const [artists, setArtists] = useState<ArtistProfile[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
+  const [debouncedQuery, setDebouncedQuery] = useState('');
   const [selectedStyle, setSelectedStyle] = useState('ALL');
   const [onlyOpenCommissions, setOnlyOpenCommissions] = useState(false);
 
   useEffect(() => {
-    fetchData();
-  }, [searchQuery, selectedStyle, onlyOpenCommissions]);
+    const handler = setTimeout(() => {
+      setDebouncedQuery(searchQuery);
+    }, 300);
+    return () => clearTimeout(handler);
+  }, [searchQuery]);
 
-  const fetchData = async () => {
-    setLoading(true);
-    const data = await getMarketplaceArtists({
-      query: searchQuery,
-      style: selectedStyle,
-      status: onlyOpenCommissions ? 'OPEN' : undefined,
-    });
-    setArtists(data);
-    setLoading(false);
-  };
+  useEffect(() => {
+    let isCancelled = false;
+    const fetchData = async () => {
+      setLoading(true);
+      try {
+        const data = await getMarketplaceArtists({
+          query: debouncedQuery,
+          style: selectedStyle,
+          status: onlyOpenCommissions ? 'OPEN' : undefined,
+        });
+        if (!isCancelled) {
+          setArtists(data);
+        }
+      } catch (err) {
+        console.error('Failed to fetch marketplace artists:', err);
+      } finally {
+        if (!isCancelled) {
+          setLoading(false);
+        }
+      }
+    };
+    fetchData();
+    return () => {
+      isCancelled = true;
+    };
+  }, [debouncedQuery, selectedStyle, onlyOpenCommissions]);
 
   return (
     <div className="min-h-screen bg-[var(--bg-primary,#09090b)] text-[var(--text-primary,#f4f4f5)] px-3 py-4 sm:px-6 sm:py-8 lg:px-8 max-w-[1600px] mx-auto space-y-6 sm:space-y-10 pb-24 md:pb-12 w-full overflow-x-hidden">
@@ -158,7 +178,7 @@ export default function Home() {
 
       {/* 🎨 ARTIST DIRECTORY GRID */}
       <div className="space-y-4 sm:space-y-6">
-        <div className="flex flex-col xs:flex-row items-start xs:items-center justify-between gap-1.5 pb-3 sm:pb-4 border-b border-[var(--border-subtle,#27272a)]">
+        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-1.5 pb-3 sm:pb-4 border-b border-[var(--border-subtle,#27272a)]">
           <h2 className="text-lg sm:text-xl font-extrabold text-[var(--text-primary,#f4f4f5)] flex items-center gap-2">
             <Users className="w-5 h-5 text-[var(--accent-primary,#3b82f6)] shrink-0" /> {tHome('directoryTitle')} ({artists.length})
           </h2>
@@ -175,6 +195,18 @@ export default function Home() {
             <Users className="w-12 h-12 text-[var(--text-muted,#a1a1aa)] opacity-40 mx-auto mb-3" />
             <h3 className="text-base font-bold text-[var(--text-primary,#f4f4f5)]">{tHome('emptyTitle')}</h3>
             <p className="text-xs text-[var(--text-muted,#a1a1aa)] mt-1">{tHome('emptyDesc')}</p>
+            {(searchQuery || selectedStyle !== 'ALL' || onlyOpenCommissions) && (
+              <button
+                onClick={() => {
+                  setSearchQuery('');
+                  setSelectedStyle('ALL');
+                  setOnlyOpenCommissions(false);
+                }}
+                className="mt-4 px-4 py-2 text-xs font-bold bg-[var(--bg-surface-hover,#1c1c21)] hover:bg-[var(--border-hover,#3f3f46)] text-[var(--text-primary,#f4f4f5)] rounded-xl border border-[var(--border-subtle,#27272a)] transition-all cursor-pointer"
+              >
+                Clear Filters
+              </button>
+            )}
           </div>
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 sm:gap-6">

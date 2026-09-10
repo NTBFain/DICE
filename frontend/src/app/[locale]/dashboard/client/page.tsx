@@ -431,7 +431,7 @@ export default function ClientDashboard() {
                     {item.image_url.startsWith('/orders') ? (
                       <SecureImage src={item.image_url} alt={item.title} className="w-full h-auto object-cover group-hover:scale-105 transition-transform duration-700" />
                     ) : (
-                      <img src={item.image_url.startsWith('/') ? `http://127.0.0.1:8000${item.image_url}` : item.image_url} alt={item.title} className="w-full h-auto object-cover group-hover:scale-105 transition-transform duration-700" />
+                      <img src={item.image_url.startsWith('http') ? item.image_url : (item.image_url.startsWith('/') ? item.image_url : `/${item.image_url}`)} alt={item.title} className="w-full h-auto object-cover group-hover:scale-105 transition-transform duration-700" />
                     )}
                     <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex flex-col justify-end p-5">
                       <h4 className="text-lg font-black text-white mb-1">{item.title}</h4>

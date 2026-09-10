@@ -193,7 +193,7 @@ export default function AuctionsAdminModule() {
             {auc.image_url && (
               <div className="aspect-video bg-neutral-950 border-b border-neutral-800 overflow-hidden relative">
                 <img
-                  src={auc.image_url.startsWith('/') ? `http://127.0.0.1:8000${auc.image_url}` : auc.image_url}
+                  src={auc.image_url.startsWith('http') ? auc.image_url : (auc.image_url.startsWith('/') ? auc.image_url : `/${auc.image_url}`)}
                   alt={auc.title}
                   className="w-full h-full object-cover"
                 />

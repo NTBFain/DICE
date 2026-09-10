@@ -21,6 +21,8 @@ import { Link, useRouter } from '@/i18n/routing';
 import { useAuth } from '@/components/AuthContext';
 import { useMutation } from '@tanstack/react-query';
 import { createOrder } from '@/lib/api';
+import PriceCalculator from '@/components/PriceCalculator';
+import QueueRoadmap from '@/components/QueueRoadmap';
 
 export default function ArtistDedicatedProfilePage() {
   const params = useParams();
@@ -45,7 +47,13 @@ export default function ArtistDedicatedProfilePage() {
       setShowOrderModal(false);
       setOrderTitle('');
       setOrderDesc('');
+      setInquirySent(true);
+      setInquiryText('');
+      setTimeout(() => setInquirySent(false), 5000);
       router.push('/dashboard/client');
+    },
+    onError: (err: any) => {
+      alert(err.response?.data?.detail || 'Failed to submit request. Please try again.');
     },
   });
 
@@ -63,24 +71,32 @@ export default function ArtistDedicatedProfilePage() {
   };
 
   useEffect(() => {
-    if (handle) {
-      fetchArtist();
-    }
+    fetchArtist();
   }, [handle]);
 
   const fetchArtist = async () => {
     setLoading(true);
-    const res = await getArtistByHandle(handle);
-    setArtist(res);
+    try {
+      const data = await getArtistByHandle(handle);
+      setArtist(data);
+    } catch (err) {
+      console.error('Failed to load artist profile:', err);
+    }
     setLoading(false);
   };
 
   const handleSendInquiry = (e: React.FormEvent) => {
     e.preventDefault();
     if (!inquiryText.trim()) return;
-    setInquirySent(true);
-    setInquiryText('');
-    setTimeout(() => setInquirySent(false), 4000);
+    if (!user) {
+      router.push('/login');
+      return;
+    }
+    createOrderMutation.mutate({
+      title: `Direct Inquiry to @${artist!.handle}`,
+      description: inquiryText,
+      artist_id: artist!.id
+    });
   };
 
   if (loading) {
@@ -352,6 +368,11 @@ export default function ArtistDedicatedProfilePage() {
                 </div>
               ))
             )}
+
+            <div className="col-span-1 md:col-span-2 space-y-8 pt-6">
+              <PriceCalculator />
+              <QueueRoadmap />
+            </div>
           </div>
         )}
 

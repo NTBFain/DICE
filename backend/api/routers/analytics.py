@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException
 from sqlmodel import Session, select, func
 from typing import List, Optional
 from pydantic import BaseModel
@@ -6,7 +6,7 @@ import calendar
 from datetime import datetime, timedelta
 
 from core.db import get_session
-from core.auth import get_current_user
+from core.auth import get_artist_user
 from models import User, MilestoneInvoice, Auction, AuctionType, Order, OrderStatus, ArtistProfile
 
 router = APIRouter(prefix="/api/analytics", tags=["analytics"])
@@ -24,10 +24,20 @@ class AnalyticsResponse(BaseModel):
     total_clients_count: int = 0
 
 @router.get("", response_model=AnalyticsResponse)
-def get_analytics(period: str = "month", session: Session = Depends(get_session), current_user: User = Depends(get_current_user)):
-    now = datetime.utcnow()
+def get_analytics(
+    period: str = "month", 
+    session: Session = Depends(get_session), 
+    current_user: User = Depends(get_artist_user)
+):
     profile = session.exec(select(ArtistProfile).where(ArtistProfile.user_id == current_user.id)).first()
-    artist_id = profile.id if profile else (current_user.id if current_user.is_artist else None)
+    
+    if not current_user.is_admin and not profile:
+        raise HTTPException(status_code=403, detail="Artist profile required to access financial analytics")
+        
+    artist_id = profile.id if profile else None
+    user_id = current_user.id
+    
+    now = datetime.utcnow()
     
     # Define start and end dates based on period
     if period == "week":
@@ -59,8 +69,8 @@ def get_analytics(period: str = "month", session: Session = Depends(get_session)
         MilestoneInvoice.created_at >= start_date,
         MilestoneInvoice.created_at <= end_date
     )
-    if not current_user.is_admin and artist_id:
-        inv_statement = inv_statement.join(Order).where((Order.artist_id == artist_id) | (Order.artist_id == current_user.id))
+    if not current_user.is_admin:
+        inv_statement = inv_statement.join(Order).where((Order.artist_id == user_id) | (Order.artist_id == artist_id))
         
     invoices = session.exec(inv_statement).all()
     
@@ -91,12 +101,12 @@ def get_analytics(period: str = "month", session: Session = Depends(get_session)
         if period_str in period_data:
             period_data[period_str] += inv.amount
         
-    revenue_data = [{"period": k, "revenue": v} for k, v in period_data.items()]
+    revenue_data = [{"period": k, "revenue": round(v, 2)} for k, v in period_data.items()]
     
     # 2. Commission revenue sum
     comm_sum_query = select(func.sum(MilestoneInvoice.amount)).where(MilestoneInvoice.is_paid == True)
-    if not current_user.is_admin and artist_id:
-        comm_sum_query = comm_sum_query.join(Order).where((Order.artist_id == artist_id) | (Order.artist_id == current_user.id))
+    if not current_user.is_admin:
+        comm_sum_query = comm_sum_query.join(Order).where((Order.artist_id == user_id) | (Order.artist_id == artist_id))
     commission_revenue = session.exec(comm_sum_query).first() or 0.0
 
     # 3. Adoptable Auctions revenue
@@ -104,14 +114,14 @@ def get_analytics(period: str = "month", session: Session = Depends(get_session)
         Auction.winning_bid != None,
         Auction.auction_type == AuctionType.ADOPTABLE
     )
-    if not current_user.is_admin and artist_id:
-        auc_sum_query = auc_sum_query.where((Auction.artist_id == artist_id) | (Auction.artist_id == current_user.id))
+    if not current_user.is_admin:
+        auc_sum_query = auc_sum_query.where((Auction.artist_id == artist_id) | (Auction.artist_id == user_id))
     adoptable_revenue = session.exec(auc_sum_query).first() or 0.0
 
     # 4. Average bid / order stats
     auc_stats_query = select(func.sum(Auction.winning_bid), func.count(Auction.id)).where(Auction.winning_bid != None)
-    if not current_user.is_admin and artist_id:
-        auc_stats_query = auc_stats_query.where((Auction.artist_id == artist_id) | (Auction.artist_id == current_user.id))
+    if not current_user.is_admin:
+        auc_stats_query = auc_stats_query.where((Auction.artist_id == artist_id) | (Auction.artist_id == user_id))
     stats = session.exec(auc_stats_query).first()
     
     total_bids = stats[0] if stats and stats[0] else 0.0
@@ -120,8 +130,8 @@ def get_analytics(period: str = "month", session: Session = Depends(get_session)
     
     # 5. Completed orders & clients count
     order_query = select(Order)
-    if not current_user.is_admin and artist_id:
-        order_query = order_query.where((Order.artist_id == artist_id) | (Order.artist_id == current_user.id))
+    if not current_user.is_admin:
+        order_query = order_query.where((Order.artist_id == user_id) | (Order.artist_id == artist_id))
     orders = session.exec(order_query).all()
     
     completed_orders = len([o for o in orders if o.status == OrderStatus.COMPLETED])
@@ -129,10 +139,9 @@ def get_analytics(period: str = "month", session: Session = Depends(get_session)
     
     return AnalyticsResponse(
         revenue_data=revenue_data,
-        adoptable_revenue=adoptable_revenue,
-        commission_revenue=commission_revenue,
-        average_winning_bid=avg_bid,
+        adoptable_revenue=round(adoptable_revenue, 2),
+        commission_revenue=round(commission_revenue, 2),
+        average_winning_bid=round(avg_bid, 2),
         completed_orders_count=completed_orders,
         total_clients_count=unique_clients
     )
-

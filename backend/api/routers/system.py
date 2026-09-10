@@ -1,18 +1,20 @@
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, Form, File as FormFile
 from fastapi.responses import FileResponse as SecureFileResponse
-from sqlmodel import Session
+from sqlmodel import Session, select
 import os
 import secrets
 import shutil
 
 from core.db import get_session
 from core.auth import get_admin_user, get_current_user_optional
+from core.security_file import validate_and_save_upload
 from models import User, ArtistProfile
-from sqlmodel import select
 from schemas import CommissionStatusResponse, CommissionStatusUpdateRequest
 from services import get_setting, set_setting
 
 router = APIRouter(prefix="/api/commissions", tags=["commissions"])
+
+ALLOWED_LOGO_EXTENSIONS = {".png", ".jpg", ".jpeg", ".webp"}
 
 @router.get("/status", response_model=CommissionStatusResponse)
 def get_commission_status(session: Session = Depends(get_session), current_user: User = Depends(get_current_user_optional)):
@@ -23,6 +25,7 @@ def get_commission_status(session: Session = Depends(get_session), current_user:
             
     is_open_str = get_setting(session, "commissions_open", "false")
     return CommissionStatusResponse(open=(is_open_str == "true"))
+
 
 @router.post("/status", response_model=CommissionStatusResponse)
 def update_commission_status(request: CommissionStatusUpdateRequest, session: Session = Depends(get_session), admin_user: User = Depends(get_admin_user)):
@@ -71,31 +74,33 @@ def update_watermark_settings(
     set_setting(session, "watermark_tile_density", tile_density)
     set_setting(session, "watermark_include_anti_ai_grid", "true" if include_anti_ai_grid else "false")
     
-    if image:
-        os.makedirs("uploads/watermark_logos", exist_ok=True)
+    if image and image.filename:
         ext = os.path.splitext(image.filename)[1].lower()
-        if ext in [".png", ".jpg", ".jpeg", ".webp", ".svg"]:
-            filename = f"logo_{secrets.token_hex(4)}{ext}"
-            logo_path = os.path.join("uploads/watermark_logos", filename)
+        if ext not in ALLOWED_LOGO_EXTENSIONS:
+            raise HTTPException(
+                status_code=400, 
+                detail="Only raster images (.png, .jpg, .jpeg, .webp) are allowed as watermark logos. SVG files are disallowed."
+            )
             
-            with open(logo_path, "wb") as buffer:
-                shutil.copyfileobj(image.file, buffer)
-                
-            web_path = f"/api/commissions/watermark/logo?filename={filename}"
-            set_setting(session, "watermark_image_path", web_path)
-            set_setting(session, "watermark_image_filename", filename)
+        os.makedirs("uploads/watermark_logos", exist_ok=True)
+        filename = f"logo_{secrets.token_hex(4)}{ext}"
+        logo_path = os.path.join("uploads/watermark_logos", filename)
+        
+        validate_and_save_upload(image, logo_path, max_size=5 * 1024 * 1024, is_deliverable=False)
+            
+        web_path = f"/api/commissions/watermark/logo?filename={filename}"
+        set_setting(session, "watermark_image_path", web_path)
+        set_setting(session, "watermark_image_filename", filename)
         
     return get_watermark_settings(session)
 
 @router.get("/watermark/logo")
 def get_watermark_logo(filename: str):
-    # Security check to prevent directory traversal
     clean_filename = os.path.basename(filename)
     logo_path = os.path.join("uploads/watermark_logos", clean_filename)
     if not os.path.exists(logo_path):
         raise HTTPException(status_code=404, detail="Watermark logo not found")
     return SecureFileResponse(logo_path)
-
 
 @router.get("/homepage_text")
 def get_homepage_text(session: Session = Depends(get_session)):
@@ -123,5 +128,3 @@ def update_homepage_text(
     if "badge_2" in data: set_setting(session, "homepage_badge_2", data["badge_2"])
     if "badge_3" in data: set_setting(session, "homepage_badge_3", data["badge_3"])
     return get_homepage_text(session)
-
-

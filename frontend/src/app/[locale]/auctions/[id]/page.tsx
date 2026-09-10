@@ -37,13 +37,7 @@ import { useTranslations } from 'next-intl';
 const getAuctionImageUrl = (url?: string) => {
   if (!url) return '';
   if (url.startsWith('http://') || url.startsWith('https://')) return url;
-  if (url.startsWith('/')) {
-    const host = typeof window !== 'undefined'
-      ? (window.location.hostname === 'localhost' ? '127.0.0.1' : window.location.hostname)
-      : '127.0.0.1';
-    return `http://${host}:8000${url}`;
-  }
-  return url;
+  return url.startsWith('/') ? url : `/${url}`;
 };
 
 // Countdown Timer Component
@@ -259,7 +253,7 @@ export default function AuctionDetailPage() {
   return (
     <div className="min-h-screen bg-[var(--bg-primary,#09090b)] text-[var(--text-primary,#f4f4f5)] pb-20 transition-colors duration-200">
       {/* Dynamic Header Bar bound to active Theme Variables */}
-      <div className="border-b border-[var(--border-subtle,#27272a)] bg-[var(--bg-surface,#121215)]/90 backdrop-blur-md sticky top-0 z-40 px-6 py-4 flex items-center justify-between shadow-sm">
+      <div className="border-b border-[var(--border-subtle,#27272a)] bg-[var(--bg-surface,#121215)]/90 backdrop-blur-md sticky top-16 z-40 px-6 py-4 flex items-center justify-between shadow-sm">
         <Link
           href="/auctions"
           className="flex items-center gap-2 text-xs font-bold text-[var(--text-primary,#f4f4f5)] hover:opacity-80 transition-opacity bg-[var(--bg-primary,#09090b)] px-3.5 py-2 rounded-xl border border-[var(--border-subtle,#27272a)]"

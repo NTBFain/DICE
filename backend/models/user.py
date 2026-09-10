@@ -17,6 +17,9 @@ class User(UserBase, table=True):
     
     orders: List["Order"] = Relationship(
         back_populates="client",
-        sa_relationship_kwargs={"foreign_keys": "Order.client_id"}
+        sa_relationship_kwargs={"cascade": "all, delete-orphan", "foreign_keys": "Order.client_id"}
     )
-    notifications: List["Notification"] = Relationship(back_populates="user")
+    notifications: List["Notification"] = Relationship(
+        back_populates="user",
+        sa_relationship_kwargs={"cascade": "all, delete-orphan"}
+    )

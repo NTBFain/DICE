@@ -60,7 +60,7 @@ export default function WatermarkPanel() {
       setWAntiAiGrid(settings.include_anti_ai_grid ?? false);
       
       if (settings.image_path) {
-        setLogoPreviewUrl(`http://127.0.0.1:8000${settings.image_path}`);
+        setLogoPreviewUrl(settings.image_path.startsWith('http') ? settings.image_path : (settings.image_path.startsWith('/') ? settings.image_path : `/${settings.image_path}`));
       }
     }
   }, [settings]);

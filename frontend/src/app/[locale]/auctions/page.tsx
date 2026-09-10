@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { getAuctions, placeBid, Auction, Bid } from '@/lib/api';
 import { useAuth } from '@/components/AuthContext';
@@ -11,20 +11,14 @@ import { useTranslations } from 'next-intl';
 const getAuctionImageUrl = (url?: string) => {
   if (!url) return '';
   if (url.startsWith('http://') || url.startsWith('https://')) return url;
-  if (url.startsWith('/')) {
-    const host = typeof window !== 'undefined'
-      ? (window.location.hostname === 'localhost' ? '127.0.0.1' : window.location.hostname)
-      : '127.0.0.1';
-    return `http://${host}:8000${url}`;
-  }
-  return url;
+  return url.startsWith('/') ? url : `/${url}`;
 };
 
 // Countdown Timer Component
 function CountdownTimer({ endTime, onEnd }: { endTime: string; onEnd: () => void }) {
   const [timeLeft, setTimeLeft] = useState('');
 
-  useState(() => {
+  useEffect(() => {
     const calculate = () => {
       const diff = +new Date(endTime) - +new Date();
       if (diff <= 0) {
@@ -48,7 +42,7 @@ function CountdownTimer({ endTime, onEnd }: { endTime: string; onEnd: () => void
     calculate();
     const timer = setInterval(calculate, 1000);
     return () => clearInterval(timer);
-  });
+  }, [endTime, onEnd]);
 
   if (timeLeft === 'ENDED') {
     return (

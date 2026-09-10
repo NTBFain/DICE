@@ -116,7 +116,7 @@ export default function CharactersAdminModule() {
             <div className="aspect-square bg-neutral-950 relative border-b border-neutral-800 overflow-hidden group flex items-center justify-center">
               {char.image_url ? (
                 <img
-                  src={char.image_url.startsWith('/') ? `http://127.0.0.1:8000${char.image_url}` : char.image_url}
+                  src={char.image_url.startsWith('http') ? char.image_url : (char.image_url.startsWith('/') ? char.image_url : `/${char.image_url}`)}
                   alt={char.name}
                   className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
                 />
