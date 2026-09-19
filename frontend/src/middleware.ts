@@ -5,5 +5,5 @@ export default createMiddleware(routing);
  
 export const config = {
   // Match all request paths except for api, _next, _vercel, uploads, and files with extensions
-  matcher: ['/((?!api|_next|_vercel|uploads|.*\\..*).*)']
+  matcher: ['/', '/(th|en)/:path*', '/((?!api|_next|_vercel|uploads|.*\\.[a-zA-Z0-9]+$).*)']
 };

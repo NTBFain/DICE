@@ -89,9 +89,10 @@
   },
   "Login": {
     "createAccount": "สร้างบัญชีใหม่",
-    "welcomeBack": "ยินดีต้อนรับกลับมา",
-    "createSubtitle": "เข้าร่วม ArtistSpace เพื่อเริ่มสั่งงานวาดในฝันของคุณ",
-    "welcomeSubtitle": "เข้าสู่ระบบจัดการสำหรับลูกค้า",
+    "welcomeBack": "เข้าสู่ระบบ",
+    "createSubtitle": "เข้าร่วม DICE เพื่อเริ่มสั่งงานวาดในฝันของคุณ",
+    "welcomeSubtitle": "กรุณากรอกข้อมูลเพื่อเข้าสู่ระบบ",
+    "quickCredentials": "ข้อมูลบัญชีสำหรับทดสอบเข้าสู่ระบบ",
     "fullName": "ชื่อ-นามสกุล",
     "email": "อีเมล",
     "password": "รหัสผ่าน",
@@ -248,5 +249,13 @@
     "markAllRead": "อ่านทั้งหมด",
     "empty": "ไม่มีการแจ้งเตือนใหม่",
     "view": "ดู"
+  },
+  "NotFound": {
+    "title": "ไม่พบหน้าที่ต้องการ (404)",
+    "description": "ขออภัย ไม่พบหน้าที่คุณค้นหา หรือหน้านี้อาจถูกย้าย/ลบไปแล้ว",
+    "backHome": "กลับสู่หน้าหลัก",
+    "viewPortfolio": "ดูผลงาน (Portfolio)",
+    "viewAuctions": "การประมูล (Auctions)",
+    "viewCharacters": "ตัวละคร (Characters)"
   }
 }

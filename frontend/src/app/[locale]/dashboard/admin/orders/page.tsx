@@ -1,6 +1,7 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect, Suspense } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   getOrders,
@@ -32,10 +33,18 @@ import {
   MessageSquare,
 } from 'lucide-react';
 
-export default function OrdersAdminModule() {
+function OrdersAdminModuleContent() {
   const { user } = useAuth();
   const queryClient = useQueryClient();
+  const searchParams = useSearchParams();
   const [selectedOrderId, setSelectedOrderId] = useState<number | null>(null);
+
+  useEffect(() => {
+    const orderParam = searchParams.get('order');
+    if (orderParam && !isNaN(parseInt(orderParam, 10))) {
+      setSelectedOrderId(parseInt(orderParam, 10));
+    }
+  }, [searchParams]);
 
   // Invoice creation state
   const [invoiceTitle, setInvoiceTitle] = useState('');
@@ -580,3 +589,19 @@ export default function OrdersAdminModule() {
     </div>
   );
 }
+
+export default function OrdersAdminModule() {
+  return (
+    <Suspense
+      fallback={
+        <div className="flex flex-col items-center justify-center py-24 bg-neutral-900 border border-neutral-800 rounded-3xl">
+          <Loader2 className="w-8 h-8 text-blue-500 animate-spin mb-2" />
+          <span className="text-xs text-neutral-400 font-bold uppercase tracking-widest">Loading Commission Queue...</span>
+        </div>
+      }
+    >
+      <OrdersAdminModuleContent />
+    </Suspense>
+  );
+}
+

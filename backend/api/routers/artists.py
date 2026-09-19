@@ -241,7 +241,7 @@ def get_artists(
         
     artists = session.exec(statement).all()
         
-    results = []
+    filtered_artists = []
     for a in artists:
         if query:
             q = query.lower()
@@ -250,8 +250,90 @@ def get_artists(
         if style and style.upper() != 'ALL':
             if style.lower() not in a.styles.lower():
                 continue
-        results.append(_build_profile_res(a, session))
-        
+        filtered_artists.append(a)
+
+    if not filtered_artists:
+        return []
+
+    from collections import defaultdict
+    from sqlalchemy.orm import joinedload
+    from sqlmodel import func
+
+    artist_ids = [a.id for a in filtered_artists]
+    user_ids = [a.user_id for a in filtered_artists if a.user_id]
+
+    # 1. Services in batch
+    services_map = defaultdict(list)
+    for s in session.exec(select(ArtistService).where(ArtistService.artist_id.in_(artist_ids))).all():
+        services_map[s.artist_id].append(ArtistServiceResponse(
+            id=s.id, title=s.title, category=s.category, description=s.description,
+            base_price=s.base_price, estimated_days=s.estimated_days,
+            includes_commercial=s.includes_commercial, includes_psd=s.includes_psd,
+            sample_image_url=s.sample_image_url
+        ))
+
+    # 2. Reviews in batch
+    reviews_map = defaultdict(list)
+    for r in session.exec(select(ArtistReview).where(ArtistReview.artist_id.in_(artist_ids))).all():
+        reviews_map[r.artist_id].append(ArtistReviewResponse(
+            id=r.id, client_name=r.client_name, rating=r.rating,
+            comment=r.comment, created_at=r.created_at
+        ))
+
+    # 3. Artwork count in batch
+    art_counts = dict(session.exec(
+        select(Artwork.artist_id, func.count(Artwork.id))
+        .where(Artwork.artist_id.in_(artist_ids))
+        .group_by(Artwork.artist_id)
+    ).all())
+
+    # 4. Active auctions count in batch
+    auc_counts = dict(session.exec(
+        select(Auction.artist_id, func.count(Auction.id))
+        .where(Auction.artist_id.in_(artist_ids), Auction.status == AuctionStatus.ACTIVE)
+        .group_by(Auction.artist_id)
+    ).all())
+
+    # 5. Queue orders in batch
+    orders_map = defaultdict(list)
+    if user_ids:
+        queue_orders = session.exec(
+            select(Order)
+            .where(Order.artist_id.in_(user_ids), Order.status.in_([OrderStatus.ACCEPTED, OrderStatus.SKETCHING, OrderStatus.COLORING]))
+            .options(joinedload(Order.client))
+        ).all()
+        for o in queue_orders:
+            orders_map[o.artist_id].append(o)
+
+    results = []
+    for a in filtered_artists:
+        q_orders = orders_map.get(a.user_id or a.id, [])
+        queue_res = []
+        for idx, o in enumerate(q_orders, start=1):
+            raw_name = o.client.full_name if o.client else "Client"
+            masked_name = " ".join([f"{p[0]}***" if len(p) > 1 else "***" for p in raw_name.split()])
+            queue_res.append({
+                "slot_number": idx, "order_id": o.id, "title": f"Slot #{idx}",
+                "client_name": masked_name, "stage": o.status.value, "status": o.status.value,
+                "start_date": o.start_date.isoformat() if o.start_date else None,
+                "due_date": o.due_date.isoformat() if o.due_date else None
+            })
+
+        results.append(ArtistProfileResponse(
+            id=a.id, user_id=a.user_id, handle=a.handle, display_name=a.display_name,
+            tagline=a.tagline, bio=a.bio, avatar_url=a.avatar_url, banner_url=a.banner_url,
+            styles=[s.strip() for s in a.styles.split(",")] if a.styles else [],
+            commission_status=a.commission_status, rating=a.rating,
+            total_completed_orders=a.total_completed_orders, starting_price=a.starting_price,
+            social_twitter=a.social_twitter, social_pixiv=a.social_pixiv, social_discord=a.social_discord,
+            is_verified=a.is_verified, is_featured=a.is_featured,
+            services=services_map.get(a.id, []),
+            reviews=reviews_map.get(a.id, []),
+            active_auctions_count=auc_counts.get(a.id, 0),
+            portfolio_count=art_counts.get(a.id, 0),
+            public_queue=queue_res
+        ))
+
     return results
 
 @router.get("/{handle}", response_model=ArtistProfileResponse)

@@ -228,6 +228,10 @@
   --accent-secondary: #9f1239;
 }
 
+html {
+  font-size: 18px; /* เพิ่มขนาด 2 เบอร์ (+2px จากค่าเริ่มต้น 16px) ให้อ่านง่าย ชัดเจน สบายตาทั้งระบบ */
+}
+
 body {
   background-color: var(--bg-primary);
   color: var(--text-primary);
@@ -237,9 +241,24 @@ body {
   transition: background-color 0.3s ease, color 0.3s ease;
 }
 
+/* ปรับขนาดตัวหนังสือสำหรับ utility classes แบบ pixel ให้ขยับขึ้นอีก 2 เบอร์ (+2px) */
+.text-\[8px\] { font-size: 10px !important; }
+.text-\[9px\] { font-size: 11px !important; }
+.text-\[10px\] { font-size: 12px !important; }
+.text-\[11px\] { font-size: 13px !important; }
+.text-\[12px\] { font-size: 14px !important; }
+.text-\[13px\] { font-size: 15px !important; }
+.text-\[14px\] { font-size: 16px !important; }
+
+@media (min-width: 640px) {
+  .sm\:text-\[10px\] { font-size: 12px !important; }
+  .sm\:text-\[11px\] { font-size: 13px !important; }
+}
+
 /* Dynamic CSS Variable Bindings for 15 Studio Themes */
 .bg-neutral-950, 
 .dark\:bg-neutral-950,
+.bg-neutral-50,
 .bg-black {
   background-color: var(--bg-primary) !important;
 }
@@ -248,6 +267,7 @@ body {
 .bg-neutral-900\/50, 
 .bg-neutral-900\/40, 
 .bg-neutral-900\/60, 
+.bg-neutral-900\/70,
 .bg-neutral-900\/80, 
 .bg-neutral-900\/90, 
 .bg-neutral-900\/95, 
@@ -265,11 +285,17 @@ body {
 .dark\:bg-neutral-900\/20, 
 .dark\:bg-neutral-900\/30, 
 .dark\:bg-neutral-900\/40,
+.dark\:bg-neutral-900\/50,
+.dark\:bg-neutral-900\/70,
 .bg-neutral-950\/40,
 .bg-neutral-950\/50,
 .bg-neutral-950\/60,
+.bg-neutral-950\/70,
 .bg-neutral-950\/80,
-.bg-neutral-950\/90 {
+.bg-neutral-950\/90,
+.dark\:bg-neutral-950\/70,
+.dark\:bg-neutral-950\/80,
+.dark\:bg-neutral-950\/90 {
   background-color: var(--bg-surface) !important;
 }
 
@@ -278,22 +304,29 @@ body {
 .border-neutral-800\/80, 
 .border-neutral-800\/90, 
 .dark\:border-neutral-800,
-.border-neutral-850 {
+.dark\:border-neutral-800\/50,
+.border-neutral-850,
+.border-neutral-200,
+.border-neutral-200\/50 {
   border-color: var(--border-subtle) !important;
 }
 
 .border-neutral-700, 
 .border-neutral-700\/50, 
 .border-neutral-700\/60, 
-.dark\:border-neutral-700 {
+.dark\:border-neutral-700,
+.hover\:border-neutral-700:hover,
+.dark\:hover\:border-neutral-700:hover,
+.border-neutral-300,
+.hover\:border-neutral-300:hover {
   border-color: var(--border-hover) !important;
 }
 
-.text-white, .text-neutral-100, .dark\:text-white {
+.text-white, .text-neutral-100, .dark\:text-white, .text-neutral-900, .text-neutral-800 {
   color: var(--text-primary) !important;
 }
 
-.text-neutral-400, .text-neutral-300, .dark\:text-neutral-400, .text-neutral-500, .text-neutral-200 {
+.text-neutral-400, .text-neutral-300, .dark\:text-neutral-400, .text-neutral-500, .dark\:text-neutral-500, .text-neutral-200, .text-neutral-600 {
   color: var(--text-muted) !important;
 }
 

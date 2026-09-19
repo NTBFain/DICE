@@ -215,9 +215,9 @@ export default function AuctionDetailPage() {
         <p className="text-xs opacity-70 mb-6">This auction might have been removed or does not exist.</p>
         <Link
           href="/auctions"
-          className="px-5 py-2.5 bg-[var(--accent-primary,#3b82f6)] hover:opacity-90 text-white font-bold text-xs rounded-xl transition-all"
+          className="inline-flex items-center gap-2 px-5 py-2.5 bg-[var(--accent-primary,#3b82f6)] hover:opacity-90 text-white font-bold text-xs rounded-xl transition-all shadow-md"
         >
-          Back to Auctions
+          <ArrowLeft className="w-4 h-4" /> Back to Auctions
         </Link>
       </div>
     );

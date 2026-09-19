@@ -89,9 +89,10 @@
   },
   "Login": {
     "createAccount": "Create Account",
-    "welcomeBack": "Welcome Back",
-    "createSubtitle": "Join ArtistSpace to request your dream commissions",
-    "welcomeSubtitle": "Access your illustrator portal dashboard",
+    "welcomeBack": "Sign In",
+    "createSubtitle": "Join DICE to request your dream commissions",
+    "welcomeSubtitle": "Please enter your details to sign in",
+    "quickCredentials": "Quick Test Credentials",
     "fullName": "Full Name",
     "email": "Email Address",
     "password": "Password",
@@ -248,5 +249,13 @@
     "markAllRead": "Mark all as read",
     "empty": "No new notifications",
     "view": "View"
+  },
+  "NotFound": {
+    "title": "Page Not Found",
+    "description": "Sorry, the page you are looking for does not exist or has been moved.",
+    "backHome": "Back to Home",
+    "viewPortfolio": "Explore Portfolio",
+    "viewAuctions": "Active Auctions",
+    "viewCharacters": "Original Characters"
   }
 }

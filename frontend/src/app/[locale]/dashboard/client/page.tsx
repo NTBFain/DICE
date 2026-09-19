@@ -1,6 +1,7 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, Suspense } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   getOrders, getInvoices, payInvoice, getRevisions, requestRevision,
@@ -18,9 +19,10 @@ import {
 import SecureImage from '@/components/SecureImage';
 import ChatBox from '@/components/ChatBox';
 
-export default function ClientDashboard() {
+function ClientDashboardContent() {
   const { user, loading: authLoading, fetchUser } = useAuth();
   const router = useRouter();
+  const searchParams = useSearchParams();
   const t = useTranslations('ClientDashboard');
   const queryClient = useQueryClient();
   
@@ -34,6 +36,14 @@ export default function ClientDashboard() {
   const [profileName, setProfileName] = useState(user?.full_name || '');
   const [profileSaving, setProfileSaving] = useState(false);
   const [avatarUploading, setAvatarUploading] = useState(false);
+
+  useEffect(() => {
+    const orderParam = searchParams.get('order');
+    if (orderParam && !isNaN(parseInt(orderParam, 10))) {
+      setSelectedOrderId(parseInt(orderParam, 10));
+      setActiveTab('commissions');
+    }
+  }, [searchParams]);
 
   useEffect(() => {
     if (!authLoading && !user) router.push('/login');
@@ -264,6 +274,29 @@ export default function ClientDashboard() {
                 ))}
               </div>
             )}
+          </div>
+        )}
+
+        {/* LOADING ORDER STATE */}
+        {activeTab === 'commissions' && selectedOrderId !== null && loadingOrders && (
+          <div className="flex-1 flex flex-col items-center justify-center py-20 gap-3">
+            <Loader2 className="w-8 h-8 animate-spin text-blue-500" />
+            <p className="text-sm text-neutral-400">Loading commission details...</p>
+          </div>
+        )}
+
+        {/* ORDER NOT FOUND STATE */}
+        {activeTab === 'commissions' && selectedOrderId !== null && !loadingOrders && !selectedOrder && (
+          <div className="p-6 md:p-10 max-w-md mx-auto text-center space-y-4 my-auto">
+            <AlertCircle className="w-12 h-12 text-neutral-500 mx-auto" />
+            <h2 className="text-xl font-bold text-neutral-900 dark:text-white">Order Not Found</h2>
+            <p className="text-sm text-neutral-500">The requested order (#{selectedOrderId}) could not be found or you do not have permission to view it.</p>
+            <button
+              onClick={() => setSelectedOrderId(null)}
+              className="px-4 py-2 bg-neutral-200 dark:bg-neutral-800 hover:bg-neutral-300 dark:hover:bg-neutral-700 text-neutral-900 dark:text-white rounded-xl text-sm font-semibold transition-colors"
+            >
+              Back to Commissions
+            </button>
           </div>
         )}
 
@@ -525,3 +558,18 @@ export default function ClientDashboard() {
     </div>
   );
 }
+
+export default function ClientDashboard() {
+  return (
+    <Suspense
+      fallback={
+        <div className="flex-1 flex items-center justify-center p-20">
+          <Loader2 className="w-8 h-8 animate-spin text-blue-500" />
+        </div>
+      }
+    >
+      <ClientDashboardContent />
+    </Suspense>
+  );
+}
+

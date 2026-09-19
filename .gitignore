@@ -22,6 +22,7 @@ backend/dice.db-journal
 *.db-wal
 *.db.backup
 *.db.pre_fake_backup
+*.db.perf_backup*
 
 # Uploads & Media
 uploads/

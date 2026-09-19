@@ -15,7 +15,8 @@ import {
   Loader2,
   Image as ImageIcon,
   Gavel,
-  Users
+  Users,
+  AlertCircle
 } from 'lucide-react';
 import { Link, useRouter } from '@/i18n/routing';
 import { useAuth } from '@/components/AuthContext';
@@ -81,8 +82,10 @@ export default function ArtistDedicatedProfilePage() {
       setArtist(data);
     } catch (err) {
       console.error('Failed to load artist profile:', err);
+      setArtist(null);
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
   };
 
   const handleSendInquiry = (e: React.FormEvent) => {
@@ -111,13 +114,14 @@ export default function ArtistDedicatedProfilePage() {
   if (!artist) {
     return (
       <div className="min-h-screen bg-[var(--bg-primary,#09090b)] flex flex-col items-center justify-center p-8 text-center text-[var(--text-primary,#f4f4f5)]">
+        <AlertCircle className="w-16 h-16 opacity-50 mb-4 text-[var(--text-muted,#a1a1aa)]" />
         <h2 className="text-2xl font-bold mb-2">ไม่พบหน้าโปรไฟล์ศิลปินนี้</h2>
         <p className="text-xs text-[var(--text-muted,#a1a1aa)] mb-6">ศิลปินแฮนเดิล @{handle} อาจจะถูกลบหรือไม่มีอยู่ในระบบ</p>
         <Link
           href="/"
-          className="px-5 py-2.5 bg-[var(--accent-primary,#3b82f6)] text-white font-bold text-xs rounded-xl"
+          className="inline-flex items-center gap-2 px-5 py-2.5 bg-[var(--accent-primary,#3b82f6)] hover:opacity-90 text-white font-bold text-xs rounded-xl transition-all shadow-md"
         >
-          กลับสู่หน้าเลือกศิลปิน
+          <ArrowLeft className="w-4 h-4" /> กลับสู่หน้าเลือกศิลปิน
         </Link>
       </div>
     );
@@ -389,7 +393,7 @@ export default function ArtistDedicatedProfilePage() {
                 {artist.artworks.map((art) => (
                   <div key={art.id} className="bg-[var(--bg-surface,#121215)] border border-[var(--border-subtle,#27272a)] rounded-3xl overflow-hidden group shadow-lg">
                     <div className="aspect-square relative overflow-hidden bg-neutral-950">
-                      <img src={art.image_url} alt={art.title} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
+                      <img src={art.image_url} alt={art.title} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" loading="lazy" />
                     </div>
                     <div className="p-5 space-y-2">
                       <span className="text-[9px] font-extrabold px-2 py-0.5 rounded bg-blue-500/10 text-blue-400 border border-blue-500/30 uppercase">

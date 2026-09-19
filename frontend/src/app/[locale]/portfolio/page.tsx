@@ -53,14 +53,21 @@ function PortfolioContent() {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, []);
 
+  const PAGE_SIZE = 32;
+  const [displayLimit, setDisplayLimit] = useState(PAGE_SIZE);
+
+  useEffect(() => {
+    setDisplayLimit(PAGE_SIZE);
+  }, [selectedArtist, selectedWorkType, characterParam]);
+
   const { data: artworks, isLoading: isLoadingArtworks, isError: isErrorArtworks } = useQuery({
     queryKey: ['portfolio'],
-    queryFn: getPortfolio,
+    queryFn: () => getPortfolio({ limit: 500 }),
   });
 
   const { data: artists, isLoading: isLoadingArtists } = useQuery({
     queryKey: ['artists'],
-    queryFn: getArtists,
+    queryFn: () => getArtists(),
   });
 
   const filteredArtworks = artworks?.filter(artwork => {
@@ -70,10 +77,12 @@ function PortfolioContent() {
     return matchArtist && matchWorkType && matchCharacter;
   }) || [];
 
+  const displayedArtworks = filteredArtworks.slice(0, displayLimit);
+
   return (
-    <div className="min-h-screen bg-neutral-50 dark:bg-neutral-950 pb-20">
+    <div className="min-h-screen bg-[var(--bg-primary,#09090b)] text-[var(--text-primary,#f4f4f5)] pb-20">
       {/* 🖼️ HERO & FILTER STICKY HEADER */}
-      <div className="sticky top-16 z-30 bg-white/70 dark:bg-neutral-950/70 backdrop-blur-2xl border-b border-neutral-200/50 dark:border-neutral-800/50 shadow-sm transition-all">
+      <div className="sticky top-16 z-30 bg-[var(--bg-surface,#121215)]/85 backdrop-blur-2xl border-b border-[var(--border-subtle,#27272a)] shadow-sm transition-all">
         <div className="container mx-auto px-4 sm:px-8 py-6 max-w-7xl">
           <div className="flex flex-col md:flex-row md:items-end justify-between gap-6">
             <motion.div 
@@ -81,10 +90,10 @@ function PortfolioContent() {
               animate={{ opacity: 1, y: 0 }}
               className="space-y-1"
             >
-              <h1 className="text-4xl font-black bg-clip-text text-transparent bg-gradient-to-r from-blue-600 to-indigo-500 dark:from-blue-400 dark:to-indigo-300 tracking-tight">
+              <h1 className="text-4xl font-black bg-clip-text text-transparent bg-gradient-to-r from-[var(--accent-primary,#3b82f6)] to-[var(--accent-secondary,#e2b857)] tracking-tight">
                 {t('title')}
               </h1>
-              <p className="text-sm font-medium text-neutral-500 dark:text-neutral-400">
+              <p className="text-sm font-medium text-[var(--text-muted,#a1a1aa)]">
                 {t('subtitle')}
               </p>
             </motion.div>
@@ -99,8 +108,8 @@ function PortfolioContent() {
                 onClick={() => setSelectedWorkType('all')}
                 className={`px-4 py-2 rounded-full text-xs font-bold transition-all whitespace-nowrap border shadow-sm ${
                   selectedWorkType === 'all'
-                    ? 'bg-blue-600 text-white border-blue-500 ring-2 ring-blue-500/20'
-                    : 'bg-white dark:bg-neutral-900 text-neutral-600 dark:text-neutral-400 border-neutral-200 dark:border-neutral-800 hover:bg-neutral-50 dark:hover:bg-neutral-800'
+                    ? 'bg-[var(--accent-primary,#3b82f6)] text-[var(--accent-contrast,#ffffff)] border-[var(--accent-primary,#3b82f6)] ring-2 ring-[var(--accent-primary,#3b82f6)]/20 shadow-md'
+                    : 'bg-[var(--bg-surface,#121215)] text-[var(--text-muted,#a1a1aa)] border-[var(--border-subtle,#27272a)] hover:bg-[var(--bg-surface-hover,#1c1c21)] hover:text-[var(--text-primary,#f4f4f5)] hover:border-[var(--border-hover,#3f3f46)]'
                 }`}
               >
                 All Categories
@@ -111,8 +120,8 @@ function PortfolioContent() {
                   onClick={() => setSelectedWorkType(wt.id)}
                   className={`px-4 py-2 rounded-full text-xs font-bold transition-all whitespace-nowrap border shadow-sm ${
                     selectedWorkType === wt.id
-                      ? 'bg-blue-600 text-white border-blue-500 ring-2 ring-blue-500/20'
-                      : 'bg-white dark:bg-neutral-900 text-neutral-600 dark:text-neutral-400 border-neutral-200 dark:border-neutral-800 hover:bg-neutral-50 dark:hover:bg-neutral-800'
+                      ? 'bg-[var(--accent-primary,#3b82f6)] text-[var(--accent-contrast,#ffffff)] border-[var(--accent-primary,#3b82f6)] ring-2 ring-[var(--accent-primary,#3b82f6)]/20 shadow-md'
+                      : 'bg-[var(--bg-surface,#121215)] text-[var(--text-muted,#a1a1aa)] border-[var(--border-subtle,#27272a)] hover:bg-[var(--bg-surface-hover,#1c1c21)] hover:text-[var(--text-primary,#f4f4f5)] hover:border-[var(--border-hover,#3f3f46)]'
                   }`}
                 >
                   {wt.label}
@@ -126,18 +135,18 @@ function PortfolioContent() {
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.1 }}
-            className="flex items-center gap-3 overflow-x-auto no-scrollbar snap-x snap-mandatory mt-6 pt-6 border-t border-neutral-200/50 dark:border-neutral-800/50 pb-2 md:pb-0"
+            className="flex items-center gap-3 overflow-x-auto no-scrollbar snap-x snap-mandatory mt-6 pt-6 border-t border-[var(--border-subtle,#27272a)] pb-2 md:pb-0"
           >
-            <div className="text-[10px] font-black text-neutral-400 dark:text-neutral-500 uppercase tracking-widest shrink-0 flex items-center gap-1.5 mr-2 snap-center">
+            <div className="text-[10px] font-black text-[var(--text-muted,#a1a1aa)] uppercase tracking-widest shrink-0 flex items-center gap-1.5 mr-2 snap-center">
               <User className="w-3.5 h-3.5" /> Artists
             </div>
 
             <button
               onClick={() => setSelectedArtist('all')}
-              className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all whitespace-nowrap shrink-0 snap-center ${
+              className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all whitespace-nowrap shrink-0 snap-center border ${
                 selectedArtist === 'all'
-                  ? 'bg-neutral-900 dark:bg-white text-white dark:text-neutral-900 shadow-md'
-                  : 'bg-neutral-100 dark:bg-neutral-900 text-neutral-600 dark:text-neutral-400 hover:bg-neutral-200 dark:hover:bg-neutral-800'
+                  ? 'bg-[var(--accent-primary,#3b82f6)] text-[var(--accent-contrast,#ffffff)] border-[var(--accent-primary,#3b82f6)] shadow-md'
+                  : 'bg-[var(--bg-surface,#121215)] text-[var(--text-muted,#a1a1aa)] border-[var(--border-subtle,#27272a)] hover:bg-[var(--bg-surface-hover,#1c1c21)] hover:text-[var(--text-primary,#f4f4f5)] hover:border-[var(--border-hover,#3f3f46)]'
               }`}
             >
               <Sparkles className="w-3.5 h-3.5" /> All Artists
@@ -151,8 +160,8 @@ function PortfolioContent() {
                   onClick={() => setSelectedArtist(artist.id)}
                   className={`flex items-center gap-2 px-3 py-1.5 rounded-xl text-xs font-bold transition-all whitespace-nowrap shrink-0 snap-center border ${
                     isSelected
-                      ? 'bg-neutral-900 dark:bg-white text-white dark:text-neutral-900 border-transparent shadow-md'
-                      : 'bg-white dark:bg-neutral-900 text-neutral-600 dark:text-neutral-400 border-neutral-200 dark:border-neutral-800 hover:border-neutral-300 dark:hover:border-neutral-700'
+                      ? 'bg-[var(--accent-primary,#3b82f6)] text-[var(--accent-contrast,#ffffff)] border-[var(--accent-primary,#3b82f6)] shadow-md'
+                      : 'bg-[var(--bg-surface,#121215)] text-[var(--text-muted,#a1a1aa)] border-[var(--border-subtle,#27272a)] hover:bg-[var(--bg-surface-hover,#1c1c21)] hover:text-[var(--text-primary,#f4f4f5)] hover:border-[var(--border-hover,#3f3f46)]'
                   }`}
                 >
                   {artist.avatar_url ? (
@@ -163,7 +172,7 @@ function PortfolioContent() {
                     />
                   ) : (
                     <span
-                      className="w-6 h-6 rounded-full flex items-center justify-center text-[10px] text-white font-black bg-blue-500"
+                      className="w-6 h-6 rounded-full flex items-center justify-center text-[10px] text-[var(--accent-contrast,#ffffff)] font-black bg-[var(--accent-primary,#3b82f6)]"
                     >
                       {artist.display_name.charAt(0).toUpperCase()}
                     </span>
@@ -196,11 +205,11 @@ function PortfolioContent() {
           <motion.div 
             initial={{ opacity: 0, scale: 0.95 }}
             animate={{ opacity: 1, scale: 1 }}
-            className="text-center py-32 bg-white/50 dark:bg-neutral-900/50 backdrop-blur-xl border border-neutral-200 dark:border-neutral-800 rounded-3xl shadow-sm"
+            className="text-center py-32 bg-[var(--bg-surface,#121215)]/60 backdrop-blur-xl border border-[var(--border-subtle,#27272a)] rounded-3xl shadow-sm"
           >
-            <Search className="w-16 h-16 text-neutral-300 dark:text-neutral-700 mx-auto mb-4" />
-            <h3 className="text-xl font-black text-neutral-800 dark:text-white">No Artworks Found</h3>
-            <p className="text-sm text-neutral-500 dark:text-neutral-400 mt-2">Try selecting a different artist or category.</p>
+            <Search className="w-16 h-16 text-[var(--text-muted,#a1a1aa)] mx-auto mb-4" />
+            <h3 className="text-xl font-black text-[var(--text-primary,#f4f4f5)]">No Artworks Found</h3>
+            <p className="text-sm text-[var(--text-muted,#a1a1aa)] mt-2">Try selecting a different artist or category.</p>
           </motion.div>
         )}
 
@@ -211,7 +220,7 @@ function PortfolioContent() {
             className="columns-1 sm:columns-2 lg:columns-3 xl:columns-4 gap-6 space-y-6"
           >
             <AnimatePresence>
-              {filteredArtworks.map((artwork) => (
+              {displayedArtworks.map((artwork) => (
                 <motion.div
                   layout
                   initial={{ opacity: 0, y: 20 }}
@@ -222,7 +231,7 @@ function PortfolioContent() {
                   onClick={() => setActiveArtwork(artwork)}
                   onHoverStart={() => setHoveredCard(artwork.id!)}
                   onHoverEnd={() => setHoveredCard(null)}
-                  className="break-inside-avoid relative group rounded-3xl overflow-hidden bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 cursor-pointer shadow-lg hover:shadow-2xl transition-all"
+                  className="break-inside-avoid relative group rounded-3xl overflow-hidden bg-[var(--bg-surface,#121215)] border border-[var(--border-subtle,#27272a)] hover:border-[var(--accent-primary,#3b82f6)] cursor-pointer shadow-lg hover:shadow-2xl transition-all"
                 >
                   <motion.div
                     animate={{ scale: hoveredCard === artwork.id ? 1.05 : 1 }}
@@ -256,23 +265,23 @@ function PortfolioContent() {
                           className="flex items-center gap-2 mb-3 bg-white/10 hover:bg-white/20 backdrop-blur-md p-1.5 pr-3 rounded-full transition-colors w-fit border border-white/20 shadow-sm"
                         >
                           {artwork.artist.avatar_url ? (
-                            <img src={artwork.artist.avatar_url} alt={artwork.artist.display_name} className="w-6 h-6 rounded-full object-cover" />
+                            <img src={artwork.artist.avatar_url} alt={artwork.artist.display_name} className="w-6 h-6 rounded-full object-cover" loading="lazy" />
                           ) : (
-                            <div className="w-6 h-6 rounded-full bg-blue-500 flex items-center justify-center text-[10px] font-bold text-white">
+                            <div className="w-6 h-6 rounded-full bg-[var(--accent-primary,#3b82f6)] flex items-center justify-center text-[10px] font-bold text-[var(--accent-contrast,#ffffff)]">
                               {artwork.artist.display_name.charAt(0)}
                             </div>
                           )}
-                          <span className="text-[11px] font-bold text-white">by {artwork.artist.display_name}</span>
+                          <span className="text-xs font-bold text-white truncate max-w-[120px]">
+                            {artwork.artist.display_name}
+                          </span>
                         </div>
                       )}
 
-                      {artwork.character && (
-                        <span className="text-[10px] font-black uppercase tracking-widest px-2.5 py-1 bg-blue-500/80 backdrop-blur-sm text-white rounded-md w-fit mb-3 block shadow-sm border border-blue-400/50">
-                          {artwork.character.name}
-                        </span>
-                      )}
-                      
-                      <div className="flex items-center justify-between mt-2">
+                      <p className="text-xs text-neutral-300 line-clamp-2 mb-4">
+                        {artwork.description}
+                      </p>
+
+                      <div className="flex items-center justify-between border-t border-white/10 pt-3">
                         <div className="flex items-center gap-1.5 text-xs text-white/80 font-bold bg-black/40 backdrop-blur-md px-3 py-1.5 rounded-full">
                           <Eye className="w-3.5 h-3.5 text-blue-400" /> Inspect
                         </div>
@@ -284,6 +293,21 @@ function PortfolioContent() {
               ))}
             </AnimatePresence>
           </motion.div>
+        )}
+
+        {/* Load More Button */}
+        {!isLoadingArtworks && displayLimit < filteredArtworks.length && (
+          <div className="flex flex-col items-center justify-center mt-12 gap-2">
+            <button
+              onClick={() => setDisplayLimit((prev) => prev + PAGE_SIZE)}
+              className="px-8 py-3.5 bg-[var(--accent-primary,#3b82f6)] hover:bg-[var(--accent-hover,#2563eb)] active:scale-95 text-[var(--accent-contrast,#ffffff)] font-bold rounded-2xl shadow-lg hover:shadow-xl transition-all flex items-center gap-2 text-sm"
+            >
+              Load More Artworks ({filteredArtworks.length - displayLimit} remaining)
+            </button>
+            <span className="text-xs text-[var(--text-muted,#a1a1aa)]">
+              Showing {displayedArtworks.length} of {filteredArtworks.length} items
+            </span>
+          </div>
         )}
       </div>
 
@@ -315,7 +339,7 @@ function PortfolioContent() {
               animate={{ y: 0, opacity: 1, scale: 1 }}
               exit={{ y: 40, opacity: 0, scale: 0.95 }}
               transition={{ type: "spring", damping: 25, stiffness: 300 }}
-              className="bg-neutral-900 border border-neutral-800 rounded-[2rem] max-w-6xl w-full max-h-[90vh] flex flex-col md:flex-row shadow-[0_0_50px_rgba(0,0,0,0.5)] overflow-hidden"
+              className="bg-[var(--bg-surface,#121215)] border border-[var(--border-subtle,#27272a)] rounded-[2rem] max-w-6xl w-full max-h-[90vh] flex flex-col md:flex-row shadow-[0_0_50px_rgba(0,0,0,0.5)] overflow-hidden"
             >
               {/* Image Section */}
               <div className="flex-1 bg-black flex items-center justify-center overflow-hidden p-6 relative group">
@@ -327,29 +351,29 @@ function PortfolioContent() {
               </div>
 
               {/* Details Section */}
-              <div className="w-full md:w-96 bg-neutral-900 p-8 flex flex-col justify-between space-y-6 border-t md:border-t-0 md:border-l border-neutral-800 overflow-y-auto no-scrollbar">
+              <div className="w-full md:w-96 bg-[var(--bg-surface,#121215)] p-8 flex flex-col justify-between space-y-6 border-t md:border-t-0 md:border-l border-[var(--border-subtle,#27272a)] overflow-y-auto no-scrollbar">
                 <div className="space-y-6">
                   <div>
-                    <span className="text-[10px] font-black text-blue-400 uppercase tracking-widest bg-blue-500/10 px-3 py-1 rounded-full border border-blue-500/20 inline-block mb-3">
+                    <span className="text-[10px] font-black text-[var(--accent-primary,#3b82f6)] uppercase tracking-widest bg-[var(--accent-primary,#3b82f6)]/10 px-3 py-1 rounded-full border border-[var(--accent-primary,#3b82f6)]/20 inline-block mb-3">
                       {activeArtwork.work_type}
                     </span>
-                    <h2 className="text-3xl font-black text-white leading-tight">{activeArtwork.title}</h2>
+                    <h2 className="text-3xl font-black text-[var(--text-primary,#f4f4f5)] leading-tight">{activeArtwork.title}</h2>
                   </div>
                   
-                  <div className="h-px w-full bg-gradient-to-r from-neutral-800 to-transparent"></div>
+                  <div className="h-px w-full bg-gradient-to-r from-[var(--border-subtle,#27272a)] to-transparent"></div>
 
-                  <p className="text-sm text-neutral-400 leading-relaxed whitespace-pre-line">
+                  <p className="text-sm text-[var(--text-muted,#a1a1aa)] leading-relaxed whitespace-pre-line">
                     {activeArtwork.description || 'No additional artwork description provided.'}
                   </p>
 
                   {activeArtwork.character && (
-                    <div className="bg-neutral-950 p-4 rounded-2xl border border-neutral-800 space-y-2">
-                      <span className="text-[10px] font-black text-neutral-500 uppercase tracking-widest block">Featured Character</span>
+                    <div className="bg-[var(--bg-primary,#09090b)] p-4 rounded-2xl border border-[var(--border-subtle,#27272a)] space-y-2">
+                      <span className="text-[10px] font-black text-[var(--text-muted,#a1a1aa)] uppercase tracking-widest block">Featured Character</span>
                       <div className="flex items-center gap-3">
-                        <div className="w-8 h-8 rounded-full bg-blue-500/20 flex items-center justify-center border border-blue-500/50">
-                          <Sparkles className="w-4 h-4 text-blue-400" />
+                        <div className="w-8 h-8 rounded-full bg-[var(--accent-primary,#3b82f6)]/20 flex items-center justify-center border border-[var(--accent-primary,#3b82f6)]/50">
+                          <Sparkles className="w-4 h-4 text-[var(--accent-primary,#3b82f6)]" />
                         </div>
-                        <span className="text-sm font-bold text-white">
+                        <span className="text-sm font-bold text-[var(--text-primary,#f4f4f5)]">
                           {activeArtwork.character.name}
                         </span>
                       </div>
@@ -357,32 +381,32 @@ function PortfolioContent() {
                   )}
 
                   {activeArtwork.artist && (
-                    <div className="bg-neutral-950 p-4 rounded-2xl border border-neutral-800 space-y-2">
-                      <span className="text-[10px] font-black text-neutral-500 uppercase tracking-widest block">Created By</span>
+                    <div className="bg-[var(--bg-primary,#09090b)] p-4 rounded-2xl border border-[var(--border-subtle,#27272a)] space-y-2">
+                      <span className="text-[10px] font-black text-[var(--text-muted,#a1a1aa)] uppercase tracking-widest block">Created By</span>
                       <button 
                         onClick={() => router.push(`/artists/${activeArtwork.artist!.handle}`)}
-                        className="flex items-center gap-3 hover:bg-neutral-800 p-2 -ml-2 rounded-xl transition-all cursor-pointer w-full text-left group"
+                        className="flex items-center gap-3 hover:bg-[var(--bg-surface-hover,#1c1c21)] p-2 -ml-2 rounded-xl transition-all cursor-pointer w-full text-left group"
                       >
                         {activeArtwork.artist.avatar_url ? (
-                          <img src={activeArtwork.artist.avatar_url} alt={activeArtwork.artist.display_name} className="w-10 h-10 rounded-full object-cover border-2 border-transparent group-hover:border-blue-500 transition-colors" />
+                          <img src={activeArtwork.artist.avatar_url} alt={activeArtwork.artist.display_name} className="w-10 h-10 rounded-full object-cover border-2 border-transparent group-hover:border-[var(--accent-primary,#3b82f6)] transition-colors" />
                         ) : (
-                          <div className="w-10 h-10 rounded-full bg-blue-600 flex items-center justify-center text-sm font-black text-white border-2 border-transparent group-hover:border-blue-500 transition-colors">
+                          <div className="w-10 h-10 rounded-full bg-[var(--accent-primary,#3b82f6)] flex items-center justify-center text-sm font-black text-[var(--accent-contrast,#ffffff)] border-2 border-transparent group-hover:border-[var(--accent-primary,#3b82f6)] transition-colors">
                             {activeArtwork.artist.display_name.charAt(0)}
                           </div>
                         )}
                         <div>
-                          <span className="block text-sm font-bold text-white group-hover:text-blue-400 transition-colors">{activeArtwork.artist.display_name}</span>
-                          <span className="block text-[11px] font-mono text-neutral-500">@{activeArtwork.artist.handle}</span>
+                          <span className="block text-sm font-bold text-[var(--text-primary,#f4f4f5)] group-hover:text-[var(--accent-primary,#3b82f6)] transition-colors">{activeArtwork.artist.display_name}</span>
+                          <span className="block text-[11px] font-mono text-[var(--text-muted,#a1a1aa)]">@{activeArtwork.artist.handle}</span>
                         </div>
                       </button>
                     </div>
                   )}
                 </div>
 
-                <div className="pt-6 mt-6 border-t border-neutral-800">
+                <div className="pt-6 mt-6 border-t border-[var(--border-subtle,#27272a)]">
                   <button
                     onClick={() => setActiveArtwork(null)}
-                    className="w-full py-3.5 bg-white text-black hover:bg-neutral-200 font-black rounded-xl text-xs uppercase tracking-widest transition-all shadow-[0_0_20px_rgba(255,255,255,0.1)] hover:shadow-[0_0_30px_rgba(255,255,255,0.2)]"
+                    className="w-full py-3.5 bg-[var(--accent-primary,#3b82f6)] hover:bg-[var(--accent-hover,#2563eb)] text-[var(--accent-contrast,#ffffff)] font-black rounded-xl text-xs uppercase tracking-widest transition-all shadow-md"
                   >
                     Close Inspector
                   </button>

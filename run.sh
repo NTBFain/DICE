@@ -42,6 +42,7 @@ stop_services() {
             kill -9 $pids_3000 2>/dev/null || true
         fi
     fi
+    sleep 0.5
     echo -e "${GREEN}Ports 8000 and 3000 are cleared.${NC}"
 }
 
@@ -67,10 +68,10 @@ echo -e "\n${YELLOW}[2/4] Verifying environments...${NC}"
 
 # Backend environment check
 BACKEND_CMD=""
-if command -v uv &> /dev/null; then
-    BACKEND_CMD="uv run uvicorn"
-elif [ -f "$BACKEND_DIR/.venv/bin/uvicorn" ]; then
+if [ -f "$BACKEND_DIR/.venv/bin/uvicorn" ]; then
     BACKEND_CMD="$BACKEND_DIR/.venv/bin/uvicorn"
+elif command -v uv &> /dev/null; then
+    BACKEND_CMD="uv run uvicorn"
 elif command -v uvicorn &> /dev/null; then
     BACKEND_CMD="uvicorn"
 else
@@ -110,12 +111,29 @@ cd "$ROOT_DIR"
 echo -e "\n${YELLOW}[4/4] Launching Frontend (Next.js on Port 3000)...${NC}"
 cd "$FRONTEND_DIR"
 if [ "$MODE" = "prod" ]; then
-    if [ ! -d ".next" ]; then
+    REBUILD=false
+    if [ ! -f ".next/BUILD_ID" ]; then
+        REBUILD=true
+    fi
+    for arg in "$@"; do
+        if [ "$arg" = "--build" ] || [ "$arg" = "-b" ] || [ "$arg" = "--rebuild" ]; then
+            REBUILD=true
+        fi
+    done
+
+    if [ "$REBUILD" = true ]; then
         echo -e "${YELLOW}Building Next.js production build...${NC}"
         npm run build
+    else
+        echo -e "${GREEN}Production build detected (.next/BUILD_ID exists). Use --build to force rebuild.${NC}"
     fi
+    echo -e "${GREEN}Starting Next.js production server...${NC}"
     npm run start -- -H 0.0.0.0 -p 3000 &
 else
+    # Clear stale build artifacts if switching from prod to dev to prevent 404 router mismatch
+    if [ -f ".next/BUILD_ID" ]; then
+        rm -rf .next
+    fi
     npm run dev -- -H 0.0.0.0 -p 3000 &
 fi
 FRONTEND_PID=$!
@@ -132,6 +150,40 @@ cleanup() {
 }
 
 trap cleanup SIGINT SIGTERM
+
+# Healthcheck loop to verify services are genuinely up and running
+echo -e "\n${YELLOW}Verifying DICE services startup...${NC}"
+BACKEND_READY=false
+FRONTEND_READY=false
+
+for i in {1..30}; do
+    if ! kill -0 $BACKEND_PID 2>/dev/null && ! lsof -ti :8000 &>/dev/null; then
+        echo -e "${RED}Error: Backend process exited unexpectedly!${NC}"
+        cleanup
+    fi
+    if ! kill -0 $FRONTEND_PID 2>/dev/null && ! lsof -ti :3000 &>/dev/null; then
+        echo -e "${RED}Error: Frontend process exited unexpectedly!${NC}"
+        cleanup
+    fi
+
+    if [ "$BACKEND_READY" = false ]; then
+        if curl -s -o /dev/null -w "%{http_code}" "http://localhost:8000/docs" 2>/dev/null | grep -q "200"; then
+            BACKEND_READY=true
+        fi
+    fi
+
+    if [ "$FRONTEND_READY" = false ]; then
+        local_code=$(curl -s -o /dev/null -w "%{http_code}" "http://localhost:3000" 2>/dev/null || true)
+        if [ "$local_code" = "200" ] || [ "$local_code" = "307" ] || [ "$local_code" = "308" ]; then
+            FRONTEND_READY=true
+        fi
+    fi
+
+    if [ "$BACKEND_READY" = true ] && [ "$FRONTEND_READY" = true ]; then
+        break
+    fi
+    sleep 0.5
+done
 
 echo -e "\n${GREEN}${BOLD}==================================================${NC}"
 echo -e "${GREEN}${BOLD}✅ DICE Platform is running!                      ${NC}"

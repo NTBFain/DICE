@@ -70,11 +70,19 @@ export default function AuctionsPage() {
   const [errorMessages, setErrorMessages] = useState<{ [key: number]: string }>({});
   const [successMessages, setSuccessMessages] = useState<{ [key: number]: string }>({});
 
-  // Fetch all auctions
+  const PAGE_SIZE = 18;
+  const [displayLimit, setDisplayLimit] = useState(PAGE_SIZE);
+
+  useEffect(() => {
+    setDisplayLimit(PAGE_SIZE);
+  }, [activeTab]);
+
+  // Fetch all auctions with optimized polling
   const { data: auctions = [], isLoading, refetch } = useQuery({
     queryKey: ['auctions'],
     queryFn: getAuctions,
-    refetchInterval: 5000,
+    refetchInterval: 15000,
+    refetchIntervalInBackground: false,
   });
 
   // Place Bid Mutation
@@ -188,9 +196,10 @@ export default function AuctionsPage() {
             </p>
           </div>
         ) : (
-          /* Grid of Auction Stage Cards */
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 stagger-container">
-            {filteredAuctions.map((auction) => {
+          <>
+            {/* Grid of Auction Stage Cards */}
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 stagger-container">
+            {filteredAuctions.slice(0, displayLimit).map((auction) => {
               const bids = auction.bids || [];
               const highestBid = bids.length > 0 ? bids[0].amount : null;
               const currentPrice = highestBid ?? auction.starting_bid;
@@ -210,6 +219,7 @@ export default function AuctionsPage() {
                         src={getAuctionImageUrl(auction.image_url)}
                         alt={auction.title}
                         className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                        loading="lazy"
                       />
                     </Link>
                   ) : (
@@ -362,7 +372,23 @@ export default function AuctionsPage() {
               );
             })}
           </div>
-        )}
+
+          {/* Load More Auctions Button */}
+          {displayLimit < filteredAuctions.length && (
+            <div className="flex flex-col items-center justify-center mt-12 gap-2">
+              <button
+                onClick={() => setDisplayLimit((prev) => prev + PAGE_SIZE)}
+                className="px-8 py-3.5 bg-blue-600 hover:bg-blue-700 active:scale-95 text-white font-bold rounded-2xl shadow-lg hover:shadow-xl transition-all flex items-center gap-2 text-sm"
+              >
+                Load More Auctions ({filteredAuctions.length - displayLimit} remaining)
+              </button>
+              <span className="text-xs text-neutral-400">
+                Showing {Math.min(displayLimit, filteredAuctions.length)} of {filteredAuctions.length} auctions
+              </span>
+            </div>
+          )}
+        </>
+      )}
       </div>
     </div>
   );

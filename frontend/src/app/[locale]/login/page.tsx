@@ -1,14 +1,17 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, Suspense } from 'react';
 import { useAuth } from '@/components/AuthContext';
 import { useRouter } from '@/i18n/routing';
+import { useSearchParams } from 'next/navigation';
 import { Loader2, Lock, Mail, User, Eye, EyeOff } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 
-export default function LoginPage() {
+function LoginFormContent() {
   const { user, loginUser, registerUser } = useAuth();
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const redirectUrl = searchParams.get('redirect');
   const t = useTranslations('Login');
   const [isRegister, setIsRegister] = useState(false);
   const [email, setEmail] = useState('');
@@ -20,7 +23,9 @@ export default function LoginPage() {
 
   useEffect(() => {
     if (user) {
-      if (user.is_admin) {
+      if (redirectUrl && redirectUrl.startsWith('/') && !redirectUrl.startsWith('//')) {
+        router.push(redirectUrl);
+      } else if (user.is_admin) {
         router.push('/dashboard/admin/users');
       } else if (user.is_artist) {
         router.push('/dashboard/artist/orders');
@@ -28,7 +33,7 @@ export default function LoginPage() {
         router.push('/dashboard/client');
       }
     }
-  }, [user, router]);
+  }, [user, router, redirectUrl]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -66,7 +71,7 @@ export default function LoginPage() {
           {!isRegister && (
             <div className="mb-6 p-3 bg-neutral-950 border border-neutral-800 rounded-xl space-y-2">
               <span className="text-[10px] font-bold uppercase tracking-wider text-neutral-400 block">
-                Quick Test Credentials
+                {t('quickCredentials')}
               </span>
               <div className="grid grid-cols-3 gap-1.5 sm:gap-2">
                 <button
@@ -214,3 +219,18 @@ export default function LoginPage() {
     </div>
   );
 }
+
+export default function LoginPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="flex-1 flex items-center justify-center p-4 sm:p-6 bg-neutral-950 min-h-[60vh]">
+          <Loader2 className="w-8 h-8 text-neutral-500 animate-spin" />
+        </div>
+      }
+    >
+      <LoginFormContent />
+    </Suspense>
+  );
+}
+

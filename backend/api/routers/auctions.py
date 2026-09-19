@@ -131,7 +131,7 @@ async def api_get_auctions(
                 created_at=bid.created_at.replace(tzinfo=timezone.utc),
                 bidder_name=bidder_name
             ))
-        responses.append(_build_auction_response(a, bid_res, session))
+        responses.append(_build_auction_response(a, bid_res, session, msg_res=[]))
     return responses
 
 @router.get("/admin", response_model=List[AuctionResponse])
@@ -172,7 +172,7 @@ async def api_get_auctions_admin(
                 created_at=bid.created_at.replace(tzinfo=timezone.utc),
                 bidder_name=bidder_name
             ))
-        responses.append(_build_auction_response(a, bid_res, session))
+        responses.append(_build_auction_response(a, bid_res, session, msg_res=[]))
     return responses
 
 @router.get("/{auction_id}", response_model=AuctionResponse)

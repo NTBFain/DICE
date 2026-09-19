@@ -252,8 +252,17 @@ export const deleteCharacter = async (id: number) => {
 };
 
 // Portfolio
-export const getPortfolio = async () => {
-  const response = await apiClient.get<Artwork[]>('/portfolio');
+export const getPortfolio = async (params?: { 
+  limit?: number; 
+  offset?: number; 
+  artist_id?: number; 
+  work_type?: string; 
+  character_id?: number;
+  [key: string]: any;
+} | any) => {
+  const isQueryContext = params && typeof params === 'object' && ('queryKey' in params || 'signal' in params);
+  const queryParams = isQueryContext ? undefined : params;
+  const response = await apiClient.get<Artwork[]>('/portfolio', { params: queryParams });
   return response.data;
 };
 

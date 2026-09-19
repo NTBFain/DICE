@@ -37,6 +37,50 @@ const nextConfig: NextConfig = {
       },
     ];
   },
+  async redirects() {
+    return [
+      {
+        source: '/artists',
+        destination: '/',
+        permanent: false,
+      },
+      {
+        source: '/:locale(en|th)/artists',
+        destination: '/:locale',
+        permanent: false,
+      },
+      {
+        source: '/admin',
+        destination: '/dashboard/admin',
+        permanent: false,
+      },
+      {
+        source: '/:locale(en|th)/admin',
+        destination: '/:locale/dashboard/admin',
+        permanent: false,
+      },
+      {
+        source: '/artist',
+        destination: '/dashboard/artist',
+        permanent: false,
+      },
+      {
+        source: '/:locale(en|th)/artist',
+        destination: '/:locale/dashboard/artist',
+        permanent: false,
+      },
+      {
+        source: '/client',
+        destination: '/dashboard/client',
+        permanent: false,
+      },
+      {
+        source: '/:locale(en|th)/client',
+        destination: '/:locale/dashboard/client',
+        permanent: false,
+      },
+    ];
+  },
 };
 
 export default withNextIntl(nextConfig);

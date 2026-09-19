@@ -15,9 +15,31 @@ router = APIRouter(prefix="/api/portfolio", tags=["portfolio"])
 
 ALLOWED_IMAGE_EXTENSIONS = {".jpg", ".jpeg", ".png", ".webp", ".gif"}
 
+from typing import List, Optional
+
 @router.get("", response_model=List[ArtworkResponse])
-def get_portfolio(session: Session = Depends(get_session)):
+def get_portfolio(
+    limit: Optional[int] = None,
+    offset: int = 0,
+    artist_id: Optional[int] = None,
+    work_type: Optional[str] = None,
+    character_id: Optional[int] = None,
+    session: Session = Depends(get_session)
+):
     statement = select(Artwork).where(Artwork.visibility_status == VisibilityStatus.PUBLIC)
+    if artist_id:
+        statement = statement.where(Artwork.artist_id == artist_id)
+    if work_type and work_type.upper() != "ALL":
+        try:
+            wt_enum = WorkType(work_type.upper())
+            statement = statement.where(Artwork.work_type == wt_enum)
+        except ValueError:
+            pass
+    if character_id:
+        statement = statement.where(Artwork.character_id == character_id)
+    statement = statement.order_by(Artwork.created_at.desc(), Artwork.id.desc())
+    if limit is not None and limit > 0:
+        statement = statement.offset(offset).limit(limit)
     artworks = session.exec(statement).all()
     return artworks
 
