@@ -26,18 +26,18 @@ export default function PriceCalculator() {
   const totalPrice = Math.round(basePrice * multiplier);
 
   return (
-    <div className="w-full max-w-4xl mx-auto bg-neutral-900/40 border border-neutral-800/90 rounded-2xl p-6 sm:p-8 my-12 relative overflow-hidden">
-      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 border-b border-neutral-800/80 pb-6 mb-6">
+    <div className="w-full max-w-5xl mx-auto bg-neutral-900/40 border border-neutral-800/90 rounded-2xl p-5 sm:p-6 my-4 relative overflow-hidden">
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 border-b border-neutral-800/80 pb-4 mb-4">
         <div>
-          <div className="inline-flex items-center gap-1.5 bg-neutral-800/80 text-neutral-300 text-xs font-semibold px-3 py-1 rounded-lg border border-neutral-700/50 mb-2">
+          <div className="inline-flex items-center gap-1.5 bg-neutral-800/80 text-neutral-300 text-[11px] font-semibold px-2.5 py-0.5 rounded-lg border border-neutral-700/50 mb-1.5">
             <Calculator className="w-3.5 h-3.5 text-blue-400" /> Commission Estimator
           </div>
-          <h2 className="text-xl sm:text-2xl font-bold text-white">Price & Package Calculator</h2>
-          <p className="text-xs sm:text-sm text-neutral-400 mt-0.5">Instant estimate for custom artwork orders.</p>
+          <h2 className="text-lg sm:text-xl font-bold text-white">Price & Package Calculator</h2>
+          <p className="text-xs text-neutral-400 mt-0.5">Instant estimate for custom artwork orders.</p>
         </div>
-        <div className="bg-neutral-950 border border-neutral-800 px-5 py-3 rounded-xl text-right w-full sm:w-auto flex sm:flex-col items-center sm:items-end justify-between hover-lift">
+        <div className="bg-neutral-950 border border-neutral-800 px-4 py-2.5 rounded-xl text-right w-full sm:w-auto flex sm:flex-col items-center sm:items-end justify-between hover-lift">
           <span className="text-[10px] uppercase tracking-wider text-neutral-400 font-semibold">Estimated Price</span>
-          <span key={totalPrice} className="text-2xl sm:text-3xl font-black text-blue-400 inline-block animate-number-pop">
+          <span key={totalPrice} className="text-xl sm:text-2xl font-black text-blue-400 inline-block animate-number-pop">
             ฿{totalPrice.toLocaleString()}
           </span>
         </div>

@@ -30,7 +30,7 @@ export default function Header() {
 
   return (
     <header className="border-b border-[var(--border-subtle,#27272a)] bg-[var(--bg-surface,#121215)]/90 text-[var(--text-primary,#f4f4f5)] backdrop-blur-md sticky top-0 z-50 transition-colors duration-200">
-      <div className="max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-14 flex items-center justify-between">
         <Link href="/" className="font-bold text-xl tracking-tight text-[var(--text-primary,#f4f4f5)] flex items-center hover:opacity-90 transition-all group">
           <span className="group-hover:scale-105 transition-transform duration-300">DI<span className="text-[var(--accent-primary,#3b82f6)] inline-block group-hover:rotate-12 transition-transform duration-300">CE</span></span>
         </Link>

@@ -9,6 +9,7 @@ from .analytics import router as analytics_router
 from .characters import router as characters_router
 from .notifications import router as notifications_router
 from .artists import router as artists_router
+from .commissions import router as commissions_router
 
 api_router = APIRouter()
 
@@ -21,5 +22,4 @@ api_router.include_router(analytics_router)
 api_router.include_router(characters_router)
 api_router.include_router(notifications_router)
 api_router.include_router(artists_router)
-
-
+api_router.include_router(commissions_router)

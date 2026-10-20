@@ -3,9 +3,13 @@ import shutil
 import asyncio
 from datetime import datetime, timedelta
 from sqlmodel import Session, select
-from core.db import engine
+from core.db import engine, init_db
 from core.auth import get_password_hash
-from models import User, ArtistProfile, Character, Artwork, Auction, Bid, AuctionStatus, AuctionType, VisibilityStatus, WorkType
+from core.time import utcnow
+from models import (
+    User, ArtistProfile, Character, Artwork, Auction, Bid, AuctionStatus, AuctionType, VisibilityStatus, WorkType,
+    ArtistService, ArtistCommissionPolicy, ServiceAddon, CommissionRequest, CommissionRequestStatus, AddonPriceType
+)
 
 # 1. Backup the database before adding fake data
 DB_FILE = "test.db"
@@ -16,6 +20,7 @@ if os.path.exists(DB_FILE):
     print(f"Backed up {DB_FILE} to {BACKUP_FILE}")
 
 def seed_data():
+    init_db()
     with Session(engine) as session:
         # Create Artists
         artists_data = [
@@ -209,7 +214,182 @@ def seed_data():
                 session.add(bid1)
                 
         session.commit()
-        print("Successfully generated fake data!")
+
+        # Create Commission Policies and Services
+        policies_data = [
+            {
+                "profile": artist_profiles[0],  # Akira
+                "tos": "1. Personal use by default unless Commercial Add-on purchased.\n2. 3 revision stages: Sketch, Lineart, Final Color.\n3. Do not claim authorship or resell original files.\n4. Artist reserves the right to post finished artwork to portfolio.",
+                "refund": "Full refund if cancelled before sketch begins. 50% refund after sketch approval. No refund after final coloring.",
+                "will": ["OCs", "Fanart", "Anime / Manga style", "Fantasy / Sci-Fi armor", "Detailed backgrounds"],
+                "wont": ["NFT / Crypto", "Gore / Extreme violence", "Hate speech / Political propaganda"],
+                "services": [
+                    {
+                        "title": "Bust-up / Icon Commission",
+                        "category": "Illustration",
+                        "desc": "High quality headshot or bust illustration with clean lineart and vibrant colors. Perfect for social media avatars.",
+                        "price": 45.0,
+                        "days": 5,
+                        "slots": 3,
+                        "open": True,
+                        "addons": [
+                            {"name": "Commercial Rights (+50%)", "type": AddonPriceType.PERCENTAGE, "val": 50.0},
+                            {"name": "Simple Decorative Background", "type": AddonPriceType.FIXED, "val": 15.0},
+                            {"name": "Rush Order (3 Days)", "type": AddonPriceType.FIXED, "val": 25.0},
+                        ]
+                    },
+                    {
+                        "title": "Full-body Character Art",
+                        "category": "Character Design",
+                        "desc": "Complete character render from head to toe with lighting effects and weapon/props included.",
+                        "price": 120.0,
+                        "days": 14,
+                        "slots": 2,
+                        "open": True,
+                        "addons": [
+                            {"name": "Commercial Rights (+50%)", "type": AddonPriceType.PERCENTAGE, "val": 50.0},
+                            {"name": "Full Scenic Background", "type": AddonPriceType.FIXED, "val": 60.0},
+                            {"name": "Additional Character (+80%)", "type": AddonPriceType.PERCENTAGE, "val": 80.0},
+                            {"name": "Layered PSD Source File", "type": AddonPriceType.FIXED, "val": 30.0},
+                        ]
+                    }
+                ]
+            },
+            {
+                "profile": artist_profiles[1],  # Hana
+                "tos": "1. For personal icons, banners, and streaming assets (credit required).\n2. Commercial use incurs +100% fee.\n3. Work starts upon deposit confirmation.",
+                "refund": "70% refund before lineart phase, no refund after lineart completion.",
+                "will": ["Chibi", "Cute animals & mascots", "Pastel aesthetic", "Couple art", "VTuber emotes"],
+                "wont": ["Mecha", "Realistic portraits", "NSFW", "AI generation"],
+                "services": [
+                    {
+                        "title": "Cute Chibi Character",
+                        "category": "Chibi",
+                        "desc": "Super cute chibi character with sparkling eyes and soft watercolor shading.",
+                        "price": 35.0,
+                        "days": 4,
+                        "slots": 5,
+                        "open": True,
+                        "addons": [
+                            {"name": "Pet / Mascot Companion", "type": AddonPriceType.FIXED, "val": 12.0},
+                            {"name": "Twitch / Discord Emote Crop Pack", "type": AddonPriceType.FIXED, "val": 15.0},
+                        ]
+                    }
+                ]
+            },
+            {
+                "profile": artist_profiles[2],  # Zero
+                "tos": "1. Standard non-exclusive personal license.\n2. Turnaround begins after brief & payment cleared.",
+                "refund": "50% refund before final rendering. No refund once 3D/renders are delivered.",
+                "will": ["Cyberpunk / Sci-fi", "Mecha & Exosuits", "Dark fantasy", "Hard-surface props"],
+                "wont": ["Cute / Chibi", "NFT / AI training"],
+                "services": [
+                    {
+                        "title": "Cyberpunk Concept Design",
+                        "category": "Concept Art",
+                        "desc": "Futuristic character or mecha armor concept design with callout sheets and high-tech detailing.",
+                        "price": 180.0,
+                        "days": 20,
+                        "slots": 1,
+                        "open": False,
+                        "addons": [
+                            {"name": "Full Turnaround (Front/Side/Back)", "type": AddonPriceType.FIXED, "val": 100.0},
+                            {"name": "Commercial Game Asset License (+100%)", "type": AddonPriceType.PERCENTAGE, "val": 100.0},
+                        ]
+                    }
+                ]
+            }
+        ]
+
+        created_services = []
+        for pdata in policies_data:
+            prof = pdata["profile"]
+            # Check or create policy
+            policy = session.exec(select(ArtistCommissionPolicy).where(ArtistCommissionPolicy.artist_id == prof.id)).first()
+            if not policy:
+                policy = ArtistCommissionPolicy(
+                    artist_id=prof.id,
+                    terms_of_service=pdata["tos"],
+                    refund_policy=pdata["refund"],
+                    ai_policy="Strictly prohibit using deliverables for AI training.",
+                    will_draw=pdata["will"],
+                    wont_draw=pdata["wont"],
+                    deposit_percent=50,
+                    default_revision_quota=3,
+                    version=1
+                )
+                session.add(policy)
+
+            # Create Services & Addons
+            for sdata in pdata["services"]:
+                svc = session.exec(
+                    select(ArtistService).where(
+                        ArtistService.artist_id == prof.id,
+                        ArtistService.title == sdata["title"]
+                    )
+                ).first()
+                if not svc:
+                    svc = ArtistService(
+                        artist_id=prof.id,
+                        title=sdata["title"],
+                        category=sdata["category"],
+                        description=sdata["desc"],
+                        base_price=sdata["price"],
+                        estimated_days=sdata["days"],
+                        max_slots=sdata["slots"],
+                        is_form_open=sdata["open"],
+                        auto_close_on_full=True,
+                        sort_order=0
+                    )
+                    session.add(svc)
+                    session.commit()
+                    session.refresh(svc)
+                    for adata in sdata["addons"]:
+                        addon = ServiceAddon(
+                            service_id=svc.id,
+                            name=adata["name"],
+                            price_type=adata["type"],
+                            price_value=adata["val"],
+                            is_active=True
+                        )
+                        session.add(addon)
+                    session.commit()
+                created_services.append(svc)
+
+        # Create a sample pending Commission Request from John (Client 1) to Akira
+        if created_services and len(client_users) > 0:
+            sample_svc = created_services[0]
+            existing_req = session.exec(
+                select(CommissionRequest).where(
+                    CommissionRequest.client_id == client_users[0].id,
+                    CommissionRequest.service_id == sample_svc.id
+                )
+            ).first()
+            if not existing_req:
+                mock_req = CommissionRequest(
+                    character_name="Aether",
+                    usage_type="COMMERCIAL",
+                    brief="My OC named 'Aether'. He has silver spiky hair, blue glowing eyes, and wears a high-collar leather coat. Looking forward to a cool dynamic expression!",
+                    canvas_size="A4 (Portrait)",
+                    requested_deadline=utcnow() + timedelta(days=14),
+                    reference_links="https://example.com/character-sheet",
+                    reference_images=[],
+                    addons_snapshot=[{"id": sample_svc.addons[0].id, "name": sample_svc.addons[0].name, "price_type": "PERCENTAGE", "price_value": 50.0}] if sample_svc.addons else [],
+                    base_price_snapshot=sample_svc.base_price,
+                    total_price=sample_svc.base_price * 1.5 if sample_svc.addons else sample_svc.base_price,
+                    tos_snapshot=policies_data[0]["tos"],
+                    tos_version=1,
+                    service_id=sample_svc.id,
+                    client_id=client_users[0].id,
+                    artist_user_id=artist_users[0].id,
+                    status=CommissionRequestStatus.PENDING
+                )
+                session.add(mock_req)
+                session.commit()
+                print("Created sample commission request for testing!")
+
+        session.commit()
+        print("Successfully generated fake data with commission policies and services!")
 
 if __name__ == "__main__":
     seed_data()

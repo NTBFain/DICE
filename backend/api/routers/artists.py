@@ -9,11 +9,23 @@ import math
 from core.db import get_session
 from core.auth import get_current_user, get_artist_user, get_admin_user
 from core.security_file import validate_and_save_upload
-from models import ArtistProfile, ArtistService, ArtistReview, Order, OrderStatus, User, Artwork, Auction, AuctionStatus
+from models import (
+    ArtistProfile, ArtistService, ArtistReview, Order, OrderStatus, User,
+    Artwork, Auction, AuctionStatus,
+    ArtistCommissionPolicy, ServiceAddon, CommissionSlotSubscription
+)
 from schemas import (
     ArtistProfileResponse, ArtistUpdateRequest, ArtistServiceResponse, 
     ArtistReviewResponse, ArtistRegisterRequest, ArtistServiceCreateRequest, 
-    ArtistReviewCreateRequest
+    ArtistReviewCreateRequest,
+    ArtistCommissionPolicyUpdateRequest, ArtistCommissionPolicyResponse,
+    ServiceAddonCreateRequest, ServiceAddonUpdateRequest, ServiceAddonResponse,
+    ServiceAvailabilityUpdateRequest, ServiceScaleUpdateRequest,
+    CommissionServiceDetailResponse, ArtistCommissionInfoResponse,
+    FormSchemaUpdateRequest
+)
+from services.commission_service import (
+    count_used_slots, get_effective_status, dispatch_slot_opening_alert
 )
 
 router = APIRouter(prefix="/api/artists", tags=["artists"])
@@ -345,6 +357,63 @@ def get_artist_by_handle(handle: str, session: Session = Depends(get_session)):
         
     return _build_profile_res(artist, session)
 
+@router.post("/me/services", response_model=ArtistServiceResponse)
+def create_my_service(
+    req: ArtistServiceCreateRequest,
+    session: Session = Depends(get_session),
+    artist_user: User = Depends(get_artist_user)
+):
+    profile = session.exec(select(ArtistProfile).where(ArtistProfile.user_id == artist_user.id)).first()
+    if not profile:
+        raise HTTPException(status_code=404, detail="Artist profile not found")
+
+    svc = ArtistService(
+        artist_id=profile.id,
+        title=req.title.strip(),
+        category=req.category.strip(),
+        description=req.description.strip(),
+        base_price=round(req.base_price, 2),
+        estimated_days=req.estimated_days,
+        includes_commercial=req.includes_commercial,
+        includes_psd=req.includes_psd,
+        sample_image_url=req.sample_image_url,
+        max_slots=req.max_slots,
+        is_form_open=req.is_form_open,
+        auto_close_on_full=req.auto_close_on_full
+    )
+    session.add(svc)
+    session.commit()
+    session.refresh(svc)
+    return ArtistServiceResponse(
+        id=svc.id,
+        title=svc.title,
+        category=svc.category,
+        description=svc.description,
+        base_price=svc.base_price,
+        estimated_days=svc.estimated_days,
+        includes_commercial=svc.includes_commercial,
+        includes_psd=svc.includes_psd,
+        sample_image_url=svc.sample_image_url
+    )
+
+@router.delete("/me/services/{service_id}")
+def delete_my_service(
+    service_id: int,
+    session: Session = Depends(get_session),
+    artist_user: User = Depends(get_artist_user)
+):
+    profile = session.exec(select(ArtistProfile).where(ArtistProfile.user_id == artist_user.id)).first()
+    if not profile:
+        raise HTTPException(status_code=404, detail="Artist profile not found")
+
+    service = session.get(ArtistService, service_id)
+    if not service or service.artist_id != profile.id:
+        raise HTTPException(status_code=404, detail="Service not found or unauthorized")
+
+    session.delete(service)
+    session.commit()
+    return {"message": "Service deleted successfully"}
+
 @router.post("/{handle}/services", response_model=ArtistServiceResponse)
 def add_artist_service(
     handle: str, 
@@ -368,7 +437,10 @@ def add_artist_service(
         estimated_days=req.estimated_days,
         includes_commercial=req.includes_commercial,
         includes_psd=req.includes_psd,
-        sample_image_url=req.sample_image_url
+        sample_image_url=req.sample_image_url,
+        max_slots=req.max_slots,
+        is_form_open=req.is_form_open,
+        auto_close_on_full=req.auto_close_on_full
     )
     session.add(svc)
     session.commit()
@@ -439,3 +511,310 @@ def add_artist_review(
         comment=review.comment,
         created_at=review.created_at
     )
+
+# --- Multi-Scale Commission & Policy Endpoints ---
+
+@router.get("/{handle}/commission-info", response_model=ArtistCommissionInfoResponse)
+def get_artist_commission_info(
+    handle: str,
+    session: Session = Depends(get_session),
+    current_user: Optional[User] = Depends(get_current_user)
+):
+    """Public endpoint to fetch an artist's full commission catalog, policy, and availability"""
+    artist = session.exec(select(ArtistProfile).where(ArtistProfile.handle == handle.lower())).first()
+    if not artist:
+        raise HTTPException(status_code=404, detail="Artist not found")
+
+    policy = session.exec(
+        select(ArtistCommissionPolicy).where(ArtistCommissionPolicy.artist_id == artist.id)
+    ).first()
+
+    services = session.exec(
+        select(ArtistService)
+        .where(ArtistService.artist_id == artist.id)
+        .order_by(ArtistService.sort_order.asc(), ArtistService.id.asc())
+    ).all()
+
+    service_details = []
+    for s in services:
+        addons = session.exec(
+            select(ServiceAddon)
+            .where(ServiceAddon.service_id == s.id)
+            .where(ServiceAddon.is_active == True)
+        ).all()
+        used = count_used_slots(session, s.id)
+        eff_status = get_effective_status(artist, s, used)
+        service_details.append(CommissionServiceDetailResponse(
+            id=s.id,
+            artist_id=s.artist_id,
+            title=s.title,
+            category=s.category,
+            description=s.description,
+            base_price=s.base_price,
+            estimated_days=s.estimated_days,
+            includes_commercial=s.includes_commercial,
+            includes_psd=s.includes_psd,
+            sample_image_url=s.sample_image_url,
+            max_slots=s.max_slots,
+            is_form_open=s.is_form_open,
+            auto_close_on_full=s.auto_close_on_full,
+            sort_order=s.sort_order,
+            used_slots=used,
+            effective_status=eff_status,
+            addons=[ServiceAddonResponse.from_orm(a) for a in addons],
+            form_schema=s.form_schema or []
+        ))
+
+    is_sub = False
+    if current_user:
+        sub = session.exec(
+            select(CommissionSlotSubscription)
+            .where(CommissionSlotSubscription.user_id == current_user.id)
+            .where(CommissionSlotSubscription.artist_id == artist.id)
+            .where(CommissionSlotSubscription.is_active == True)
+        ).first()
+        is_sub = bool(sub)
+
+    policy_res = ArtistCommissionPolicyResponse.from_orm(policy) if policy else None
+
+    return ArtistCommissionInfoResponse(
+        artist_id=artist.id,
+        artist_user_id=artist.user_id,
+        handle=artist.handle,
+        display_name=artist.display_name,
+        commission_status=artist.commission_status,
+        policy=policy_res,
+        services=service_details,
+        is_subscribed=is_sub
+    )
+
+@router.put("/me/commission-policy", response_model=ArtistCommissionPolicyResponse)
+def update_my_commission_policy(
+    req: ArtistCommissionPolicyUpdateRequest,
+    session: Session = Depends(get_session),
+    artist_user: User = Depends(get_artist_user)
+):
+    profile = session.exec(select(ArtistProfile).where(ArtistProfile.user_id == artist_user.id)).first()
+    if not profile:
+        raise HTTPException(status_code=404, detail="Artist profile not found")
+
+    policy = session.exec(
+        select(ArtistCommissionPolicy).where(ArtistCommissionPolicy.artist_id == profile.id)
+    ).first()
+
+    if not policy:
+        policy = ArtistCommissionPolicy(
+            artist_id=profile.id,
+            terms_of_service=req.terms_of_service.strip(),
+            refund_policy=req.refund_policy.strip(),
+            ai_policy=req.ai_policy.strip(),
+            will_draw=req.will_draw,
+            wont_draw=req.wont_draw,
+            deposit_percent=req.deposit_percent,
+            default_revision_quota=req.default_revision_quota,
+            version=1
+        )
+    else:
+        # Increment version if terms_of_service was changed
+        if req.terms_of_service.strip() != policy.terms_of_service:
+            policy.version += 1
+        policy.terms_of_service = req.terms_of_service.strip()
+        policy.refund_policy = req.refund_policy.strip()
+        policy.ai_policy = req.ai_policy.strip()
+        policy.will_draw = req.will_draw
+        policy.wont_draw = req.wont_draw
+        policy.deposit_percent = req.deposit_percent
+        policy.default_revision_quota = req.default_revision_quota
+        from core.time import utcnow
+        policy.updated_at = utcnow()
+
+    session.add(policy)
+    session.commit()
+    session.refresh(policy)
+    return policy
+
+@router.patch("/me/services/{service_id}/availability", response_model=CommissionServiceDetailResponse)
+async def update_service_availability(
+    service_id: int,
+    req: ServiceAvailabilityUpdateRequest,
+    session: Session = Depends(get_session),
+    artist_user: User = Depends(get_artist_user)
+):
+    profile = session.exec(select(ArtistProfile).where(ArtistProfile.user_id == artist_user.id)).first()
+    if not profile:
+        raise HTTPException(status_code=404, detail="Artist profile not found")
+
+    service = session.get(ArtistService, service_id)
+    if not service or service.artist_id != profile.id:
+        raise HTTPException(status_code=404, detail="Service not found or unauthorized")
+
+    was_closed = not service.is_form_open
+    service.is_form_open = req.is_form_open
+    session.add(service)
+    session.commit()
+    session.refresh(service)
+
+    # If toggled from closed to open, dispatch slot alert to subscribers
+    if was_closed and service.is_form_open:
+        await dispatch_slot_opening_alert(session, service, profile, req.notify_followers)
+
+    addons = session.exec(
+        select(ServiceAddon).where(ServiceAddon.service_id == service.id).where(ServiceAddon.is_active == True)
+    ).all()
+    used = count_used_slots(session, service.id)
+    eff_status = get_effective_status(profile, service, used)
+
+    return CommissionServiceDetailResponse(
+        id=service.id,
+        artist_id=service.artist_id,
+        title=service.title,
+        category=service.category,
+        description=service.description,
+        base_price=service.base_price,
+        estimated_days=service.estimated_days,
+        includes_commercial=service.includes_commercial,
+        includes_psd=service.includes_psd,
+        sample_image_url=service.sample_image_url,
+        max_slots=service.max_slots,
+        is_form_open=service.is_form_open,
+        auto_close_on_full=service.auto_close_on_full,
+        sort_order=service.sort_order,
+        used_slots=used,
+        effective_status=eff_status,
+        addons=[ServiceAddonResponse.from_orm(a) for a in addons],
+        form_schema=service.form_schema or []
+    )
+
+@router.put("/me/services/{service_id}/form-schema")
+def update_service_form_schema(
+    service_id: int,
+    req: FormSchemaUpdateRequest,
+    session: Session = Depends(get_session),
+    artist_user: User = Depends(get_artist_user)
+):
+    profile = session.exec(select(ArtistProfile).where(ArtistProfile.user_id == artist_user.id)).first()
+    if not profile:
+        raise HTTPException(status_code=404, detail="Artist profile not found")
+
+    service = session.get(ArtistService, service_id)
+    if not service or service.artist_id != profile.id:
+        raise HTTPException(status_code=404, detail="Service not found or unauthorized")
+
+    service.form_schema = req.blocks
+    session.add(service)
+    session.commit()
+    session.refresh(service)
+    return {"message": "Form schema updated successfully", "form_schema": service.form_schema}
+
+@router.patch("/me/services/{service_id}", response_model=ArtistServiceResponse)
+def update_service_scale(
+    service_id: int,
+    req: ServiceScaleUpdateRequest,
+    session: Session = Depends(get_session),
+    artist_user: User = Depends(get_artist_user)
+):
+    profile = session.exec(select(ArtistProfile).where(ArtistProfile.user_id == artist_user.id)).first()
+    if not profile:
+        raise HTTPException(status_code=404, detail="Artist profile not found")
+
+    service = session.get(ArtistService, service_id)
+    if not service or service.artist_id != profile.id:
+        raise HTTPException(status_code=404, detail="Service not found or unauthorized")
+
+    if req.title is not None: service.title = req.title.strip()
+    if req.category is not None: service.category = req.category.strip()
+    if req.description is not None: service.description = req.description.strip()
+    if req.base_price is not None: service.base_price = round(req.base_price, 2)
+    if req.estimated_days is not None: service.estimated_days = req.estimated_days
+    if req.max_slots is not None: service.max_slots = req.max_slots
+    if req.auto_close_on_full is not None: service.auto_close_on_full = req.auto_close_on_full
+    if req.sort_order is not None: service.sort_order = req.sort_order
+    if req.sample_image_url is not None: service.sample_image_url = req.sample_image_url
+
+    session.add(service)
+    session.commit()
+    session.refresh(service)
+    return service
+
+@router.post("/me/services/{service_id}/addons", response_model=ServiceAddonResponse)
+def add_service_addon(
+    service_id: int,
+    req: ServiceAddonCreateRequest,
+    session: Session = Depends(get_session),
+    artist_user: User = Depends(get_artist_user)
+):
+    profile = session.exec(select(ArtistProfile).where(ArtistProfile.user_id == artist_user.id)).first()
+    if not profile:
+        raise HTTPException(status_code=404, detail="Artist profile not found")
+
+    service = session.get(ArtistService, service_id)
+    if not service or service.artist_id != profile.id:
+        raise HTTPException(status_code=404, detail="Service not found or unauthorized")
+
+    addon = ServiceAddon(
+        service_id=service.id,
+        name=req.name.strip(),
+        price_type=req.price_type,
+        price_value=round(req.price_value, 2),
+        is_active=True
+    )
+    session.add(addon)
+    session.commit()
+    session.refresh(addon)
+    return addon
+
+@router.patch("/me/services/{service_id}/addons/{addon_id}", response_model=ServiceAddonResponse)
+def update_service_addon(
+    service_id: int,
+    addon_id: int,
+    req: ServiceAddonUpdateRequest,
+    session: Session = Depends(get_session),
+    artist_user: User = Depends(get_artist_user)
+):
+    profile = session.exec(select(ArtistProfile).where(ArtistProfile.user_id == artist_user.id)).first()
+    if not profile:
+        raise HTTPException(status_code=404, detail="Artist profile not found")
+
+    addon = session.get(ServiceAddon, addon_id)
+    if not addon or addon.service_id != service_id:
+        raise HTTPException(status_code=404, detail="Addon not found")
+
+    service = session.get(ArtistService, service_id)
+    if not service or service.artist_id != profile.id:
+        raise HTTPException(status_code=403, detail="Unauthorized")
+
+    if req.name is not None: addon.name = req.name.strip()
+    if req.price_type is not None: addon.price_type = req.price_type
+    if req.price_value is not None: addon.price_value = round(req.price_value, 2)
+    if req.is_active is not None: addon.is_active = req.is_active
+
+    session.add(addon)
+    session.commit()
+    session.refresh(addon)
+    return addon
+
+@router.delete("/me/services/{service_id}/addons/{addon_id}")
+def delete_service_addon(
+    service_id: int,
+    addon_id: int,
+    session: Session = Depends(get_session),
+    artist_user: User = Depends(get_artist_user)
+):
+    profile = session.exec(select(ArtistProfile).where(ArtistProfile.user_id == artist_user.id)).first()
+    if not profile:
+        raise HTTPException(status_code=404, detail="Artist profile not found")
+
+    addon = session.get(ServiceAddon, addon_id)
+    if not addon or addon.service_id != service_id:
+        raise HTTPException(status_code=404, detail="Addon not found")
+
+    service = session.get(ArtistService, service_id)
+    if not service or service.artist_id != profile.id:
+        raise HTTPException(status_code=403, detail="Unauthorized")
+
+    # Soft delete to preserve historical snapshot integrity in past requests
+    addon.is_active = False
+    session.add(addon)
+    session.commit()
+    return {"message": "Addon deactivated successfully"}
+

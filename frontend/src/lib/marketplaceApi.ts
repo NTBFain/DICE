@@ -51,6 +51,7 @@ export type ArtistCharacter = {
 
 export type ArtistProfile = {
   id: number;
+  user_id?: number;
   handle: string;
   display_name: string;
   tagline: string;

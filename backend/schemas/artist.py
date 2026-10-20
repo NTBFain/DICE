@@ -77,13 +77,16 @@ class ArtistRegisterRequest(BaseModel):
 
 class ArtistServiceCreateRequest(BaseModel):
     title: str = Field(..., min_length=1, max_length=120)
-    category: str = Field(..., min_length=1, max_length=60)
-    description: str = Field(..., min_length=1, max_length=2000)
+    category: str = Field(default="Illustration", max_length=60)
+    description: str = Field(default="", max_length=2000)
     base_price: float = Field(..., gt=0, le=10_000_000, allow_inf_nan=False)
-    estimated_days: int = Field(..., ge=1, le=365)
+    estimated_days: int = Field(default=7, ge=1, le=365)
     includes_commercial: bool = False
     includes_psd: bool = False
     sample_image_url: Optional[str] = None
+    max_slots: int = Field(default=3, ge=1, le=100)
+    is_form_open: bool = Field(default=True)
+    auto_close_on_full: bool = Field(default=True)
 
 class ArtistReviewCreateRequest(BaseModel):
     rating: float = Field(..., ge=1.0, le=5.0, allow_inf_nan=False)

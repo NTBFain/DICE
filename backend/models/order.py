@@ -1,7 +1,13 @@
-from typing import Optional, List
+from typing import Optional, List, TYPE_CHECKING
 from sqlmodel import Field, SQLModel, Relationship
 from datetime import datetime
 from .base import OrderStatus
+from core.time import utcnow
+
+if TYPE_CHECKING:
+    from .user import User
+    from .artist import ArtistService
+    from .commission import CommissionRequest
 
 class OrderBase(SQLModel):
     title: str
@@ -11,12 +17,14 @@ class OrderBase(SQLModel):
     revision_quota: int = Field(default=3)
     start_date: Optional[datetime] = None
     due_date: Optional[datetime] = None
+    service_id: Optional[int] = Field(default=None, foreign_key="artistservice.id", ondelete="SET NULL")
+    commission_request_id: Optional[int] = Field(default=None, foreign_key="commissionrequest.id", ondelete="SET NULL")
 
 class Order(OrderBase, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
     client_id: int = Field(foreign_key="user.id", ondelete="CASCADE")
     artist_id: int = Field(default=1, foreign_key="user.id", ondelete="CASCADE")
-    created_at: datetime = Field(default_factory=datetime.utcnow)
+    created_at: datetime = Field(default_factory=utcnow)
     
     client: "User" = Relationship(
         back_populates="orders",
@@ -38,6 +46,7 @@ class Order(OrderBase, table=True):
         back_populates="order",
         sa_relationship_kwargs={"cascade": "all, delete-orphan"}
     )
+    service: Optional["ArtistService"] = Relationship()
 
 class MilestoneInvoiceBase(SQLModel):
     title: str # e.g., "50% Deposit", "Final Payment"
@@ -48,7 +57,7 @@ class MilestoneInvoiceBase(SQLModel):
 class MilestoneInvoice(MilestoneInvoiceBase, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
     order_id: int = Field(foreign_key="order.id", ondelete="CASCADE")
-    created_at: datetime = Field(default_factory=datetime.utcnow)
+    created_at: datetime = Field(default_factory=utcnow)
     
     order: Order = Relationship(back_populates="milestone_invoices")
 
@@ -59,7 +68,7 @@ class RevisionBase(SQLModel):
 class Revision(RevisionBase, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
     order_id: int = Field(foreign_key="order.id", ondelete="CASCADE")
-    created_at: datetime = Field(default_factory=datetime.utcnow)
+    created_at: datetime = Field(default_factory=utcnow)
     
     order: Order = Relationship(back_populates="revisions")
 
@@ -72,7 +81,7 @@ class FileBase(SQLModel):
 class File(FileBase, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
     order_id: int = Field(foreign_key="order.id", ondelete="CASCADE")
-    uploaded_at: datetime = Field(default_factory=datetime.utcnow)
+    uploaded_at: datetime = Field(default_factory=utcnow)
     
     order: Order = Relationship(back_populates="files")
 
@@ -83,7 +92,7 @@ class Message(MessageBase, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
     order_id: int = Field(foreign_key="order.id", ondelete="CASCADE")
     sender_id: int = Field(foreign_key="user.id", ondelete="CASCADE")
-    created_at: datetime = Field(default_factory=datetime.utcnow)
+    created_at: datetime = Field(default_factory=utcnow)
     
     order: Order = Relationship(back_populates="messages")
     sender: "User" = Relationship()

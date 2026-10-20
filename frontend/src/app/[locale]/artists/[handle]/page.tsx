@@ -24,6 +24,7 @@ import { useMutation } from '@tanstack/react-query';
 import { createOrder } from '@/lib/api';
 import PriceCalculator from '@/components/PriceCalculator';
 import QueueRoadmap from '@/components/QueueRoadmap';
+import ArtistCommissionSection from '@/components/commission/ArtistCommissionSection';
 
 export default function ArtistDedicatedProfilePage() {
   const params = useParams();
@@ -133,7 +134,7 @@ export default function ArtistDedicatedProfilePage() {
     <div className="min-h-screen bg-[var(--bg-primary,#09090b)] text-[var(--text-primary,#f4f4f5)] pb-20">
       
       {/* 🖼️ ARTIST COVER BANNER */}
-      <div className="h-64 sm:h-80 w-full bg-neutral-800 relative overflow-hidden">
+      <div className="h-36 sm:h-44 w-full bg-neutral-800 relative overflow-hidden">
         {artist.banner_url ? (
           <img
             src={artist.banner_url}
@@ -144,43 +145,43 @@ export default function ArtistDedicatedProfilePage() {
           <div className="w-full h-full bg-gradient-to-r from-blue-950 via-indigo-950 to-purple-950" />
         )}
 
-        <div className="absolute top-6 left-6 z-10">
+        <div className="absolute top-4 left-4 sm:left-6 z-10">
           <Link
             href="/"
-            className="flex items-center gap-2 text-xs font-bold text-white bg-black/60 backdrop-blur-md px-4 py-2 rounded-xl border border-white/20 hover:bg-black/80 transition-all shadow-md"
+            className="flex items-center gap-1.5 text-xs font-bold text-white bg-black/60 backdrop-blur-md px-3.5 py-1.5 rounded-xl border border-white/20 hover:bg-black/80 transition-all shadow-md"
           >
-            <ArrowLeft className="w-4 h-4 text-blue-400" /> กลับสู่หน้าเลือกศิลปิน
+            <ArrowLeft className="w-3.5 h-3.5 text-blue-400" /> กลับสู่หน้าเลือกศิลปิน
           </Link>
         </div>
       </div>
 
       {/* 👤 ARTIST PROFILE HEADER CONTAINER */}
-      <div className="max-w-6xl mx-auto px-6 relative -mt-20 space-y-8">
+      <div className="max-w-6xl mx-auto px-4 sm:px-6 relative -mt-12 space-y-5">
         
-        <div className="bg-[var(--bg-surface,#121215)] border border-[var(--border-subtle,#27272a)] rounded-3xl p-6 sm:p-8 shadow-2xl space-y-6">
-          <div className="flex flex-col md:flex-row md:items-end justify-between gap-6">
+        <div className="bg-[var(--bg-surface,#121215)] border border-[var(--border-subtle,#27272a)] rounded-2xl p-5 sm:p-6 shadow-xl space-y-4">
+          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
             
             {/* Avatar & Names */}
-            <div className="flex flex-col sm:flex-row items-start sm:items-end gap-5">
-              <div className="relative">
+            <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4">
+              <div className="relative shrink-0">
                 <img
                   src={artist.avatar_url || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=300&q=80'}
                   alt={artist.display_name}
-                  className="w-28 h-28 sm:w-32 sm:h-32 rounded-3xl object-cover border-4 border-[var(--bg-surface,#121215)] shadow-2xl"
+                  className="w-20 h-20 sm:w-24 sm:h-24 rounded-2xl object-cover border-3 border-[var(--bg-surface,#121215)] shadow-xl"
                 />
                 {artist.is_verified && (
-                  <div className="absolute -bottom-1 -right-1 bg-blue-600 text-white rounded-full p-1.5 shadow-lg">
-                    <BadgeCheck className="w-5 h-5" />
+                  <div className="absolute -bottom-1 -right-1 bg-blue-600 text-white rounded-full p-1 shadow-lg">
+                    <BadgeCheck className="w-4 h-4" />
                   </div>
                 )}
               </div>
 
-              <div className="space-y-1.5">
-                <div className="flex items-center gap-3">
-                  <h1 className="text-2xl sm:text-3xl font-extrabold text-[var(--text-primary,#f4f4f5)]">
+              <div className="space-y-1">
+                <div className="flex flex-wrap items-center gap-2.5">
+                  <h1 className="text-xl sm:text-2xl font-extrabold text-[var(--text-primary,#f4f4f5)]">
                     {artist.display_name}
                   </h1>
-                  <span className={`text-[10px] font-extrabold px-3 py-1 rounded-full border uppercase ${
+                  <span className={`text-[10px] font-extrabold px-2.5 py-0.5 rounded-full border uppercase ${
                     isOpen
                       ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/40'
                       : 'bg-amber-500/20 text-amber-400 border-amber-500/40'
@@ -190,39 +191,39 @@ export default function ArtistDedicatedProfilePage() {
                 </div>
 
                 <span className="text-xs font-mono text-[var(--text-muted,#a1a1aa)] block">@{artist.handle}</span>
-                <p className="text-xs text-[var(--text-muted,#a1a1aa)] max-w-xl leading-relaxed">
+                <p className="text-xs text-[var(--text-muted,#a1a1aa)] max-w-xl leading-relaxed line-clamp-2">
                   {artist.bio}
                 </p>
               </div>
             </div>
 
             {/* Quick Stats Matrix */}
-            <div className="flex items-center gap-4 bg-[var(--bg-primary,#09090b)] p-4 rounded-2xl border border-[var(--border-subtle,#27272a)] shrink-0 font-mono">
-              <div className="text-center px-3 border-r border-[var(--border-subtle,#27272a)]">
+            <div className="flex items-center gap-3 bg-[var(--bg-primary,#09090b)] px-3.5 py-2.5 rounded-xl border border-[var(--border-subtle,#27272a)] shrink-0 font-mono">
+              <div className="text-center px-2.5 border-r border-[var(--border-subtle,#27272a)]">
                 <span className="text-[10px] uppercase font-bold text-[var(--text-muted,#a1a1aa)] block">Rating</span>
-                <span className="text-base font-extrabold text-amber-400 flex items-center justify-center gap-1">
-                  <Star className="w-4 h-4 fill-amber-400" /> {artist.rating}
+                <span className="text-sm font-extrabold text-amber-400 flex items-center justify-center gap-1">
+                  <Star className="w-3.5 h-3.5 fill-amber-400" /> {artist.rating}
                 </span>
               </div>
-              <div className="text-center px-3 border-r border-[var(--border-subtle,#27272a)]">
+              <div className="text-center px-2.5 border-r border-[var(--border-subtle,#27272a)]">
                 <span className="text-[10px] uppercase font-bold text-[var(--text-muted,#a1a1aa)] block">Orders</span>
-                <span className="text-base font-extrabold text-[var(--text-primary,#f4f4f5)]">{artist.total_completed_orders}</span>
+                <span className="text-sm font-extrabold text-[var(--text-primary,#f4f4f5)]">{artist.total_completed_orders}</span>
               </div>
-              <div className="text-center px-3">
+              <div className="text-center px-2.5">
                 <span className="text-[10px] uppercase font-bold text-[var(--text-muted,#a1a1aa)] block">Starting</span>
-                <span className="text-base font-extrabold text-[var(--accent-primary,#3b82f6)]">฿{artist.starting_price.toLocaleString()}</span>
+                <span className="text-sm font-extrabold text-[var(--accent-primary,#3b82f6)]">฿{artist.starting_price.toLocaleString()}</span>
               </div>
             </div>
 
           </div>
 
           {/* Style Chips & Social Links */}
-          <div className="flex flex-wrap items-center justify-between gap-4 pt-4 border-t border-[var(--border-subtle,#27272a)]">
-            <div className="flex flex-wrap gap-2">
+          <div className="flex flex-wrap items-center justify-between gap-3 pt-3 border-t border-[var(--border-subtle,#27272a)]">
+            <div className="flex flex-wrap gap-1.5">
               {artist.styles.map((style, idx) => (
                 <span
                   key={idx}
-                  className="text-xs font-semibold px-3 py-1 rounded-xl bg-[var(--bg-primary,#09090b)] text-[var(--text-primary,#f4f4f5)] border border-[var(--border-subtle,#27272a)]"
+                  className="text-[11px] font-semibold px-2.5 py-0.5 rounded-lg bg-[var(--bg-primary,#09090b)] text-[var(--text-primary,#f4f4f5)] border border-[var(--border-subtle,#27272a)]"
                 >
                   {style}
                 </span>
@@ -238,7 +239,7 @@ export default function ArtistDedicatedProfilePage() {
         </div>
 
         {/* 📑 DEDICATED ARTIST TABS: SERVICES, PORTFOLIO, AUCTIONS, CHARACTERS, REVIEWS, CHAT */}
-        <div className="flex gap-2 overflow-x-auto no-scrollbar border-b border-[var(--border-subtle,#27272a)] pb-2">
+        <div className="flex gap-1.5 overflow-x-auto no-scrollbar border-b border-[var(--border-subtle,#27272a)] pb-2">
           <button
             type="button"
             onClick={() => setActiveTab('services')}
@@ -312,68 +313,12 @@ export default function ArtistDedicatedProfilePage() {
           </button>
         </div>
 
-        {/* 💼 TAB 1: SERVICES & PRICING MENU */}
+        {/* 💼 TAB 1: SERVICES & PRICING MENU (VGen-Style Multi-Scale Commission) */}
         {activeTab === 'services' && (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            {!artist.services || artist.services.length === 0 ? (
-              <div className="col-span-2 text-center py-12 bg-[var(--bg-surface,#121215)] border border-[var(--border-subtle,#27272a)] rounded-3xl text-xs text-[var(--text-muted,#a1a1aa)] font-bold">
-                ศิลปินยังไม่ได้เพิ่มรายการแพ็กเกจคอมมิชชัน
-              </div>
-            ) : (
-              artist.services.map((svc) => (
-                <div
-                  key={svc.id}
-                  className="bg-[var(--bg-surface,#121215)] border border-[var(--border-subtle,#27272a)] rounded-3xl p-6 flex flex-col justify-between space-y-4 shadow-lg hover:border-[var(--accent-primary,#3b82f6)] transition-all"
-                >
-                  {svc.sample_image_url && (
-                    <div className="aspect-video rounded-2xl overflow-hidden bg-neutral-900 border border-[var(--border-subtle,#27272a)]">
-                      <img src={svc.sample_image_url} alt={svc.title} className="w-full h-full object-cover" />
-                    </div>
-                  )}
+          <div className="space-y-8">
+            <ArtistCommissionSection handle={handle} />
 
-                  <div className="space-y-2">
-                    <div className="flex items-center justify-between">
-                      <span className="text-[9px] font-extrabold px-2.5 py-0.5 rounded bg-[var(--accent-primary,#3b82f6)]/10 text-[var(--accent-primary,#3b82f6)] border border-[var(--accent-primary,#3b82f6)]/30 uppercase">
-                        {svc.category}
-                      </span>
-                      <span className="text-xs font-mono font-bold text-[var(--text-muted,#a1a1aa)] flex items-center gap-1">
-                        <Clock className="w-3.5 h-3.5" /> ~{svc.estimated_days} Days
-                      </span>
-                    </div>
-
-                    <h3 className="text-base font-extrabold text-[var(--text-primary,#f4f4f5)]">{svc.title}</h3>
-                    <p className="text-xs text-[var(--text-muted,#a1a1aa)] leading-relaxed">{svc.description}</p>
-                  </div>
-
-                  <div className="pt-3 border-t border-[var(--border-subtle,#27272a)] flex items-center justify-between">
-                    <div>
-                      <span className="text-[10px] uppercase font-bold text-[var(--text-muted,#a1a1aa)] block">Starting Package</span>
-                      <span className="text-xl font-black text-[var(--accent-primary,#3b82f6)] font-mono">฿{svc.base_price.toLocaleString()}</span>
-                    </div>
-
-                    <button
-                      type="button"
-                      onClick={() => {
-                        if (!user) {
-                          router.push('/login');
-                          return;
-                        }
-                        setOrderTitle(`Commission Package: ${svc.title}`);
-                        setShowOrderModal(true);
-                      }}
-                      disabled={!isOpen}
-                      className={`px-5 py-2.5 hover:opacity-90 text-white font-extrabold text-xs rounded-xl transition-all shadow-md ${
-                        isOpen ? 'bg-[var(--accent-primary,#3b82f6)] cursor-pointer' : 'bg-neutral-600 cursor-not-allowed'
-                      }`}
-                    >
-                      {isOpen ? 'ยื่นสั่งคอมมิชชัน' : 'Waitlist ปิดรับงาน'}
-                    </button>
-                  </div>
-                </div>
-              ))
-            )}
-
-            <div className="col-span-1 md:col-span-2 space-y-8 pt-6">
+            <div className="space-y-8 pt-6 border-t border-[var(--border-subtle,#27272a)]">
               <PriceCalculator />
               <QueueRoadmap />
             </div>

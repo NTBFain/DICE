@@ -1,8 +1,9 @@
 from sqlmodel import Session, select
-from core.db import engine
+from core.db import engine, init_db
 from models import User, ArtistProfile, Artwork, Character, Order, Auction, Notification
 
 def clean_data():
+    init_db()
     with Session(engine) as session:
         fake_emails = [
             'artist1@example.com', 'artist2@example.com', 'artist3@example.com',
@@ -58,6 +59,13 @@ def clean_data():
         for a in auctions: session.delete(a)
         for o in orders: session.delete(o)
             
+        # Commission Requests & Subscriptions
+        from models import CommissionRequest, CommissionSlotSubscription
+        reqs = session.exec(select(CommissionRequest).where((CommissionRequest.client_id.in_(user_ids)) | (CommissionRequest.artist_user_id.in_(user_ids)))).all()
+        for r in reqs: session.delete(r)
+        subs = session.exec(select(CommissionSlotSubscription).where(CommissionSlotSubscription.user_id.in_(user_ids))).all()
+        for s in subs: session.delete(s)
+
         # Notifications (User)
         notifs = session.exec(select(Notification).where(Notification.user_id.in_(user_ids))).all()
         for n in notifs: session.delete(n)

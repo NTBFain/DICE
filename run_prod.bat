@@ -2,6 +2,14 @@
 title DICE Platform Runner (Production Mode)
 color 0A
 
+:: Ensure uv is available in PATH
+where uv >nul 2>&1
+if errorlevel 1 (
+    if exist "%LOCALAPPDATA%\Python\pythoncore-3.15-64\Scripts\uv.exe" (
+        set "PATH=%LOCALAPPDATA%\Python\pythoncore-3.15-64\Scripts;%PATH%"
+    )
+)
+
 echo ==================================================
 echo        DICE Platform - Production Runner
 echo ==================================================

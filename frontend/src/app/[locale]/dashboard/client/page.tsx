@@ -8,6 +8,8 @@ import {
   getFiles, downloadOrderFile, getCommissionStatus, Order, OrderFile,
   updateMe, uploadAvatar, getMyCollection
 } from '@/lib/api';
+import { getMyCommissionRequests, withdrawCommissionRequest } from '@/lib/commissionApi';
+import { CommissionRequest } from '@/types/commission';
 import { useAuth } from '@/components/AuthContext';
 import { useRouter } from '@/i18n/routing';
 import { useTranslations } from 'next-intl';
@@ -105,6 +107,23 @@ function ClientDashboardContent() {
     },
   });
 
+  const { data: myRequests = [], refetch: refetchRequests } = useQuery({
+    queryKey: ['client-commission-requests'],
+    queryFn: getMyCommissionRequests,
+    enabled: !!user,
+  });
+
+  const withdrawMutation = useMutation({
+    mutationFn: (requestId: number) => withdrawCommissionRequest(requestId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['client-commission-requests'] });
+      alert('ยกเลิกคำขอคอมมิชชันเรียบร้อยแล้ว');
+    },
+    onError: (err: any) => {
+      alert(err.response?.data?.detail || 'เกิดข้อผิดพลาดในการยกเลิกคำขอ');
+    },
+  });
+
   if (authLoading || !user) {
     return <div className="flex-1 flex items-center justify-center p-20"><Loader2 className="w-8 h-8 animate-spin text-blue-500" /></div>;
   }
@@ -168,16 +187,16 @@ function ClientDashboardContent() {
   const getStepIndex = (status: string) => steps.indexOf(status);
 
   return (
-    <div className="flex-1 flex flex-col md:flex-row h-[calc(100vh-4rem)] overflow-hidden bg-white dark:bg-neutral-950">
+    <div className="flex-1 flex flex-col md:flex-row h-[calc(100vh-3.5rem)] overflow-hidden bg-white dark:bg-neutral-950">
       
       {/* 🧭 SIDEBAR NAVIGATION */}
-      <div className="w-full md:w-64 lg:w-80 border-r border-neutral-200 dark:border-neutral-800 bg-neutral-50 dark:bg-neutral-900/30 flex flex-col shrink-0 z-20">
-        <div className="p-6 border-b border-neutral-200 dark:border-neutral-800 flex items-center gap-4">
-          <div className="w-12 h-12 rounded-full overflow-hidden bg-blue-100 dark:bg-blue-900 border-2 border-blue-500 shrink-0">
+      <div className="w-full md:w-60 lg:w-72 border-r border-neutral-200 dark:border-neutral-800 bg-neutral-50 dark:bg-neutral-900/30 flex flex-col shrink-0 z-20">
+        <div className="p-4 sm:p-5 border-b border-neutral-200 dark:border-neutral-800 flex items-center gap-3.5">
+          <div className="w-10 h-10 rounded-full overflow-hidden bg-blue-100 dark:bg-blue-900 border-2 border-blue-500 shrink-0">
             {user.avatar_url ? (
               <img src={user.avatar_url} alt={user.full_name} className="w-full h-full object-cover" />
             ) : (
-              <div className="w-full h-full flex items-center justify-center text-blue-600 dark:text-blue-300 font-black text-xl">
+              <div className="w-full h-full flex items-center justify-center text-blue-600 dark:text-blue-300 font-black text-base">
                 {user.full_name.charAt(0)}
               </div>
             )}
@@ -188,10 +207,10 @@ function ClientDashboardContent() {
           </div>
         </div>
 
-        <div className="flex-1 p-4 flex flex-col gap-2 overflow-y-auto">
+        <div className="flex-1 p-3 flex flex-col gap-1.5 overflow-y-auto">
           <button
             onClick={() => { setActiveTab('commissions'); setSelectedOrderId(null); }}
-            className={`flex items-center gap-3 px-4 py-3 rounded-2xl text-sm font-bold transition-all ${
+            className={`flex items-center gap-2.5 px-3.5 py-2.5 rounded-xl text-xs sm:text-sm font-bold transition-all cursor-pointer ${
               activeTab === 'commissions' 
                 ? 'bg-blue-600 text-white shadow-md' 
                 : 'text-neutral-600 dark:text-neutral-400 hover:bg-neutral-200 dark:hover:bg-neutral-800'
@@ -202,7 +221,7 @@ function ClientDashboardContent() {
           
           <button
             onClick={() => { setActiveTab('collection'); setSelectedOrderId(null); }}
-            className={`flex items-center gap-3 px-4 py-3 rounded-2xl text-sm font-bold transition-all ${
+            className={`flex items-center gap-2.5 px-3.5 py-2.5 rounded-xl text-xs sm:text-sm font-bold transition-all cursor-pointer ${
               activeTab === 'collection' 
                 ? 'bg-blue-600 text-white shadow-md' 
                 : 'text-neutral-600 dark:text-neutral-400 hover:bg-neutral-200 dark:hover:bg-neutral-800'
@@ -213,7 +232,7 @@ function ClientDashboardContent() {
 
           <button
             onClick={() => { setActiveTab('profile'); setSelectedOrderId(null); }}
-            className={`flex items-center gap-3 px-4 py-3 rounded-2xl text-sm font-bold transition-all ${
+            className={`flex items-center gap-2.5 px-3.5 py-2.5 rounded-xl text-xs sm:text-sm font-bold transition-all cursor-pointer ${
               activeTab === 'profile' 
                 ? 'bg-blue-600 text-white shadow-md' 
                 : 'text-neutral-600 dark:text-neutral-400 hover:bg-neutral-200 dark:hover:bg-neutral-800'
@@ -229,16 +248,82 @@ function ClientDashboardContent() {
         
         {/* COMMISSIONS LIST (If no order is selected) */}
         {activeTab === 'commissions' && selectedOrderId === null && (
-          <div className="p-6 md:p-10 max-w-5xl mx-auto w-full space-y-6">
+          <div className="p-5 md:p-8 max-w-5xl mx-auto w-full space-y-5">
             <div className="flex justify-between items-end">
               <div>
-                <h1 className="text-3xl font-black text-neutral-900 dark:text-white">Active Commissions</h1>
-                <p className="text-sm text-neutral-500 mt-1">Track the progress of your requested artworks.</p>
+                <h1 className="text-xl sm:text-2xl font-black text-neutral-900 dark:text-white">Active Commissions</h1>
+                <p className="text-xs text-neutral-500 mt-0.5">Track the progress of your requested artworks.</p>
               </div>
-              <button onClick={() => router.push('/')} className="flex items-center gap-2 bg-blue-600 hover:bg-blue-500 text-white px-4 py-2 rounded-xl font-bold text-sm transition-all shadow-lg">
-                <Plus className="w-4 h-4" /> New Request
+              <button onClick={() => router.push('/')} className="flex items-center gap-1.5 bg-blue-600 hover:bg-blue-500 text-white px-3.5 py-2 rounded-xl font-bold text-xs transition-all shadow-md cursor-pointer">
+                <Plus className="w-3.5 h-3.5" /> New Request
               </button>
             </div>
+
+            {/* 📋 Commission Proposals & Briefs */}
+            {myRequests.length > 0 && (
+              <div className="space-y-3 pb-4">
+                <h2 className="text-base font-bold text-neutral-800 dark:text-neutral-200">
+                  คำขอบรีฟที่ส่งไป (Commission Briefs &amp; Proposals)
+                </h2>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  {myRequests.map((req: CommissionRequest) => (
+                    <div
+                      key={req.id}
+                      className="bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 p-4 rounded-2xl flex flex-col justify-between space-y-3 shadow-sm"
+                    >
+                      <div className="flex items-start justify-between gap-2">
+                        <div>
+                          <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-blue-500/10 text-blue-500 border border-blue-500/20">
+                            {req.service_title || 'Custom Service'}
+                          </span>
+                          <h4 className="font-bold text-neutral-900 dark:text-white text-sm mt-1">
+                            {req.character_name}
+                          </h4>
+                          <p className="text-[11px] text-neutral-500 mt-0.5 line-clamp-1">{req.brief}</p>
+                        </div>
+                        <span
+                          className={`text-[10px] font-bold px-2.5 py-0.5 rounded-full ${
+                            req.status === 'PENDING'
+                              ? 'bg-amber-500/10 text-amber-500 border border-amber-500/30'
+                              : req.status === 'ACCEPTED'
+                              ? 'bg-emerald-500/10 text-emerald-500 border border-emerald-500/30'
+                              : 'bg-red-500/10 text-red-500 border border-red-500/30'
+                          }`}
+                        >
+                          {req.status}
+                        </span>
+                      </div>
+
+                      <div className="flex items-center justify-between text-xs pt-2 border-t border-neutral-100 dark:border-neutral-800">
+                        <span className="font-bold text-neutral-900 dark:text-white">
+                          ฿{req.total_price?.toLocaleString()}
+                        </span>
+
+                        {req.status === 'PENDING' && (
+                          <button
+                            type="button"
+                            onClick={() => withdrawMutation.mutate(req.id)}
+                            disabled={withdrawMutation.isPending}
+                            className="text-[11px] text-red-500 hover:text-red-600 font-bold cursor-pointer"
+                          >
+                            ยกเลิกคำขอ
+                          </button>
+                        )}
+                        {req.status === 'ACCEPTED' && req.order_id && (
+                          <button
+                            type="button"
+                            onClick={() => setSelectedOrderId(req.order_id!)}
+                            className="text-[11px] text-blue-500 hover:text-blue-600 font-bold cursor-pointer"
+                          >
+                            ดูออเดอร์ #{req.order_id} →
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
 
             {loadingOrders ? (
               <div className="flex justify-center py-20"><Loader2 className="w-8 h-8 animate-spin text-blue-500" /></div>

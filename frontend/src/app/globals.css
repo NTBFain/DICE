@@ -229,7 +229,7 @@
 }
 
 html {
-  font-size: 18px; /* เพิ่มขนาด 2 เบอร์ (+2px จากค่าเริ่มต้น 16px) ให้อ่านง่าย ชัดเจน สบายตาทั้งระบบ */
+  font-size: 15.5px; /* ขนาดสมดุล พอดีหน้าจอทุกความละเอียด ไม่ล้นกรอบหน้าต่าง */
 }
 
 body {
@@ -241,18 +241,18 @@ body {
   transition: background-color 0.3s ease, color 0.3s ease;
 }
 
-/* ปรับขนาดตัวหนังสือสำหรับ utility classes แบบ pixel ให้ขยับขึ้นอีก 2 เบอร์ (+2px) */
+/* ปรับขนาดตัวหนังสือขั้นต่ำให้อ่านง่ายแต่ไม่บวมล้นหน้าจอ */
 .text-\[8px\] { font-size: 10px !important; }
-.text-\[9px\] { font-size: 11px !important; }
-.text-\[10px\] { font-size: 12px !important; }
-.text-\[11px\] { font-size: 13px !important; }
-.text-\[12px\] { font-size: 14px !important; }
-.text-\[13px\] { font-size: 15px !important; }
-.text-\[14px\] { font-size: 16px !important; }
+.text-\[9px\] { font-size: 10.5px !important; }
+.text-\[10px\] { font-size: 11px !important; }
+.text-\[11px\] { font-size: 12px !important; }
+.text-\[12px\] { font-size: 12.5px !important; }
+.text-\[13px\] { font-size: 13.5px !important; }
+.text-\[14px\] { font-size: 14.5px !important; }
 
 @media (min-width: 640px) {
-  .sm\:text-\[10px\] { font-size: 12px !important; }
-  .sm\:text-\[11px\] { font-size: 13px !important; }
+  .sm\:text-\[10px\] { font-size: 11px !important; }
+  .sm\:text-\[11px\] { font-size: 12px !important; }
 }
 
 /* Dynamic CSS Variable Bindings for 15 Studio Themes */
@@ -447,7 +447,7 @@ a, button, .card-interactive {
   }
   to {
     opacity: 1;
-    transform: translateY(0);
+    transform: none;
   }
 }
 
@@ -458,7 +458,7 @@ a, button, .card-interactive {
   }
   to {
     opacity: 1;
-    transform: scale(1);
+    transform: none;
   }
 }
 

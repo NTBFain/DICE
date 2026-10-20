@@ -22,6 +22,7 @@ import ThemeSwitcher from '@/components/ThemeSwitcher';
 
 const ARTIST_NAV_ITEMS = [
   { id: 'orders', href: '/dashboard/artist/orders', label: 'Queue', icon: Briefcase, badge: 'Active' },
+  { id: 'commissions', href: '/dashboard/artist/commissions', label: 'Commissions', icon: Palette, badge: 'VGen' },
   { id: 'analytics', href: '/dashboard/artist/analytics', label: 'Earnings & Stats', icon: BarChart3, badge: 'Income' },
   { id: 'portfolio', href: '/dashboard/artist/portfolio', label: 'Gallery', icon: Layers3, badge: 'Artwork' },
   { id: 'profile', href: '/dashboard/artist/profile', label: 'Profile', icon: UserCircle, badge: 'Rates' },
@@ -80,12 +81,12 @@ export default function ArtistLayout({ children }: { children: React.ReactNode }
   }
 
   return (
-    <div className="min-h-screen bg-neutral-950 text-white flex flex-col font-sans pb-28 sm:pb-32">
+    <div className="min-h-screen bg-neutral-950 text-white flex flex-col font-sans pb-24">
       {/* 🎨 ARTIST STUDIO TOP HEADER */}
-      <header className="bg-neutral-900/90 backdrop-blur-md border-b border-blue-900/30 px-4 sm:px-6 py-3 flex items-center justify-between sticky top-16 z-40">
+      <header className="bg-neutral-900/90 backdrop-blur-md border-b border-blue-900/30 px-4 sm:px-6 py-2.5 flex items-center justify-between sticky top-14 z-30">
         <div className="flex items-center gap-2.5 sm:gap-3 truncate">
-          <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-xl bg-blue-600 border border-blue-500/40 flex items-center justify-center text-white font-black shrink-0 shadow-lg shadow-blue-950/40">
-            <Palette className="w-4 h-4 sm:w-5 sm:h-5 text-white" />
+          <div className="w-8 h-8 rounded-xl bg-blue-600 border border-blue-500/40 flex items-center justify-center text-white font-black shrink-0 shadow-lg shadow-blue-950/40">
+            <Palette className="w-4 h-4 text-white" />
           </div>
           <div className="truncate">
             <div className="flex items-center gap-1.5 truncate">
@@ -104,14 +105,14 @@ export default function ArtistLayout({ children }: { children: React.ReactNode }
         <div className="flex items-center gap-2 sm:gap-3 shrink-0">
           <ThemeSwitcher />
 
-          <div className="flex items-center gap-1.5 sm:gap-2.5 bg-neutral-950 border border-neutral-800 px-2.5 sm:px-3.5 py-1 sm:py-1.5 rounded-xl">
+          <div className="flex items-center gap-1.5 sm:gap-2.5 bg-neutral-950 border border-neutral-800 px-2.5 sm:px-3 py-1 rounded-xl">
             <span className={`text-[10px] sm:text-xs font-extrabold truncate ${isCommissionOpen ? 'text-emerald-400' : 'text-rose-400'}`}>
               {isCommissionOpen ? '● OPEN' : '● CLOSED'}
             </span>
             <button
               onClick={() => toggleStatusMutation.mutate(!isCommissionOpen)}
               disabled={toggleStatusMutation.isPending}
-              className={`text-[9px] sm:text-[10px] font-bold px-2 py-0.5 sm:py-1 rounded-lg transition-colors cursor-pointer border ${
+              className={`text-[9px] sm:text-[10px] font-bold px-2 py-0.5 rounded-lg transition-colors cursor-pointer border ${
                 isCommissionOpen
                   ? 'bg-neutral-900 text-rose-400 border-neutral-800 hover:bg-rose-500/20'
                   : 'bg-blue-600 text-white border-blue-500 hover:bg-blue-500'
@@ -132,7 +133,7 @@ export default function ArtistLayout({ children }: { children: React.ReactNode }
 
           <Link
             href="/"
-            className="hidden md:flex items-center gap-1.5 text-xs text-neutral-400 hover:text-white bg-neutral-950 border border-neutral-800 px-3.5 py-2 rounded-xl transition-colors"
+            className="hidden md:flex items-center gap-1.5 text-xs text-neutral-400 hover:text-white bg-neutral-950 border border-neutral-800 px-3 py-1.5 rounded-xl transition-colors"
           >
             <ExternalLink className="w-3.5 h-3.5" /> Public Gallery
           </Link>
@@ -140,15 +141,15 @@ export default function ArtistLayout({ children }: { children: React.ReactNode }
       </header>
 
       {/* 🖼️ ARTIST WORKSPACE CANVAS */}
-      <main className="flex-1 p-3 sm:p-6 md:p-8 max-w-7xl w-full mx-auto">
+      <main className="flex-1 p-3 sm:p-5 md:p-6 pb-24 max-w-7xl w-full mx-auto">
         {children}
       </main>
 
       {/* 📍 FLOATING CAPSULE BAR FOR ARTIST */}
       {mounted && createPortal(
-        <div className="fixed bottom-3 sm:bottom-6 left-1/2 -translate-x-1/2 z-[99999] w-[calc(100%-1.5rem)] sm:w-auto max-w-fit pointer-events-auto">
+        <div className="fixed bottom-3 sm:bottom-4 left-1/2 -translate-x-1/2 z-30 w-[calc(100%-1.5rem)] sm:w-auto max-w-fit pointer-events-auto">
           {/* Mobile Bar View (< sm) */}
-          <nav className="sm:hidden bg-neutral-900/95 backdrop-blur-xl border border-neutral-800 rounded-2xl px-2 py-2 flex items-center justify-around w-full shadow-2xl">
+          <nav className="sm:hidden bg-neutral-900/95 backdrop-blur-xl border border-neutral-800 rounded-2xl px-2 py-1.5 flex items-center justify-around w-full shadow-2xl">
             {ARTIST_NAV_ITEMS.map((item) => {
               const Icon = item.icon;
               const isActive = pathname === item.href || (item.id === 'orders' && pathname === '/dashboard/artist');
@@ -157,13 +158,13 @@ export default function ArtistLayout({ children }: { children: React.ReactNode }
                 <Link
                   key={item.id}
                   href={item.href}
-                  className={`flex flex-col items-center justify-center py-1.5 px-2 rounded-xl text-[10px] font-bold transition-all cursor-pointer flex-1 ${
+                  className={`flex flex-col items-center justify-center py-1 px-1.5 rounded-xl text-[10px] font-bold transition-all cursor-pointer flex-1 ${
                     isActive
                       ? 'text-white bg-blue-600/20 border border-blue-500/40'
                       : 'text-neutral-400 hover:text-white'
                   }`}
                 >
-                  <Icon className={`w-4 h-4 mb-0.5 ${isActive ? 'text-blue-400' : 'text-neutral-400'}`} />
+                  <Icon className={`w-3.5 h-3.5 mb-0.5 ${isActive ? 'text-blue-400' : 'text-neutral-400'}`} />
                   <span className="text-[9px] tracking-tight truncate">{item.label}</span>
                 </Link>
               );
@@ -171,7 +172,7 @@ export default function ArtistLayout({ children }: { children: React.ReactNode }
           </nav>
 
           {/* Desktop / Tablet Capsule View (>= sm) */}
-          <nav className="hidden sm:flex bg-neutral-900/95 backdrop-blur-xl border border-neutral-800 shadow-2xl rounded-full px-3.5 py-2 items-center gap-1.5">
+          <nav className="hidden sm:flex bg-neutral-900/95 backdrop-blur-xl border border-neutral-800 shadow-2xl rounded-full px-3 py-1.5 items-center gap-1">
             {ARTIST_NAV_ITEMS.map((item) => {
               const Icon = item.icon;
               const isActive = pathname === item.href || (item.id === 'orders' && pathname === '/dashboard/artist');
@@ -180,16 +181,16 @@ export default function ArtistLayout({ children }: { children: React.ReactNode }
                 <Link
                   key={item.id}
                   href={item.href}
-                  className={`flex items-center gap-2 px-3.5 py-2 rounded-full text-xs font-bold transition-all cursor-pointer whitespace-nowrap ${
+                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold transition-all cursor-pointer whitespace-nowrap ${
                     isActive
                       ? 'bg-blue-600 text-white border border-blue-500/50 shadow-sm'
                       : 'text-neutral-400 hover:text-white hover:bg-neutral-800/70'
                   }`}
                 >
-                  <Icon className={`w-4 h-4 ${isActive ? 'text-white' : 'text-neutral-400'}`} />
+                  <Icon className={`w-3.5 h-3.5 ${isActive ? 'text-white' : 'text-neutral-400'}`} />
                   <span>{item.label}</span>
                   {isActive && (
-                    <span className="text-[9px] font-mono bg-blue-900/80 text-blue-200 border border-blue-700/60 px-2 py-0.5 rounded-full hidden md:inline">
+                    <span className="text-[9px] font-mono bg-blue-900/80 text-blue-200 border border-blue-700/60 px-1.5 py-0.5 rounded-full hidden md:inline">
                       {item.badge}
                     </span>
                   )}

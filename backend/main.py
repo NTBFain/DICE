@@ -79,6 +79,7 @@ def on_startup():
     os.makedirs("uploads/characters", exist_ok=True)
     os.makedirs("uploads/auctions", exist_ok=True)
     os.makedirs("uploads/watermark_logos", exist_ok=True)
+    os.makedirs("uploads/references", exist_ok=True)
     
     with next(get_session()) as session:
         existing_admin = session.exec(select(User).where(User.email == "admin@example.com")).first()

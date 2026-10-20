@@ -14,14 +14,14 @@ export default function QueueRoadmap() {
   });
 
   return (
-    <div className="w-full max-w-5xl mx-auto my-12 bg-neutral-900/50 border border-neutral-800/80 rounded-2xl p-6 sm:p-8">
-      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 border-b border-neutral-800/80 pb-6 mb-6">
+    <div className="w-full max-w-5xl mx-auto my-4 bg-neutral-900/50 border border-neutral-800/80 rounded-2xl p-5 sm:p-6">
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 border-b border-neutral-800/80 pb-4 mb-4">
         <div>
-          <div className="inline-flex items-center gap-1.5 bg-blue-600/10 text-blue-400 border border-blue-500/30 text-xs font-bold px-3 py-1 rounded-full mb-2">
+          <div className="inline-flex items-center gap-1.5 bg-blue-600/10 text-blue-400 border border-blue-500/30 text-[11px] font-bold px-2.5 py-0.5 rounded-full mb-1.5">
             <Calendar className="w-3.5 h-3.5" /> Public Production Calendar
           </div>
-          <h2 className="text-xl sm:text-2xl font-black text-white">Live Artist Queue & Roadmap</h2>
-          <p className="text-xs text-neutral-400 mt-1">
+          <h2 className="text-lg sm:text-xl font-black text-white">Live Artist Queue & Roadmap</h2>
+          <p className="text-xs text-neutral-400 mt-0.5">
             Real-time public schedule tracker. Ownership details are revealed strictly to the queue slot owner.
           </p>
         </div>

@@ -31,8 +31,12 @@ def set_sqlite_pragma(dbapi_connection, connection_record):
         cursor.execute("PRAGMA mmap_size=268435456")
         cursor.close()
 
+from core.migrations import run_lightweight_migrations
+
 def init_db():
+    import models  # Ensure all models are registered in SQLModel.metadata
     SQLModel.metadata.create_all(engine)
+    run_lightweight_migrations(engine)
 
 def get_session():
     with Session(engine) as session:

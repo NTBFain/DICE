@@ -82,18 +82,18 @@ function PortfolioContent() {
   return (
     <div className="min-h-screen bg-[var(--bg-primary,#09090b)] text-[var(--text-primary,#f4f4f5)] pb-20">
       {/* 🖼️ HERO & FILTER STICKY HEADER */}
-      <div className="sticky top-16 z-30 bg-[var(--bg-surface,#121215)]/85 backdrop-blur-2xl border-b border-[var(--border-subtle,#27272a)] shadow-sm transition-all">
-        <div className="container mx-auto px-4 sm:px-8 py-6 max-w-7xl">
-          <div className="flex flex-col md:flex-row md:items-end justify-between gap-6">
+      <div className="sticky top-14 z-30 bg-[var(--bg-surface,#121215)]/85 backdrop-blur-2xl border-b border-[var(--border-subtle,#27272a)] shadow-sm transition-all">
+        <div className="container mx-auto px-4 sm:px-8 py-4 max-w-7xl">
+          <div className="flex flex-col md:flex-row md:items-end justify-between gap-4">
             <motion.div 
               initial={{ opacity: 0, y: -20 }}
               animate={{ opacity: 1, y: 0 }}
-              className="space-y-1"
+              className="space-y-0.5"
             >
-              <h1 className="text-4xl font-black bg-clip-text text-transparent bg-gradient-to-r from-[var(--accent-primary,#3b82f6)] to-[var(--accent-secondary,#e2b857)] tracking-tight">
+              <h1 className="text-2xl sm:text-3xl font-black bg-clip-text text-transparent bg-gradient-to-r from-[var(--accent-primary,#3b82f6)] to-[var(--accent-secondary,#e2b857)] tracking-tight">
                 {t('title')}
               </h1>
-              <p className="text-sm font-medium text-[var(--text-muted,#a1a1aa)]">
+              <p className="text-xs font-medium text-[var(--text-muted,#a1a1aa)]">
                 {t('subtitle')}
               </p>
             </motion.div>

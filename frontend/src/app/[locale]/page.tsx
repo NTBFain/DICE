@@ -64,31 +64,31 @@ export default function Home() {
   }, [debouncedQuery, selectedStyle, onlyOpenCommissions]);
 
   return (
-    <div className="min-h-screen bg-[var(--bg-primary,#09090b)] text-[var(--text-primary,#f4f4f5)] px-3 py-4 sm:px-6 sm:py-8 lg:px-8 max-w-[1600px] mx-auto space-y-6 sm:space-y-10 pb-24 md:pb-12 w-full overflow-x-hidden">
+    <div className="min-h-screen bg-[var(--bg-primary,#09090b)] text-[var(--text-primary,#f4f4f5)] px-3 py-4 sm:px-6 sm:py-6 lg:px-8 max-w-7xl mx-auto space-y-6 pb-20 md:pb-10 w-full overflow-x-hidden">
       
       {/* 🚀 MAIN HOMEPAGE HERO: MULTI-ARTIST SELECTION HUB */}
-      <div className="bg-[var(--bg-surface,#121215)] border border-[var(--border-subtle,#27272a)] rounded-2xl sm:rounded-3xl p-4 sm:p-8 lg:p-10 shadow-xl relative overflow-hidden animate-fade-in-up">
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 lg:gap-8 items-center">
+      <div className="bg-[var(--bg-surface,#121215)] border border-[var(--border-subtle,#27272a)] rounded-2xl p-4 sm:p-6 shadow-lg relative overflow-hidden animate-fade-in-up">
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 lg:gap-6 items-center">
           
           {/* Left Column: Hero Text & Controls */}
-          <div className="lg:col-span-7 xl:col-span-8 space-y-4 sm:space-y-6">
-            <div className="space-y-2.5 sm:space-y-3">
-              <span className="inline-flex items-center gap-1.5 text-[9px] sm:text-[10px] font-mono font-bold text-[var(--accent-primary,#3b82f6)] uppercase tracking-wider bg-[var(--accent-primary,#3b82f6)]/10 px-2.5 py-1 rounded-full border border-[var(--accent-primary,#3b82f6)]/30 max-w-full truncate">
+          <div className="lg:col-span-7 xl:col-span-8 space-y-3.5">
+            <div className="space-y-2">
+              <span className="inline-flex items-center gap-1.5 text-[10px] font-mono font-bold text-[var(--accent-primary,#3b82f6)] uppercase tracking-wider bg-[var(--accent-primary,#3b82f6)]/10 px-2.5 py-0.5 rounded-full border border-[var(--accent-primary,#3b82f6)]/30 max-w-full truncate">
                 <Compass className="w-3.5 h-3.5 shrink-0 text-[var(--accent-primary,#3b82f6)]" />
                 <span className="truncate">{tHome('badge')}</span>
               </span>
-              <h1 className="text-2xl sm:text-4xl lg:text-4xl xl:text-5xl font-black tracking-tight text-[var(--text-primary,#f4f4f5)] leading-tight">
+              <h1 className="text-xl sm:text-3xl lg:text-3xl font-black tracking-tight text-[var(--text-primary,#f4f4f5)] leading-snug">
                 {tHome('title1')}<span className="text-[var(--accent-primary,#3b82f6)]">{tHome('titleHighlight')}</span>{tHome('title2')}
               </h1>
-              <p className="text-xs sm:text-sm text-[var(--text-muted,#a1a1aa)] leading-relaxed max-w-2xl">
+              <p className="text-xs text-[var(--text-muted,#a1a1aa)] leading-relaxed max-w-2xl">
                 {tHome('description')}
               </p>
 
               {(!user || !user.is_admin) && (
-                <div className="pt-1 sm:pt-2">
+                <div className="pt-0.5">
                   <Link
                     href="/artists/register"
-                    className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-4 sm:px-5 py-2.5 rounded-xl sm:rounded-2xl bg-[var(--accent-primary,#3b82f6)] hover:opacity-90 text-white font-extrabold text-xs transition-all shadow-md text-center"
+                    className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-4 py-2 rounded-xl bg-[var(--accent-primary,#3b82f6)] hover:opacity-90 text-white font-extrabold text-xs transition-all shadow-md text-center"
                   >
                     {tHome('artistRegisterCta')}
                   </Link>
@@ -97,7 +97,7 @@ export default function Home() {
             </div>
 
             {/* 🔍 SEARCH & FILTER BAR */}
-            <div className="flex flex-col sm:flex-row gap-2.5 sm:gap-3 pt-1">
+            <div className="flex flex-col sm:flex-row gap-2 pt-0.5">
               <div className="relative flex-1">
                 <Search className="w-4 h-4 text-[var(--text-muted,#a1a1aa)] absolute left-3.5 top-3.5 pointer-events-none" />
                 <input
