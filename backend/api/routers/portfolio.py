@@ -8,7 +8,7 @@ from typing import List
 from core.db import get_session
 from core.auth import get_admin_user, get_artist_user
 from core.security_file import validate_and_save_upload
-from models import Artwork, VisibilityStatus, User, ArtistProfile, Character
+from models import Artwork, VisibilityStatus, WorkType, User, ArtistProfile, Character
 from schemas import ArtworkResponse
 
 router = APIRouter(prefix="/api/portfolio", tags=["portfolio"])

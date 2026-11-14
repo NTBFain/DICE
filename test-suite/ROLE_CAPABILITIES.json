@@ -1,0 +1,541 @@
+{
+  "mandatory_demonstration_groups": [
+    {
+      "id": "C01",
+      "role": "client",
+      "capability": "Accounts and registration",
+      "result": "passed",
+      "evidence": "client/REPAIRS.md; backend/tests/test_security.py",
+      "observed": "Invalid, short and duplicate registration feedback; valid registration and normalized identity."
+    },
+    {
+      "id": "C02",
+      "role": "client",
+      "capability": "Login, password visibility, demo buttons and logout",
+      "result": "passed",
+      "evidence": "reports/browser-20261114/demo-enabled-quick-credentials-restored.jpg; backend/tests/test_login_api.py",
+      "observed": "Correct and incorrect credentials; all three demo logins; demo helpers hide when explicitly disabled."
+    },
+    {
+      "id": "C03",
+      "role": "client",
+      "capability": "Sessions, refresh, protected routes and account switching",
+      "result": "passed",
+      "evidence": "client/CHECKLIST_HISTORY_BEFORE_FINAL_2026-11-14.md; shared/test_live_roles.py; shared/test_role_boundaries.py",
+      "observed": "Persisted identity, expiry401, protected-route redirects and live revocation/cache clearing; sequential account switching."
+    },
+    {
+      "id": "C04",
+      "role": "client",
+      "capability": "Artist search and directory filters",
+      "result": "passed",
+      "evidence": "client/CHECKLIST_HISTORY_BEFORE_FINAL_2026-11-14.md",
+      "observed": "Search, categories, open-only, clearing filters, empty results and artist-card navigation."
+    },
+    {
+      "id": "C05",
+      "role": "client",
+      "capability": "Public profile, social links, artwork and character navigation",
+      "result": "passed",
+      "evidence": "client/CHECKLIST_HISTORY_BEFORE_FINAL_2026-11-14.md; client/social-link.test.mjs",
+      "observed": "Profile tabs, social web links, preview dismissal, character-to-filtered-portfolio links and back navigation."
+    },
+    {
+      "id": "C06",
+      "role": "client",
+      "capability": "Gallery filtering and pagination",
+      "result": "passed",
+      "evidence": "client/CHECKLIST_HISTORY_BEFORE_FINAL_2026-11-14.md",
+      "observed": "Eight categories; 32-to35 and32-to63 pagination without duplicates; oldest matching artwork found in501-item boundary catalogue; temporary boundary fixtures removed."
+    },
+    {
+      "id": "C07",
+      "role": "client",
+      "capability": "Commission availability and eligibility",
+      "result": "passed",
+      "evidence": "client/CHECKLIST_HISTORY_BEFORE_FINAL_2026-11-14.md; backend/tests/test_commissions.py",
+      "observed": "Open, closed, full and waitlist presentations; ineligible requests blocked; original availability restored."
+    },
+    {
+      "id": "C08",
+      "role": "client",
+      "capability": "Slot subscriptions and opening notices",
+      "result": "passed",
+      "evidence": "client/CHECKLIST_HISTORY_BEFORE_FINAL_2026-11-14.md; shared/test_service_availability_save.py; backend/tests/test_commissions.py",
+      "observed": "Subscribe/unsubscribe, refresh persistence, opening notification and cooldown/repeated-open protection."
+    },
+    {
+      "id": "C09",
+      "role": "client",
+      "capability": "Commission steps and configurable brief options",
+      "result": "passed",
+      "evidence": "reports/browser-20261114; client/test_client_regressions.py",
+      "observed": "All eight blocks exercised in mobile Order22: characters, background, rush, NDA, canvas, pose, scope and custom answers; required fields, terms and navigation."
+    },
+    {
+      "id": "C10",
+      "role": "client",
+      "capability": "References, removal and invalid/oversized attachments",
+      "result": "passed",
+      "evidence": "shared/test_role_boundaries.py; client/test_upload_integrity.py",
+      "observed": "Browser attachment removal/reselection; real HTTP six-file rejection,10MB limit and partial-upload cleanup with no saved request."
+    },
+    {
+      "id": "C11",
+      "role": "client",
+      "capability": "Draft preservation and successful form reset",
+      "result": "passed",
+      "evidence": "reports/browser-20261114/Bangkok-success-reset-other-draft-retained.jpg; reports/final-readiness/final-plan-live-verification.json",
+      "observed": "Past-date and corrupt-image errors preserve entered text/date; cancel preserves draft; successful service2 resets only itself and leaves service3 draft intact."
+    },
+    {
+      "id": "C12",
+      "role": "client",
+      "capability": "Exact prices, deposits and immutable price/terms snapshots",
+      "result": "passed",
+      "evidence": "client/commission-money.test.mjs; shared/test_role_boundaries.py",
+      "observed": "Displayed/persisted decimal totals;0%,50%,100% deposits; half-up cents; later service/policy edits preserve original request total and terms."
+    },
+    {
+      "id": "C13",
+      "role": "client",
+      "capability": "Proposals and repeated/invalid actions",
+      "result": "passed",
+      "evidence": "shared/test_role_boundaries.py; reports/final-readiness/mobile-artist-journey.json",
+      "observed": "Pending, withdrawal, acceptance, decline information and linked orders; repeated withdrawal/decline/acceptance and capacity-change rejection."
+    },
+    {
+      "id": "C14",
+      "role": "client",
+      "capability": "Direct inquiry and estimator continuation",
+      "result": "passed",
+      "evidence": "client/CHECKLIST_HISTORY_BEFORE_FINAL_2026-11-14.md",
+      "observed": "Guest sign-in returns to draft; selections reach a meaningful pending order; corrected overlong inquiry and double-submit guard; deliberate outage retains input."
+    },
+    {
+      "id": "C15",
+      "role": "client",
+      "capability": "Orders, deep links and progress",
+      "result": "passed",
+      "evidence": "reports/final-readiness/mobile-artist-journey.json; client/test_client_regressions.py",
+      "observed": "Empty dashboard, New Request, correct artist/brief/price, refresh/back/direct links, cancellation and missing/unauthorized orders; accepted-to-completed journey."
+    },
+    {
+      "id": "C16",
+      "role": "client",
+      "capability": "Invoices and payment proofs",
+      "result": "passed",
+      "evidence": "shared/test_role_boundaries.py; reports/browser-20261114/F55-PDF-proof-download-action.jpg",
+      "observed": "Deposit/final totals, image/PDF slips, invalid and15MB limits, retained proof after failed replacement, pending/approved states and duplicate approval."
+    },
+    {
+      "id": "C17",
+      "role": "client",
+      "capability": "Order chat",
+      "result": "passed",
+      "evidence": "shared/test_role_boundaries.py; reports/final-readiness/mobile-artist-journey.json",
+      "observed": "Real send/receive and persistence, supporting separate actor updates, length and empty-input guards; whitespace-only server writes now rejected."
+    },
+    {
+      "id": "C18",
+      "role": "client",
+      "capability": "Revisions and feedback",
+      "result": "passed",
+      "evidence": "shared/test_role_boundaries.py; reports/final-readiness/mobile-artist-journey.json",
+      "observed": "Permitted stages, client submission, quota, resolution and useful rejected completion/feedback states; blank feedback cannot consume quota."
+    },
+    {
+      "id": "C19",
+      "role": "client",
+      "capability": "Protected references, WIP and original files",
+      "result": "passed",
+      "evidence": "client/test_client_regressions.py; reports/browser-20261114; reports/final-readiness/pdf-proof-browser-download.json",
+      "observed": "Reference access, watermarked WIP, unpaid final-image preview/non-image restrictions, paid original downloads, filenames and matching bytes."
+    },
+    {
+      "id": "C20",
+      "role": "client",
+      "capability": "My Collection",
+      "result": "passed",
+      "evidence": "reports/browser-20261114/F56-mobile-collection-readable-title-file.jpg; reports/browser-20261114/mobile-auction-completed-collection.jpg",
+      "observed": "Completed commissions and won auctions appear; authenticated images load; PDF filename/title/actions remain readable on mobile; exact original download verified."
+    },
+    {
+      "id": "C21",
+      "role": "client",
+      "capability": "Auction listing, scheduled start, countdown and no-bid expiry",
+      "result": "passed",
+      "evidence": "reports/final-readiness/final-runtime-check.json; reports/browser-20261114/F49-no-bid-expiry-closed.jpg",
+      "observed": "List/detail/filter/back behavior; future auction13 has no bid control before start, opens automatically and closes automatically with zero bids/winner/orders."
+    },
+    {
+      "id": "C22",
+      "role": "client",
+      "capability": "Bids, outbid, anti-sniping, auto-buy and auction order continuation",
+      "result": "passed",
+      "evidence": "shared/test_auction_atomic.py; reports/browser-20261114; reports/final-readiness/final-plan-live-verification.json",
+      "observed": "Min/increment/own-highest rules, live outbid, anti-sniping, win/lose, order/invoice and auction chat; expiry/auto-buy storage fault rollback and safe retry create exactly one result."
+    },
+    {
+      "id": "C23",
+      "role": "client",
+      "capability": "Notifications",
+      "result": "passed",
+      "evidence": "client/notification-text.test.mjs; client/CHECKLIST_HISTORY_BEFORE_FINAL_2026-11-14.md",
+      "observed": "Panel open/close/Escape, unread/read/read-all persistence and correct destinations; known generated copy localizes and authored text is retained."
+    },
+    {
+      "id": "C24",
+      "role": "client",
+      "capability": "Client profile and identity",
+      "result": "passed",
+      "evidence": "client/CHECKLIST_HISTORY_BEFORE_FINAL_2026-11-14.md; shared/test_role_boundaries.py",
+      "observed": "Name/avatar save and refreshed identity; corrupt and5MB avatar failures preserve records."
+    },
+    {
+      "id": "C25",
+      "role": "client",
+      "capability": "Verified reviews",
+      "result": "passed",
+      "evidence": "client/CHECKLIST_HISTORY_BEFORE_FINAL_2026-11-14.md; REPAIR_PROGRESS_2026-11-14.md",
+      "observed": "Existing verified review form used after completed Order21; saved five-star review visible. Earlier claim of a missing review interface was disproved."
+    },
+    {
+      "id": "C26",
+      "role": "client",
+      "capability": "English/Thai navigation and saved briefs",
+      "result": "passed",
+      "evidence": "client/structured-brief.test.cjs; reports/browser-20261114/F50-structured-Thai-client-brief.jpg",
+      "observed": "Known labels/enums/booleans/options and invoice titles localize, query route survives language change, saved answers/artist wording stay verbatim; missing historical question labels are generic."
+    },
+    {
+      "id": "C27",
+      "role": "client",
+      "capability": "Appearance, keyboard and mobile navigation",
+      "result": "passed",
+      "evidence": "client/CHECKLIST_HISTORY_BEFORE_FINAL_2026-11-14.md; reports/browser-20261114",
+      "observed": "15 palettes, grid/masonry/compact, local background/opacity/removal, persistence, modal focus/Escape and mobile navigation; core client commission22/auction6 completed at390px."
+    },
+    {
+      "id": "A01",
+      "role": "artist",
+      "capability": "Artist onboarding",
+      "result": "passed",
+      "evidence": "reports/browser-20261114/onboarding-and-thai-catalogue-persistence.json; REPAIR_PROGRESS_2026-11-14.md",
+      "observed": "Trimmed required fields, duplicate handle, invalid server response, styles and decimal starting price; corrected registration persists artist access."
+    },
+    {
+      "id": "A02",
+      "role": "artist",
+      "capability": "Profile, social and media editing",
+      "result": "passed",
+      "evidence": "artist/CHECKLIST_HISTORY_BEFORE_FINAL_2026-11-14.md; shared/test_role_boundaries.py",
+      "observed": "Metadata, avatar/banner rejection/retry, local media and saved public profile; existing custom content preserved."
+    },
+    {
+      "id": "A03",
+      "role": "artist",
+      "capability": "Services and availability",
+      "result": "passed",
+      "evidence": "shared/test_service_availability_save.py; artist/CHECKLIST_HISTORY_BEFORE_FINAL_2026-11-14.md",
+      "observed": "Create/edit decimal services, open/close/full slots, slot capacity and opening alerts; unauthorized artist updates rejected."
+    },
+    {
+      "id": "A04",
+      "role": "artist",
+      "capability": "Policies, add-ons and deposits",
+      "result": "passed",
+      "evidence": "shared/test_role_boundaries.py; backend/tests/test_commissions.py",
+      "observed": "Terms, do/dont lists, revision quota, fixed/percentage add-ons and0/50/100 deposits; invalid percentages rejected; snapshot remains stable."
+    },
+    {
+      "id": "A05",
+      "role": "artist",
+      "capability": "Modular form builder",
+      "result": "passed",
+      "evidence": "shared/test_builder_numeric_validation.py; artist/CHECKLIST_HISTORY_BEFORE_FINAL_2026-11-14.md",
+      "observed": "Eight block controls, questions/types/required flags, exclusions, zero fees, decimal estimates and negative/invalid numeric rejection; cancelled edits preserve prior form."
+    },
+    {
+      "id": "A06",
+      "role": "artist",
+      "capability": "Incoming requests and bilingual brief review",
+      "result": "passed",
+      "evidence": "reports/final-readiness/mobile-artist-journey.json; reports/browser-20261114/F50-artist-request-Thai-structured-brief.jpg",
+      "observed": "Filters/statuses, structured immutable answers and terms; request13 accepted in browser; decline/repeated actions covered through real handlers; feedback remains inside page."
+    },
+    {
+      "id": "A07",
+      "role": "artist",
+      "capability": "Own queue, manual tickets and progression",
+      "result": "passed",
+      "evidence": "reports/final-readiness/mobile-artist-journey.json; shared/test_priority_repairs.py",
+      "observed": "Correct owner/client assignments, own/global isolation, legal stages, direct links/back/refresh; mobile Order31 completed."
+    },
+    {
+      "id": "A08",
+      "role": "artist",
+      "capability": "Invoice issuing and payment review",
+      "result": "passed",
+      "evidence": "reports/browser-20261114/F55-PDF-proof-download-action.jpg; shared/test_role_boundaries.py",
+      "observed": "Invoice totals and validation, image/PDF proof access, deposit/final approval, exact-once paid state; authenticated PDF download matches uploaded bytes."
+    },
+    {
+      "id": "A09",
+      "role": "artist",
+      "capability": "Files and delivery",
+      "result": "passed",
+      "evidence": "reports/final-readiness/mobile-artist-journey.json; client/test_client_regressions.py",
+      "observed": "Browser WIP PNG/final PDF upload; protected originals, reference paths and filenames; unpaid completion rejected then succeeds after final approval."
+    },
+    {
+      "id": "A10",
+      "role": "artist",
+      "capability": "Chat and revision handling",
+      "result": "passed",
+      "evidence": "reports/final-readiness/mobile-artist-journey.json; shared/test_role_boundaries.py",
+      "observed": "Artist sends persisted chat, receives separate client feedback, resolves revision and advances order with quota retained."
+    },
+    {
+      "id": "A11",
+      "role": "artist",
+      "capability": "Gallery and portfolio management",
+      "result": "passed",
+      "evidence": "reports/browser-20261114/F52-all-eight-categories-restored.jpg; shared/test_role_boundaries.py",
+      "observed": "Create/edit/link/hide/delete with feedback; all eight category roundtrips for both roles; saved COMMISSION selection accurately renders and restores after refresh."
+    },
+    {
+      "id": "A12",
+      "role": "artist",
+      "capability": "Characters",
+      "result": "passed",
+      "evidence": "shared/test_character_colour.py; artist/CHECKLIST_HISTORY_BEFORE_FINAL_2026-11-14.md",
+      "observed": "Create/edit/image/color/link/delete; invalid hex rejected; deleting linked character preserves artwork and refreshes gallery link."
+    },
+    {
+      "id": "A13",
+      "role": "artist",
+      "capability": "Auction management",
+      "result": "passed",
+      "evidence": "shared/test_auction_atomic.py; artist/CHECKLIST_HISTORY_BEFORE_FINAL_2026-11-14.md",
+      "observed": "Publish decimals, ownership, edits, manual/no-bid close, chat and public result; shared client transaction journey and fault rollback verified."
+    },
+    {
+      "id": "A14",
+      "role": "artist",
+      "capability": "Earnings",
+      "result": "passed",
+      "evidence": "shared/test_revenue_accounting.py; reports/browser-20261114",
+      "observed": "Own paid-invoice accounting, commissions versus adoptables, period/quarter boundaries and empty second-artist scope; displayed chart totals reconciled."
+    },
+    {
+      "id": "A15",
+      "role": "artist",
+      "capability": "Watermark permissions",
+      "result": "passed",
+      "evidence": "artist/CHECKLIST_HISTORY_BEFORE_FINAL_2026-11-14.md; shared/test_priority_repairs.py",
+      "observed": "Artist view explains global ownership; artist cannot invoke administrator-only watermark save."
+    },
+    {
+      "id": "A16",
+      "role": "artist",
+      "capability": "Mobile artist core journey",
+      "result": "passed",
+      "evidence": "reports/final-readiness/mobile-artist-journey.json; reports/browser-20261114/mobile-artist-completed-commission31.jpg",
+      "observed": "Thai390px acceptance→deposit review→sketch/WIP/chat→resolve feedback→color/final upload→final approval→completion; supporting client actions explicitly recorded."
+    },
+    {
+      "id": "AD01",
+      "role": "admin",
+      "capability": "Permissions and live role changes",
+      "result": "passed",
+      "evidence": "shared/test_live_roles.py; shared/test_role_boundaries.py",
+      "observed": "Backend authorization, targeted identity refresh and privileged cache removal; disposable original role flags restored."
+    },
+    {
+      "id": "AD02",
+      "role": "admin",
+      "capability": "Account management",
+      "result": "passed",
+      "evidence": "reports/browser-20261114/admin-disposable-account-deletion-confirmed.jpg; shared/test_role_maintenance.py",
+      "observed": "Search, empty results, artist/admin toggles persist after refresh, deletion cancel and actual disposable account9 deletion; self/linked-record protection."
+    },
+    {
+      "id": "AD03",
+      "role": "admin",
+      "capability": "Global queue and financial/order controls",
+      "result": "passed",
+      "evidence": "shared/test_priority_repairs.py; REPAIR_PROGRESS_2026-11-14.md",
+      "observed": "All-primary-role browser Order21 with manual ticket, explicit client/artist, quote/invoices, stages, payment review, delivery and feedback; mobile order27 brief/financial controls."
+    },
+    {
+      "id": "AD04",
+      "role": "admin",
+      "capability": "Global financial totals and periods",
+      "result": "passed",
+      "evidence": "shared/test_revenue_accounting.py; reports/browser-20261114/F53-analytics-retry-restored.jpg",
+      "observed": "Paid source reconciliation, global versus artist scoping, period buttons, quarter boundary and recovery to actual totals after503."
+    },
+    {
+      "id": "AD05",
+      "role": "admin",
+      "capability": "Catalogue moderation",
+      "result": "passed",
+      "evidence": "reports/browser-20261114/F52-all-eight-categories-restored.jpg; shared/test_role_boundaries.py",
+      "observed": "Private/public catalogue, edit/link/delete, all eight categories and character color/ownership validation; original artwork category restored."
+    },
+    {
+      "id": "AD06",
+      "role": "admin",
+      "capability": "Auction administration",
+      "result": "passed",
+      "evidence": "admin/CHECKLIST_HISTORY_BEFORE_FINAL_2026-11-14.md; shared/test_auction_atomic.py",
+      "observed": "Global auction list, decimal creation/management/chat and no-bid close; exact-once order/invoice finalization and owner restrictions."
+    },
+    {
+      "id": "AD07",
+      "role": "admin",
+      "capability": "Homepage settings",
+      "result": "passed",
+      "evidence": "admin/CHECKLIST_HISTORY_BEFORE_FINAL_2026-11-14.md; reports/browser-20261114/admin-mobile-homepage-editor.jpg",
+      "observed": "Live preview, bilingual named fields, save/publish reflected publicly and original saved content restored; mobile fields/actions fit."
+    },
+    {
+      "id": "AD08",
+      "role": "admin",
+      "capability": "Themes",
+      "result": "passed",
+      "evidence": "admin/CHECKLIST_HISTORY_BEFORE_FINAL_2026-11-14.md; admin/custom-theme-validation.test.mjs",
+      "observed": "15 presets and custom theme validation/save/apply/persistence; malformed colors preserve draft; mobile creator visible. Two sample buttons belong to the illustrative preview."
+    },
+    {
+      "id": "AD09",
+      "role": "admin",
+      "capability": "Watermark controls",
+      "result": "passed",
+      "evidence": "admin/CHECKLIST_HISTORY_BEFORE_FINAL_2026-11-14.md; shared/test_priority_repairs.py",
+      "observed": "Text/logo settings, dynamic controls, valid save and malformed raster rejection with atomic settings preservation; mobile editor verified, originals restored."
+    },
+    {
+      "id": "AD10",
+      "role": "admin",
+      "capability": "Mobile admin navigation and dialogs",
+      "result": "passed",
+      "evidence": "reports/browser-20261114/F50-admin-mobile-brief.jpg; reports/browser-20261114/F51-Thai-mobile-milestones.jpg",
+      "observed": "Nine destinations, manual-ticket dialog, translated fields, Escape/focus restoration and no horizontal page overflow at390px; gallery/theme/homepage/watermark layouts inspected."
+    },
+    {
+      "id": "S01",
+      "role": "shared",
+      "capability": "Cross-account resource permissions",
+      "result": "passed",
+      "evidence": "shared/test_role_boundaries.py; client/test_structured_brief.py",
+      "observed": "Other account cannot access briefs/messages/invoices/slips/files or download originals; client cannot perform artist/admin writes."
+    },
+    {
+      "id": "S02",
+      "role": "shared",
+      "capability": "Upload rejection and cleanup",
+      "result": "passed",
+      "evidence": "client/test_upload_integrity.py; shared/test_role_boundaries.py",
+      "observed": "Real corrupt and5/10/15/25MB boundary rejections; six references rejected; partial failures and failed proof replacement preserve saved data."
+    },
+    {
+      "id": "S03",
+      "role": "shared",
+      "capability": "Repeated and overlapping writes",
+      "result": "passed",
+      "evidence": "shared/test_auction_atomic.py; reports/browser-20261114",
+      "observed": "Two actual HTTP actors plus isolated competing SQLite sessions: one auction result/order/invoice; repeated invoice approval pays once; repeated invalid proposal actions rejected."
+    },
+    {
+      "id": "S04",
+      "role": "shared",
+      "capability": "Recoverable network/storage failures",
+      "result": "passed",
+      "evidence": "client/query-recovery.test.mjs; reports/browser-20261114/F53-analytics-retry-restored.jpg",
+      "observed": "Designated faults only; cached/input data retained and visible bilingual Retry works. Temporary fault wrapper removed; paths empty."
+    },
+    {
+      "id": "S05",
+      "role": "shared",
+      "capability": "Keyboard, focus and responsive controls",
+      "result": "passed",
+      "evidence": "client/CHECKLIST_HISTORY_BEFORE_FINAL_2026-11-14.md; reports/browser-20261114",
+      "observed": "Representative named fields, focus traps/restoration, Escape, navigation and modal stacking; mobile collection overlap repaired. Source scan identifies form submits and intentional visual specimens."
+    },
+    {
+      "id": "S06",
+      "role": "shared",
+      "capability": "Bangkok calendar and existing UTC display",
+      "result": "passed",
+      "evidence": "client/test_commission_deadline.py; client/bangkok-date.test.mjs; client/api-date.test.mjs",
+      "observed": "16:59/17:00UTC and year boundaries, chosen date retained through request13/order31, UTC API timestamps displayed correctly; no historical date shifts."
+    },
+    {
+      "id": "S07",
+      "role": "shared",
+      "capability": "Safe repeatable local demo and isolated checks",
+      "result": "passed",
+      "evidence": "shared/test_demo_setup.py; reports/final-readiness/clean-start-results.json",
+      "observed": "Explicit demo flag, generated private persistent signing secret, no hardcoded fallback, local demo assets, clean/repeat startup0 or3 accounts, no configured/live-server tests."
+    },
+    {
+      "id": "S08",
+      "role": "shared",
+      "capability": "Current source inventory and compatibility",
+      "result": "passed",
+      "evidence": "INVENTORY_CURRENT.json",
+      "observed": "34 page routes,506 control definitions and93 mounted backend actions mapped with source/line/handlers. Existing routes/enums/descriptions preserved; readonly commission_brief is additive."
+    }
+  ],
+  "mandatory_counts": {
+    "passed": 61,
+    "failed": 0,
+    "blocked": 0,
+    "not_run": 0
+  },
+  "automated_counts": {
+    "client_python": 45,
+    "shared_python": 57,
+    "legacy_python": 18,
+    "node": 43,
+    "passed": 163,
+    "failed": 0,
+    "blocked": 0,
+    "not_run": 0
+  },
+  "extended_limitations": [
+    {
+      "id": "L01",
+      "result": "blocked",
+      "scope": "Independent simultaneous authenticated browser contexts",
+      "reason": "Built-in tabs share authentication. The approved substitute uses separately authenticated real API/WebSocket actors and sequential browser confirmation; no mandatory journey is blocked."
+    },
+    {
+      "id": "L02",
+      "result": "not run",
+      "scope": "Firefox/WebKit matrix",
+      "reason": "Explicitly excluded from the academic-demo scope and superseded low-CPU workflow."
+    },
+    {
+      "id": "L03",
+      "result": "not run",
+      "scope": "Production load and multi-worker deployment certification",
+      "reason": "Explicitly excluded. Two-actor checks and competing SQLite sessions do not certify distributed deployment."
+    },
+    {
+      "id": "L04",
+      "result": "not run",
+      "scope": "Exhaustive input, media, policy, language and pixel permutations for every control",
+      "reason": "Representative mandatory journeys and stated boundaries are verified;506 source definitions are not506 separate browser passes. Arbitrary artwork/custom text and historical missing question labels are preserved, not guessed."
+    }
+  ],
+  "extended_counts": {
+    "passed": 0,
+    "failed": 0,
+    "blocked": 1,
+    "not_run": 3
+  },
+  "counting": "61 reconciled capability groups, not61 newly executed browser tests. Historical passing totals are not added to current counts."
+}

@@ -1,6 +1,9 @@
 'use client';
 
-import { useState } from 'react';
+import { useTranslations, useLocale } from 'next-intl';
+
+import { useState, useEffect } from 'react';
+import { validateCustomTheme } from '@/lib/customThemeValidation';
 import { useTheme, THEMES, ThemeOption } from '@/components/ThemeContext';
 import { 
   Palette, 
@@ -20,6 +23,10 @@ import {
 } from 'lucide-react';
 
 export default function ThemeStudioPage() {
+  const studio = useTranslations('Studio');
+  const locale = useLocale();
+  const [formError, setFormError] = useState<'name' | 'color' | null>(null);
+  const [notice, setNotice] = useState('');
   const { theme, setTheme, customThemes, addCustomTheme, deleteCustomTheme } = useTheme();
 
   // Custom Theme Form State
@@ -36,13 +43,19 @@ export default function ThemeStudioPage() {
 
   const [activeTab, setActiveTab] = useState<'gallery' | 'creator'>('gallery');
 
+  useEffect(() => { setFormError(null); setNotice(''); }, [customName, customNameTh, accentPrimary, accentHover, bgPrimary, bgSurface, borderSubtle, borderHover, textPrimary, textMuted]);
+
   const handleSaveCustomTheme = (e: React.FormEvent) => {
     e.preventDefault();
+    const invalid = validateCustomTheme(customName, customNameTh, [accentPrimary, accentHover, bgPrimary, bgSurface, borderSubtle, borderHover, textPrimary, textMuted]);
+    setFormError(invalid);
+    setNotice('');
+    if (invalid) return;
     const id = `custom_${Date.now()}`;
     const newTheme: ThemeOption = {
       id,
-      name: customName,
-      nameTh: customNameTh,
+      name: customName.trim(),
+      nameTh: customNameTh.trim(),
       isCustom: true,
       previewBg: bgPrimary,
       previewAccent: accentPrimary,
@@ -57,7 +70,7 @@ export default function ThemeStudioPage() {
     };
 
     addCustomTheme(newTheme);
-    alert('บันทึกและใช้ธีมใหม่เรียบร้อยแล้ว!');
+    setNotice(studio('theme_60_0'));
   };
 
   const applyColorPreset = (preset: 'neon' | 'gold' | 'emerald' | 'cyan' | 'purple') => {
@@ -131,11 +144,9 @@ export default function ThemeStudioPage() {
             <Palette className="w-3.5 h-3.5" /> Studio Color Palette & Theme Engine
           </div>
           <h1 className="text-3xl font-black tracking-tight flex items-center gap-3 text-white">
-            ระบบสตูดิโอธีมและสร้างโทนสีส่วนตัว (Theme Studio)
-          </h1>
+            {' '}{studio('theme_134_0')}{' '}</h1>
           <p className="text-neutral-400 text-sm mt-1">
-            เลือกธีมสำเร็จรูป หรือผสมโทนสีของตัวเองพร้อมพรีวิวการแสดงผลจริงแบบเรียลไทม์
-          </p>
+            {' '}{studio('theme_137_0')}{' '}</p>
         </div>
 
         {/* View Mode Tabs */}
@@ -148,7 +159,7 @@ export default function ThemeStudioPage() {
                 : 'text-neutral-400 hover:text-white'
             }`}
           >
-            <Layout className="w-4 h-4" /> คลังธีมทั้งหมด ({allThemes.length})
+            <Layout className="w-4 h-4" /> {' '}{studio('theme_151_0')}{allThemes.length})
           </button>
           <button
             onClick={() => setActiveTab('creator')}
@@ -158,8 +169,7 @@ export default function ThemeStudioPage() {
                 : 'text-neutral-400 hover:text-white'
             }`}
           >
-            <Plus className="w-4 h-4" /> ผสมสีธีมใหม่ (Custom Creator)
-          </button>
+            <Plus className="w-4 h-4" /> {' '}{studio('theme_161_0')}{' '}</button>
         </div>
       </div>
 
@@ -171,8 +181,7 @@ export default function ThemeStudioPage() {
           {customThemes.length > 0 && (
             <div className="space-y-4">
               <h2 className="text-xs font-extrabold text-neutral-400 uppercase tracking-widest flex items-center gap-2">
-                <Sparkles className="w-4 h-4 text-amber-400" /> ธีมส่วนตัวที่คุณสร้างไว้ (Custom Themes)
-              </h2>
+                <Sparkles className="w-4 h-4 text-amber-400" /> {' '}{studio('theme_174_0')}{' '}</h2>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
                 {customThemes.map((t) => {
@@ -193,7 +202,7 @@ export default function ThemeStudioPage() {
                             <span className="w-6 h-6 rounded-full border border-white/20 shadow-md" style={{ backgroundColor: t.accentPrimary }} />
                           </div>
                           <div>
-                            <h3 className="font-bold text-sm text-white">{t.nameTh || t.name}</h3>
+                            <h3 className="font-bold text-sm text-white">{locale === 'th' ? t.nameTh || t.name : t.name}</h3>
                             <span className="text-[10px] text-blue-400 font-mono">Custom Theme</span>
                           </div>
                         </div>
@@ -223,13 +232,13 @@ export default function ThemeStudioPage() {
                               : 'bg-neutral-800 hover:bg-neutral-700 text-neutral-200'
                           }`}
                         >
-                          {isActive ? 'กำลังใช้งานอยู่' : 'ใช้งานธีมนี้'}
+                          {isActive ? studio('theme_226_1') : studio('theme_226_2')}
                         </button>
                         <button
                           type="button"
                           onClick={() => deleteCustomTheme(t.id)}
                           className="p-2 rounded-xl bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 border border-rose-500/30 transition-all cursor-pointer"
-                          title="ลบธีมนี้"
+                          title={studio('theme_232_0')}
                         >
                           <Trash2 className="w-4 h-4" />
                         </button>
@@ -244,8 +253,7 @@ export default function ThemeStudioPage() {
           {/* Built-in System Themes Section */}
           <div className="space-y-4">
             <h2 className="text-xs font-extrabold text-neutral-400 uppercase tracking-widest flex items-center gap-2">
-              <Palette className="w-4 h-4 text-blue-400" /> คลังธีมมาตรฐานระบบ (15 Built-in Palettes)
-            </h2>
+              <Palette className="w-4 h-4 text-blue-400" /> {' '}{studio('theme_247_0')}{' '}</h2>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
               {THEMES.map((t) => {
@@ -267,7 +275,7 @@ export default function ThemeStudioPage() {
                           <span className="w-6 h-6 rounded-full border border-white/20 shadow-md" style={{ backgroundColor: t.previewAccent }} />
                         </div>
                         <div>
-                          <h3 className="font-bold text-xs text-white group-hover:text-blue-400 transition-colors">{t.nameTh}</h3>
+                          <h3 className="font-bold text-xs text-white group-hover:text-blue-400 transition-colors">{locale === 'th' ? t.nameTh || t.name : t.name}</h3>
                           <span className="text-[10px] text-neutral-500 font-mono">{t.name}</span>
                         </div>
                       </div>
@@ -301,7 +309,7 @@ export default function ThemeStudioPage() {
                           : 'bg-neutral-800 hover:bg-neutral-700 text-neutral-300'
                       }`}
                     >
-                      {isActive ? '✓ เปิดใช้งานอยู่' : 'สลับใช้ธีมนี้'}
+                      {isActive ? studio('theme_304_1') : studio('theme_304_2')}
                     </button>
                   </div>
                 );
@@ -321,14 +329,13 @@ export default function ThemeStudioPage() {
             
             <div className="flex items-center justify-between border-b border-neutral-800 pb-4">
               <h2 className="text-sm font-extrabold text-white flex items-center gap-2">
-                <Sliders className="w-4 h-4 text-blue-400" /> เครื่องมือผสมสีธีมใหม่ (Custom Color Palette)
-              </h2>
-              <span className="text-[10px] text-neutral-500">ปรับแต่งค่า Hex Code ได้อิสระ</span>
+                <Sliders className="w-4 h-4 text-blue-400" /> {' '}{studio('theme_324_0')}{' '}</h2>
+              <span className="text-[10px] text-neutral-500">{studio('theme_326_0')}</span>
             </div>
 
             {/* Quick Color Presets */}
             <div className="space-y-2">
-              <label className="text-[11px] font-bold uppercase tracking-wider text-neutral-400 block">ชุดจานสีด่วน (Quick Presets):</label>
+              <label className="text-[11px] font-bold uppercase tracking-wider text-neutral-400 block">{studio('theme_331_0')}</label>
               <div className="flex flex-wrap gap-2">
                 <button type="button" onClick={() => applyColorPreset('neon')} className="px-2.5 py-1 rounded-lg bg-pink-500/10 hover:bg-pink-500/20 text-pink-400 border border-pink-500/30 text-xs font-bold transition-all cursor-pointer">
                   🌸 Cyber Neon
@@ -348,25 +355,28 @@ export default function ThemeStudioPage() {
               </div>
             </div>
 
+            {formError && <p id="theme-validation-error" role="alert" className="rounded-xl border border-red-700 p-3 text-sm text-red-300">{studio(formError === 'name' ? 'themeInvalidName' : 'themeInvalidColor')}</p>}
+            {notice && <p role="status" className="rounded-xl border border-emerald-700 p-3 text-sm text-emerald-300">{notice}</p>}
+
             {/* Theme Name Fields */}
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1.5">
-                <label className="text-xs font-bold text-neutral-300 block">ชื่อธีมภาษาไทย</label>
+                <label className="text-xs font-bold text-neutral-300 block">{studio('theme_354_0')}</label>
                 <input
                   type="text"
                   required
-                  value={customNameTh}
+                  maxLength={80} aria-label={studio('theme_354_0')} value={customNameTh}
                   onChange={(e) => setCustomNameTh(e.target.value)}
                   className="w-full bg-neutral-950 border border-neutral-800 text-white rounded-xl py-2 px-3 text-xs focus:outline-none focus:border-blue-500"
-                  placeholder="เช่น สตูดิโอนีออน"
+                  placeholder={studio('theme_361_0')}
                 />
               </div>
               <div className="space-y-1.5">
-                <label className="text-xs font-bold text-neutral-300 block">Theme Name (EN)</label>
+                <label className="text-xs font-bold text-neutral-300 block">{studio('themeEnglishName')}</label>
                 <input
                   type="text"
                   required
-                  value={customName}
+                  maxLength={80} aria-label={studio('themeEnglishName')} value={customName}
                   onChange={(e) => setCustomName(e.target.value)}
                   className="w-full bg-neutral-950 border border-neutral-800 text-white rounded-xl py-2 px-3 text-xs focus:outline-none focus:border-blue-500"
                   placeholder="e.g. Neon Studio"
@@ -380,13 +390,13 @@ export default function ThemeStudioPage() {
               {/* Primary Accent Color */}
               <div className="space-y-2 bg-neutral-950 p-3.5 rounded-2xl border border-neutral-800">
                 <label className="text-xs font-bold text-neutral-300 flex items-center justify-between">
-                  <span>🎨 สีปุ่มหลัก (Accent Primary)</span>
+                  <span>{studio('theme_383_0')}</span>
                   <span className="font-mono text-[11px] text-neutral-400">{accentPrimary}</span>
                 </label>
                 <div className="flex items-center gap-2">
                   <input
                     type="color"
-                    value={accentPrimary}
+                    aria-label={studio('themeAccentHex') + ' (picker)'} value={accentPrimary}
                     onChange={(e) => {
                       setAccentPrimary(e.target.value);
                       setAccentHover(e.target.value);
@@ -395,7 +405,7 @@ export default function ThemeStudioPage() {
                   />
                   <input
                     type="text"
-                    value={accentPrimary}
+                    maxLength={7} aria-label={studio('themeAccentHex')} aria-invalid={formError === 'color'} value={accentPrimary}
                     onChange={(e) => setAccentPrimary(e.target.value)}
                     className="flex-1 bg-neutral-900 border border-neutral-800 text-white rounded-lg p-1.5 text-xs font-mono"
                   />
@@ -405,19 +415,19 @@ export default function ThemeStudioPage() {
               {/* Primary Background */}
               <div className="space-y-2 bg-neutral-950 p-3.5 rounded-2xl border border-neutral-800">
                 <label className="text-xs font-bold text-neutral-300 flex items-center justify-between">
-                  <span>⬛ สีพื้นหลังหลัก (Background)</span>
+                  <span>{studio('theme_408_0')}</span>
                   <span className="font-mono text-[11px] text-neutral-400">{bgPrimary}</span>
                 </label>
                 <div className="flex items-center gap-2">
                   <input
                     type="color"
-                    value={bgPrimary}
+                    aria-label={studio('themeBackgroundHex') + ' (picker)'} value={bgPrimary}
                     onChange={(e) => setBgPrimary(e.target.value)}
                     className="w-9 h-9 rounded-lg border-0 cursor-pointer p-0 bg-transparent"
                   />
                   <input
                     type="text"
-                    value={bgPrimary}
+                    maxLength={7} aria-label={studio('themeBackgroundHex')} aria-invalid={formError === 'color'} value={bgPrimary}
                     onChange={(e) => setBgPrimary(e.target.value)}
                     className="flex-1 bg-neutral-900 border border-neutral-800 text-white rounded-lg p-1.5 text-xs font-mono"
                   />
@@ -427,19 +437,19 @@ export default function ThemeStudioPage() {
               {/* Card Surface */}
               <div className="space-y-2 bg-neutral-950 p-3.5 rounded-2xl border border-neutral-800">
                 <label className="text-xs font-bold text-neutral-300 flex items-center justify-between">
-                  <span>📦 สีพื้นหลังการ์ด (Card Surface)</span>
+                  <span>{studio('theme_430_0')}</span>
                   <span className="font-mono text-[11px] text-neutral-400">{bgSurface}</span>
                 </label>
                 <div className="flex items-center gap-2">
                   <input
                     type="color"
-                    value={bgSurface}
+                    aria-label={studio('themeSurfaceHex') + ' (picker)'} value={bgSurface}
                     onChange={(e) => setBgSurface(e.target.value)}
                     className="w-9 h-9 rounded-lg border-0 cursor-pointer p-0 bg-transparent"
                   />
                   <input
                     type="text"
-                    value={bgSurface}
+                    maxLength={7} aria-label={studio('themeSurfaceHex')} aria-invalid={formError === 'color'} value={bgSurface}
                     onChange={(e) => setBgSurface(e.target.value)}
                     className="flex-1 bg-neutral-900 border border-neutral-800 text-white rounded-lg p-1.5 text-xs font-mono"
                   />
@@ -449,19 +459,19 @@ export default function ThemeStudioPage() {
               {/* Text Primary */}
               <div className="space-y-2 bg-neutral-950 p-3.5 rounded-2xl border border-neutral-800">
                 <label className="text-xs font-bold text-neutral-300 flex items-center justify-between">
-                  <span>📝 สีอักษรหลัก (Text Primary)</span>
+                  <span>{studio('theme_452_0')}</span>
                   <span className="font-mono text-[11px] text-neutral-400">{textPrimary}</span>
                 </label>
                 <div className="flex items-center gap-2">
                   <input
                     type="color"
-                    value={textPrimary}
+                    aria-label={studio('themeTextHex') + ' (picker)'} value={textPrimary}
                     onChange={(e) => setTextPrimary(e.target.value)}
                     className="w-9 h-9 rounded-lg border-0 cursor-pointer p-0 bg-transparent"
                   />
                   <input
                     type="text"
-                    value={textPrimary}
+                    maxLength={7} aria-label={studio('themeTextHex')} aria-invalid={formError === 'color'} value={textPrimary}
                     onChange={(e) => setTextPrimary(e.target.value)}
                     className="flex-1 bg-neutral-900 border border-neutral-800 text-white rounded-lg p-1.5 text-xs font-mono"
                   />
@@ -475,8 +485,7 @@ export default function ThemeStudioPage() {
               type="submit"
               className="w-full bg-blue-600 hover:bg-blue-500 text-white font-extrabold py-3.5 rounded-2xl transition-all cursor-pointer flex items-center justify-center gap-2 text-sm shadow-xl"
             >
-              <Sparkles className="w-4 h-4" /> บันทึกและเริ่มใช้งานธีมส่วนตัวนี้
-            </button>
+              <Sparkles className="w-4 h-4" /> {' '}{studio('theme_478_0')}{' '}</button>
 
           </form>
 
@@ -484,8 +493,7 @@ export default function ThemeStudioPage() {
           <div className="lg:col-span-6 space-y-4 sticky top-6">
             <div className="flex items-center justify-between">
               <h3 className="text-xs font-extrabold text-neutral-400 uppercase tracking-widest flex items-center gap-2">
-                <Eye className="w-4 h-4 text-blue-400" /> พรีวิวตัวอย่างหน้าเว็บจริง (Live Website Mockup)
-              </h3>
+                <Eye className="w-4 h-4 text-blue-400" /> {' '}{studio('theme_487_0')}{' '}</h3>
               <span className="text-[10px] text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-2 py-0.5 rounded-full font-mono">
                 Real-Time Render
               </span>
@@ -509,7 +517,7 @@ export default function ThemeStudioPage() {
                   </div>
                   <div>
                     <h4 className="text-xs font-extrabold" style={{ color: textPrimary }}>DICE Studio Atelier</h4>
-                    <p className="text-[10px]" style={{ color: textMuted }}>{customNameTh || 'Sample Preview'}</p>
+                    <p className="text-[10px]" style={{ color: textMuted }}>{(locale === 'th' ? customNameTh : customName) || 'Sample Preview'}</p>
                   </div>
                 </div>
 
@@ -529,23 +537,20 @@ export default function ThemeStudioPage() {
                   </span>
                 </div>
                 <p className="text-xs" style={{ color: textMuted }}>
-                  จำลองการแสดงผลตัวอย่างองค์ประกอบ หัวข้อ การ์ด ปุ่มกด และช่องกรอกข้อมูลในเว็บไซต์
-                </p>
+                  {' '}{studio('theme_532_0')}{' '}</p>
 
                 {/* Mock Action Buttons */}
                 <div className="flex gap-2 pt-2">
                   <button type="button" className="flex-1 py-2 px-3 rounded-xl text-xs font-bold text-white transition-opacity shadow" style={{ backgroundColor: accentPrimary }}>
-                    ปุ่มหลัก (Primary Accent)
-                  </button>
+                    {' '}{studio('theme_538_0')}{' '}</button>
                   <button type="button" className="py-2 px-3 rounded-xl text-xs font-bold border transition-colors" style={{ borderColor: borderSubtle, color: textPrimary }}>
-                    ปุ่มรอง
-                  </button>
+                    {' '}{studio('theme_541_0')}{' '}</button>
                 </div>
               </div>
 
               {/* Mock Form Input */}
               <div className="space-y-1.5">
-                <label className="text-[10px] font-bold uppercase" style={{ color: textMuted }}>ตัวอย่างช่องกรอกข้อมูล (Input Control):</label>
+                <label className="text-[10px] font-bold uppercase" style={{ color: textMuted }}>{studio('theme_548_0')}</label>
                 <div className="p-2.5 rounded-xl border text-xs flex justify-between items-center" style={{ backgroundColor: bgSurface, borderColor: borderSubtle, color: textPrimary }}>
                   <span>user@example.com</span>
                   <span className="text-[10px] font-mono" style={{ color: accentPrimary }}>Focused</span>

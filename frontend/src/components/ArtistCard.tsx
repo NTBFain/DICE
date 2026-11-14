@@ -8,6 +8,7 @@ import { useTranslations } from 'next-intl';
 export default function ArtistCard({ artist }: { artist: ArtistProfile }) {
   const t = useTranslations('ArtistCard');
   const isOpen = artist.commission_status === 'OPEN';
+  const isWaitlist = artist.commission_status === 'WAITLIST';
 
   return (
     <div className="bg-[var(--bg-surface,#121215)] border border-[var(--border-subtle,#27272a)] rounded-2xl sm:rounded-3xl overflow-hidden flex flex-col justify-between shadow-lg group hover:border-[var(--accent-primary,#3b82f6)] transition-all duration-300 hover:-translate-y-1">
@@ -29,9 +30,10 @@ export default function ArtistCard({ artist }: { artist: ArtistProfile }) {
             <span className={`text-[9px] sm:text-[10px] font-extrabold px-2.5 py-0.5 sm:py-1 rounded-full border uppercase shadow-md backdrop-blur-md ${
               isOpen
                 ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/40'
-                : 'bg-amber-500/20 text-amber-400 border-amber-500/40'
+                : isWaitlist ? 'bg-amber-500/20 text-amber-400 border-amber-500/40'
+                      : 'bg-neutral-500/20 text-neutral-400 border-neutral-500/40'
             }`}>
-              {isOpen ? t('open') : t('waitlist')}
+              {isOpen ? t('open') : isWaitlist ? t('waitlist') : t('closed')}
             </span>
           </div>
         </div>

@@ -4,19 +4,9 @@ from core.config import settings
 
 db_url = settings.DATABASE_URL
 
-# Fallback to SQLite if PostgreSQL fails to connect locally
-try:
-    if "postgresql" in db_url:
-        engine = create_engine(db_url, echo=False, pool_pre_ping=True)
-        # Test connection
-        with engine.connect() as conn:
-            pass
-    else:
-        engine = create_engine(db_url, echo=False, connect_args={"check_same_thread": False})
-except Exception:
-    # Graceful local fallback to High-Speed SQLite WAL Mode
-    db_url = "sqlite:///./test.db"
-    engine = create_engine(db_url, echo=False, connect_args={"check_same_thread": False})
+# Use exactly the selected database; a connection failure must not silently switch data.
+engine = create_engine(db_url, echo=False, pool_pre_ping=True,
+                       connect_args={"check_same_thread": False} if db_url.startswith("sqlite") else {})
 
 @event.listens_for(engine, "connect")
 def set_sqlite_pragma(dbapi_connection, connection_record):

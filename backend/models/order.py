@@ -19,6 +19,7 @@ class OrderBase(SQLModel):
     due_date: Optional[datetime] = None
     service_id: Optional[int] = Field(default=None, foreign_key="artistservice.id", ondelete="SET NULL")
     commission_request_id: Optional[int] = Field(default=None, foreign_key="commissionrequest.id", ondelete="SET NULL")
+    auction_id: Optional[int] = Field(default=None, foreign_key="auction.id", ondelete="SET NULL")
 
 class Order(OrderBase, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)

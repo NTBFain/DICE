@@ -248,6 +248,11 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
   const [customBgUrl, setCustomBgUrlState] = useState<string>('');
   const [bgOpacity, setBgOpacityState] = useState<number>(0.25);
 
+  useEffect(() => {
+    document.documentElement.toggleAttribute('data-wallpaper', !!customBgUrl);
+    return () => document.documentElement.removeAttribute('data-wallpaper');
+  }, [customBgUrl]);
+
   const applyThemeToDOM = (activeThemeId: string, customList: ThemeOption[] = customThemes) => {
     const customMatch = customList.find((t) => t.id === activeThemeId);
     let isLight = false;
@@ -333,7 +338,9 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
     const updated = [...customThemes.filter((t) => t.id !== newCustomTheme.id), newCustomTheme];
     setCustomThemes(updated);
     localStorage.setItem('dice_custom_themes', JSON.stringify(updated));
-    setTheme(newCustomTheme.id);
+    setThemeState(newCustomTheme.id);
+    localStorage.setItem('dice_theme', newCustomTheme.id);
+    applyThemeToDOM(newCustomTheme.id, updated);
   };
 
   const deleteCustomTheme = (themeId: string) => {
@@ -379,6 +386,7 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
       {/* Dynamic Artist Custom Background Layer */}
       {customBgUrl && (
         <div 
+          aria-hidden="true"
           className="fixed inset-0 z-[-1] pointer-events-none bg-cover bg-center bg-no-repeat transition-opacity duration-500"
           style={{ 
             backgroundImage: `url(${customBgUrl})`,

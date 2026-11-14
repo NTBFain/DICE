@@ -1,5 +1,7 @@
 'use client';
 
+import { useTranslations } from 'next-intl';
+
 import { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useAuth } from '@/components/AuthContext';
@@ -34,6 +36,7 @@ const ADMIN_NAV_ITEMS = [
 ];
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
+  const t = useTranslations('StudioNavigation');
   const { user, loading: authLoading } = useAuth();
   const router = useRouter();
   const pathname = usePathname();
@@ -63,7 +66,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
       <div className="min-h-screen bg-neutral-950 flex flex-col items-center justify-center space-y-3">
         <Loader2 className="w-8 h-8 text-purple-500 animate-spin" />
         <p className="text-neutral-400 text-xs font-bold uppercase tracking-widest">
-          Loading Admin Command Center...
+          {t('loadingAdmin')}
         </p>
       </div>
     );
@@ -79,13 +82,13 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
           </div>
           <div className="truncate">
             <div className="flex items-center gap-1.5 truncate">
-              <h1 className="text-xs sm:text-sm font-extrabold text-white truncate">DICE System Command Center</h1>
+              <h1 className="text-xs sm:text-sm font-extrabold text-white truncate">{t('adminTitle')}</h1>
               <span className="hidden sm:inline text-[9px] font-bold uppercase tracking-wider bg-purple-950 text-amber-300 px-2 py-0.5 rounded-full border border-purple-800/60">
-                👑 System Admin
+                {t('adminPanel')}
               </span>
             </div>
             <p className="text-neutral-400 text-[10px] sm:text-xs truncate">
-              Administrator: <strong className="text-purple-300">{user.full_name || user.email}</strong>
+              {t('adminLabel')} <strong className="text-purple-300">{user.full_name || user.email}</strong>
             </p>
           </div>
         </div>
@@ -98,14 +101,14 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
             href="/dashboard/artist"
             className="hidden sm:flex items-center gap-1.5 text-xs text-blue-400 hover:text-white bg-blue-950/40 border border-blue-800/40 px-3 py-1.5 rounded-xl transition-colors"
           >
-            🎨 Switch to Artist Studio
+            {t('artistStudio')}
           </Link>
 
           <Link
             href="/"
             className="hidden md:flex items-center gap-1.5 text-xs text-neutral-400 hover:text-white bg-neutral-950 border border-neutral-800 px-3 py-1.5 rounded-xl transition-colors"
           >
-            <ExternalLink className="w-3.5 h-3.5" /> Public Site
+            <ExternalLink className="w-3.5 h-3.5" /> {t('publicSite')}
           </Link>
         </div>
       </header>
@@ -117,9 +120,9 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
 
       {/* 📍 VIEWPORT-FIXED FLOATING CAPSULE BAR FOR ADMIN */}
       {mounted && createPortal(
-        <div className="fixed bottom-3 sm:bottom-6 left-1/2 -translate-x-1/2 z-[99999] w-[calc(100%-1.5rem)] sm:w-auto max-w-fit pointer-events-auto">
+        <div className="fixed bottom-3 sm:bottom-6 left-1/2 -translate-x-1/2 z-30 w-[calc(100%-1.5rem)] sm:w-auto max-w-fit pointer-events-auto">
           {/* Mobile Bar View (< sm) */}
-          <nav className="sm:hidden bg-neutral-900/95 backdrop-blur-xl border border-purple-900/40 rounded-2xl px-2 py-2 flex items-center justify-around w-full shadow-2xl">
+          <nav className="sm:hidden bg-neutral-900/95 backdrop-blur-xl border border-purple-900/40 rounded-2xl px-2 py-2 flex items-center justify-start gap-1 w-full max-w-full overflow-x-auto overscroll-x-contain shadow-2xl">
             {ADMIN_NAV_ITEMS.map((item) => {
               const Icon = item.icon;
               const isActive = pathname === item.href || (item.id === 'users' && pathname === '/dashboard/admin');
@@ -128,14 +131,15 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                 <Link
                   key={item.id}
                   href={item.href}
-                  className={`flex flex-col items-center justify-center py-1.5 px-2 rounded-xl text-[10px] font-bold transition-all cursor-pointer flex-1 ${
+                  aria-current={isActive ? 'page' : undefined}
+                  className={`flex flex-col items-center justify-center py-1.5 px-2 rounded-xl text-[10px] font-bold transition-all cursor-pointer flex-none min-w-[3.5rem] ${
                     isActive
                       ? 'text-white bg-purple-600/30 border border-purple-500/50'
                       : 'text-neutral-400 hover:text-white'
                   }`}
                 >
                   <Icon className={`w-4 h-4 mb-0.5 ${isActive ? 'text-amber-300' : 'text-neutral-400'}`} />
-                  <span className="text-[9px] tracking-tight truncate">{item.label}</span>
+                  <span className="text-[9px] tracking-tight truncate">{t('admin.' + item.id)}</span>
                 </Link>
               );
             })}
@@ -151,6 +155,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                 <Link
                   key={item.id}
                   href={item.href}
+                  aria-current={isActive ? 'page' : undefined}
                   className={`flex items-center gap-2 px-3.5 py-2 rounded-full text-xs font-bold transition-all cursor-pointer whitespace-nowrap ${
                     isActive
                       ? 'bg-purple-600 text-white border border-amber-500/50 shadow-md'
@@ -158,10 +163,10 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                   }`}
                 >
                   <Icon className={`w-4 h-4 ${isActive ? 'text-amber-300' : 'text-neutral-400'}`} />
-                  <span>{item.label}</span>
+                  <span>{t('admin.' + item.id)}</span>
                   {isActive && (
                     <span className="text-[9px] font-mono bg-purple-950 text-amber-300 border border-purple-700/60 px-2 py-0.5 rounded-full hidden md:inline">
-                      {item.badge}
+                      {t('adminBadge.' + item.id)}
                     </span>
                   )}
                 </Link>

@@ -1,6 +1,13 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useTranslations } from 'next-intl';
+
+import StudioDialog from '@/components/StudioDialog';
+import { getCommissionBlockText, getCommissionOptionText } from '@/lib/commissionBlockText';
+import { calculateCommissionPrice } from '@/lib/commissionMoney';
+import { useLocale } from 'next-intl';
+
+import { useState, useEffect, useId } from 'react';
 import { createPortal } from 'react-dom';
 import { FormBlock, FormBlockType, CommissionServiceDetail } from '@/types/commission';
 import {
@@ -148,12 +155,17 @@ export function ModularFormBuilderModal({
   onSave,
   isSaving,
 }: ModularFormBuilderModalProps) {
+  const studio = useTranslations('Studio');
+  const locale = useLocale();
   const [blocks, setBlocks] = useState<FormBlock[]>([]);
+  const [validationError, setValidationError] = useState('');
+  const formId = useId();
   const [newExclusionTag, setNewExclusionTag] = useState('');
   const [activeTab, setActiveTab] = useState<string>('ALL');
 
   useEffect(() => {
     if (!isOpen) return;
+    setValidationError('');
     if (service.form_schema && service.form_schema.length > 0) {
       // Merge with default templates so any newly added platform blocks exist
       const existingMap = new Map(service.form_schema.map((b) => [b.type, b]));
@@ -161,24 +173,20 @@ export function ModularFormBuilderModal({
         const existing = existingMap.get(tmpl.type);
         return existing ? { ...tmpl, ...existing } : tmpl;
       });
-      setBlocks(merged);
+      setBlocks(structuredClone(merged));
     } else {
-      setBlocks(DEFAULT_BLOCK_TEMPLATES);
+      setBlocks(structuredClone(DEFAULT_BLOCK_TEMPLATES));
     }
   }, [isOpen, service]);
 
   if (!isOpen || typeof document === 'undefined') return null;
 
   const toggleBlock = (index: number) => {
-    const updated = [...blocks];
-    updated[index].enabled = !updated[index].enabled;
-    setBlocks(updated);
+    setBlocks(current => current.map((block, blockIndex) => blockIndex === index ? { ...block, enabled: !block.enabled } : block));
   };
 
   const updateBlockConfig = (index: number, newConfig: Record<string, any>) => {
-    const updated = [...blocks];
-    updated[index].config = { ...updated[index].config, ...newConfig };
-    setBlocks(updated);
+    setBlocks(current => current.map((block, blockIndex) => blockIndex === index ? { ...block, config: { ...block.config, ...newConfig } } : block));
   };
 
   const getBlockIcon = (type: FormBlockType) => {
@@ -204,7 +212,7 @@ export function ModularFormBuilderModal({
 
   return createPortal(
     <div className="fixed inset-0 z-[200] flex items-center justify-center p-3 sm:p-4 bg-black/85 backdrop-blur-sm">
-      <div className="bg-neutral-900 border border-neutral-800 rounded-2xl w-full max-w-5xl max-h-[88vh] flex flex-col shadow-2xl overflow-hidden">
+      <StudioDialog label={studio('builderDialog')} onClose={() => onClose()} className="bg-neutral-900 border border-neutral-800 rounded-2xl w-full max-w-5xl max-h-[88vh] flex flex-col shadow-2xl overflow-hidden">
         {/* Header */}
         <div className="flex items-center justify-between px-5 py-3 border-b border-neutral-800 bg-neutral-900/95 shrink-0">
           <div className="flex items-center gap-2.5">
@@ -213,17 +221,16 @@ export function ModularFormBuilderModal({
             </div>
             <div>
               <div className="flex items-center gap-2">
-                <h2 className="text-sm sm:text-base font-bold text-white">Custom Modular Form Builder</h2>
+                <h2 className="text-sm sm:text-base font-bold text-white">{studio('builderTitle')}</h2>
                 <span className="text-[10px] bg-neutral-800 text-neutral-300 font-bold px-2 py-0.5 rounded-full border border-neutral-700">
                   {service.title}
                 </span>
               </div>
               <p className="text-[11px] text-neutral-400">
-                เลือกและตั้งค่าหัวข้อกล่องฟอร์มที่ต้องการให้ผู้จ้างกรอกเฉพาะสเกลนี้
-              </p>
+                {' '}{studio('builder_223_0')}{' '}</p>
             </div>
           </div>
-          <button
+          <button aria-label={studio('closeDialog')}
             onClick={onClose}
             className="text-neutral-400 hover:text-white p-1.5 rounded-xl hover:bg-neutral-800 transition cursor-pointer"
           >
@@ -232,7 +239,17 @@ export function ModularFormBuilderModal({
         </div>
 
         {/* Content list */}
-        <div className="flex-1 overflow-y-auto p-4 space-y-3">
+        <form id={formId} noValidate onSubmit={(event) => {
+          event.preventDefault();
+          if (isSaving) return;
+          if (!event.currentTarget.checkValidity()) {
+            setValidationError(studio('invalidBuilderNumbers'));
+            event.currentTarget.reportValidity();
+            return;
+          }
+          setValidationError('');
+          onSave(blocks);
+        }} className="flex-1 overflow-y-auto p-4 space-y-3">
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 items-start">
             {blocks.map((block, idx) => {
               const isEnabled = block.enabled;
@@ -253,18 +270,16 @@ export function ModularFormBuilderModal({
                       </div>
                       <div>
                         <h4 className="text-sm font-bold text-white flex items-center gap-2">
-                          {block.title}
+                          {getCommissionBlockText(block, locale)}
                           {isEnabled ? (
                             <span className="text-[10px] bg-emerald-500/20 text-emerald-400 px-2 py-0.5 rounded-full font-bold">
-                              เปิดใช้งาน
-                            </span>
+                              {' '}{studio('builder_260_0')}{' '}</span>
                           ) : (
                             <span className="text-[10px] bg-neutral-800 text-neutral-500 px-2 py-0.5 rounded-full font-bold">
-                              ปิดอยู่
-                            </span>
+                              {' '}{studio('builder_264_0')}{' '}</span>
                           )}
                         </h4>
-                        <p className="text-xs text-neutral-400 mt-0.5">{block.description}</p>
+                        <p className="text-xs text-neutral-400 mt-0.5">{getCommissionBlockText(block, locale, 'description')}</p>
                       </div>
                     </div>
 
@@ -272,6 +287,8 @@ export function ModularFormBuilderModal({
                     <button
                       type="button"
                       data-testid={`toggle-${block.type}`}
+                      aria-pressed={isEnabled}
+                      aria-label={`${locale === 'th' ? studio('builder_277_0') : 'Enable or disable'}: ${getCommissionBlockText(block, locale)}`}
                       onClick={() => toggleBlock(idx)}
                       className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors cursor-pointer shrink-0 ${
                         isEnabled ? 'bg-emerald-600' : 'bg-neutral-700'
@@ -293,32 +310,29 @@ export function ModularFormBuilderModal({
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                           <div>
                             <label className="text-neutral-400 font-bold block mb-1">
-                              จำนวนตัวละครสูงสุดใน 1 ภาพ:
-                            </label>
+                              {' '}{studio('builder_299_0')}{' '}</label>
                             <input
                               type="number"
                               min={1}
                               max={10}
-                              value={block.config.max_chars || 4}
+                              aria-label={studio('builder_299_0')} value={block.config.max_chars ?? 4}
                               onChange={(e) =>
                                 updateBlockConfig(idx, { max_chars: Number(e.target.value) })
                               }
                               className="w-full bg-neutral-900 border border-neutral-700 rounded-xl p-2.5 text-white font-bold"
                             />
                             <p className="text-[11px] text-neutral-500 mt-1">
-                              ผู้จ้างสามารถเลือกตัวละครได้สูงสุดตามจำนวนนี้
-                            </p>
+                              {' '}{studio('builder_312_0')}{' '}</p>
                           </div>
                           <div>
                             <label className="text-neutral-400 font-bold block mb-1">
-                              ราคาเพิ่มต่อ 1 ตัวละครเสริม (% ของราคาพื้นฐาน):
-                            </label>
+                              {' '}{studio('builder_317_0')}{' '}</label>
                             <div className="relative">
                               <input
-                                type="number"
+                                type="number" step="any"
                                 min={0}
                                 max={200}
-                                value={block.config.extra_price_percent || 70}
+                                aria-label={locale === 'th' ? studio('builder_324_0') : 'Extra-character fee (%)'} value={block.config.extra_price_percent ?? 70}
                                 onChange={(e) =>
                                   updateBlockConfig(idx, {
                                     extra_price_percent: Number(e.target.value),
@@ -331,8 +345,8 @@ export function ModularFormBuilderModal({
                               </span>
                             </div>
                             <p className="text-[11px] text-neutral-500 mt-1">
-                              เช่น 70% ของ ฿{service.base_price.toLocaleString()} = +฿
-                              {(service.base_price * ((block.config.extra_price_percent || 70) / 100)).toLocaleString()}/ตัว
+                              {block.config.extra_price_percent ?? 70}% {locale === 'th' ? studio('builder_337_0') : 'of'} ฿{service.base_price.toLocaleString()} = +฿
+                              {calculateCommissionPrice(service.base_price, [], [block.config.extra_price_percent ?? 70], false).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} {locale === 'th' ? studio('builder_338_0') : 'per character'}
                             </p>
                           </div>
                         </div>
@@ -342,16 +356,15 @@ export function ModularFormBuilderModal({
                       {block.type === 'SCOPE_EXCLUSIONS' && (
                         <div className="space-y-3">
                           <label className="text-neutral-400 font-bold block">
-                            รายการประเภทงานที่ไม่รับวาด (ผู้จ้างต้องอ่านและกดยืนยัน):
-                          </label>
+                            {' '}{studio('builder_348_0')}{' '}</label>
                           <div className="flex flex-wrap gap-2">
                             {(block.config.exclusions || []).map((ex: string, exIdx: number) => (
                               <span
                                 key={exIdx}
                                 className="bg-red-950/40 border border-red-800/50 text-red-300 px-3 py-1.5 rounded-xl flex items-center gap-2 font-bold text-xs"
                               >
-                                🚫 {ex}
-                                <button
+                                🚫 {getCommissionOptionText(ex, locale)}
+                                <button aria-label={studio('removeItem')}
                                   type="button"
                                   onClick={() => {
                                     const next = (block.config.exclusions || []).filter(
@@ -381,7 +394,7 @@ export function ModularFormBuilderModal({
                                   setNewExclusionTag('');
                                 }
                               }}
-                              placeholder="พิมพ์ข้อจำกัดงานที่ไม่รับ เช่น ไม่รับวาดเกราะเหล็ก..."
+                              placeholder={studio('builder_387_0')}
                               className="flex-1 bg-neutral-900 border border-neutral-700 rounded-xl px-3 py-2 text-white"
                             />
                             <button
@@ -394,8 +407,7 @@ export function ModularFormBuilderModal({
                               }}
                               className="px-4 py-2 bg-neutral-800 hover:bg-neutral-700 text-white rounded-xl font-bold cursor-pointer"
                             >
-                              + เพิ่ม
-                            </button>
+                              {' '}{studio('builder_400_0')}{' '}</button>
                           </div>
                         </div>
                       )}
@@ -404,15 +416,14 @@ export function ModularFormBuilderModal({
                       {block.type === 'POSE_EXPRESSION' && (
                         <div className="space-y-2">
                           <label className="text-neutral-400 font-bold block">
-                            ตัวเลือกให้ผู้จ้างระบุท่าทาง:
-                          </label>
+                            {' '}{studio('builder_410_0')}{' '}</label>
                           <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
                             {(block.config.options || []).map((opt: string, optIdx: number) => (
                               <div
                                 key={optIdx}
                                 className="bg-neutral-900 border border-neutral-800 p-2.5 rounded-xl text-neutral-300 font-medium"
                               >
-                                • {opt}
+                                • {getCommissionOptionText(opt, locale)}
                               </div>
                             ))}
                           </div>
@@ -423,15 +434,14 @@ export function ModularFormBuilderModal({
                       {block.type === 'CANVAS_SPECS' && (
                         <div className="space-y-2">
                           <label className="text-neutral-400 font-bold block">
-                            สัดส่วนภาพที่อนุญาต:
-                          </label>
+                            {' '}{studio('builder_429_0')}{' '}</label>
                           <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
                             {(block.config.allowed_ratios || []).map((ratio: string, rIdx: number) => (
                               <div
                                 key={rIdx}
                                 className="bg-neutral-900 border border-neutral-800 p-2.5 rounded-xl text-center font-bold text-neutral-300"
                               >
-                                {ratio}
+                                {getCommissionOptionText(ratio, locale)}
                               </div>
                             ))}
                           </div>
@@ -442,8 +452,7 @@ export function ModularFormBuilderModal({
                       {block.type === 'BACKGROUND_TIER' && (
                         <div className="space-y-3">
                           <label className="text-neutral-400 font-bold block">
-                            ระดับความละเอียดฉากหลัง &amp; ราคาบวกเพิ่ม:
-                          </label>
+                            {' '}{studio('builder_448_0')}{' '}</label>
                           <div className="space-y-2">
                             {(block.config.tiers || []).map((t: any, tIdx: number) => (
                               <div
@@ -452,7 +461,7 @@ export function ModularFormBuilderModal({
                               >
                                 <input
                                   type="text"
-                                  value={t.label}
+                                  aria-label={studio('backgroundLabel', { number: tIdx + 1 })} value={getCommissionOptionText(t.label, locale)}
                                   onChange={(e) => {
                                     const next = [...block.config.tiers];
                                     next[tIdx].label = e.target.value;
@@ -463,9 +472,9 @@ export function ModularFormBuilderModal({
                                 <div className="flex items-center gap-1">
                                   <span className="text-neutral-500 font-bold">+฿</span>
                                   <input
-                                    type="number"
+                                    type="number" step="0.01"
                                     min={0}
-                                    value={t.price}
+                                    aria-label={studio('backgroundPrice', { number: tIdx + 1 })} value={t.price}
                                     onChange={(e) => {
                                       const next = [...block.config.tiers];
                                       next[tIdx].price = Number(e.target.value);
@@ -484,18 +493,17 @@ export function ModularFormBuilderModal({
                       {block.type === 'RUSH_MODE' && (
                         <div className="space-y-3">
                           <label className="text-neutral-400 font-bold block">
-                            เงื่อนไขงานเร่งด่วน:
-                          </label>
+                            {' '}{studio('builder_490_0')}{' '}</label>
                           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                             {(block.config.rates || []).map((rate: any, rIdx: number) => (
                               <div
                                 key={rIdx}
                                 className="bg-neutral-900 p-3 rounded-xl border border-neutral-800 flex items-center justify-between"
                               >
-                                <span className="font-bold text-white">เร่งด่วนภายใน {rate.days} วัน</span>
+                                <span className="font-bold text-white">{studio('builder_498_1')}{' '}{rate.days} {' '}{studio('builder_498_2')}</span>
                                 <div className="flex items-center gap-1">
                                   <span className="text-yellow-400 font-bold">+{rate.percent}%</span>
-                                  <span className="text-[10px] text-neutral-500">(+฿{(service.base_price * (rate.percent / 100)).toLocaleString()})</span>
+                                  <span className="text-[10px] text-neutral-500">(+฿{calculateCommissionPrice(service.base_price, [], [rate.percent], false).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })})</span>
                                 </div>
                               </div>
                             ))}
@@ -507,15 +515,15 @@ export function ModularFormBuilderModal({
                       {block.type === 'PRIVACY_NDA' && (
                         <div className="flex items-center justify-between bg-neutral-900 p-3 rounded-xl border border-neutral-800">
                           <div>
-                            <span className="font-bold text-white block">ค่าบริการปกปิดผลงาน (NDA Fee)</span>
-                            <span className="text-neutral-400 text-[11px]">ไม่เผยแพร่ผลงานสู่ที่สาธารณะก่อนได้รับอนุญาต</span>
+                            <span className="font-bold text-white block">{studio('builder_513_0')}</span>
+                            <span className="text-neutral-400 text-[11px]">{studio('builder_514_0')}</span>
                           </div>
                           <div className="flex items-center gap-1">
                             <span className="text-neutral-500 font-bold">฿</span>
                             <input
-                              type="number"
+                              type="number" step="0.01"
                               min={0}
-                              value={block.config.price || 500}
+                              aria-label={studio('ndaPrice')} value={block.config.price ?? 500}
                               onChange={(e) =>
                                 updateBlockConfig(idx, { price: Number(e.target.value) })
                               }
@@ -530,14 +538,13 @@ export function ModularFormBuilderModal({
                         <div className="space-y-3">
                           <div className="flex items-center justify-between">
                             <label className="text-neutral-400 font-bold block">
-                              คำถามพิเศษเฉพาะสเกลนี้:
-                            </label>
+                              {' '}{studio('builder_536_0')}{' '}</label>
                             <button
                               type="button"
                               onClick={() => {
                                 const newQ = {
                                   id: `q_${Date.now()}`,
-                                  label: 'คำถามใหม่',
+                                  label: studio('builder_543_0'),
                                   type: 'TEXT',
                                   required: false,
                                 };
@@ -546,8 +553,7 @@ export function ModularFormBuilderModal({
                               }}
                               className="text-blue-400 hover:text-blue-300 font-bold flex items-center gap-1 cursor-pointer"
                             >
-                              <Plus className="w-3.5 h-3.5" /> เพิ่มคำถาม
-                            </button>
+                              <Plus className="w-3.5 h-3.5" /> {' '}{studio('builder_552_0')}{' '}</button>
                           </div>
 
                           <div className="space-y-2">
@@ -558,13 +564,13 @@ export function ModularFormBuilderModal({
                               >
                                 <input
                                   type="text"
-                                  value={q.label}
+                                  value={getCommissionOptionText(q.label, locale)}
                                   onChange={(e) => {
                                     const next = [...block.config.questions];
                                     next[qIdx].label = e.target.value;
                                     updateBlockConfig(idx, { questions: next });
                                   }}
-                                  placeholder="ระบุคำถาม เช่น โทนสีที่ชอบ..."
+                                  placeholder={studio('builder_570_0')}
                                   className="flex-1 bg-neutral-950 border border-neutral-700 rounded-lg px-2.5 py-1 text-white"
                                 />
                                 <select
@@ -576,10 +582,10 @@ export function ModularFormBuilderModal({
                                   }}
                                   className="bg-neutral-950 border border-neutral-700 rounded-lg px-2 py-1 text-white font-bold"
                                 >
-                                  <option value="TEXT">ข้อความสั้น (Text)</option>
-                                  <option value="TEXTAREA">ข้อความยาว (Paragraph)</option>
+                                  <option value="TEXT">{studio('builder_582_0')}</option>
+                                  <option value="TEXTAREA">{studio('builder_583_0')}</option>
                                 </select>
-                                <button
+                                <button aria-label={studio('removeQuestion')}
                                   type="button"
                                   onClick={() => {
                                     const next = block.config.questions.filter(
@@ -602,33 +608,32 @@ export function ModularFormBuilderModal({
               );
             })}
           </div>
-        </div>
+        </form>
 
+        {validationError && <p role="alert" className="px-4 py-2 text-sm text-red-300">{validationError}</p>}
         {/* Footer */}
         <div className="p-4 border-t border-neutral-800 bg-neutral-900/90 flex items-center justify-between">
           <span className="text-xs text-neutral-400">
-            เปิดใช้งาน {blocks.filter((b) => b.enabled).length} / {blocks.length} หัวข้อ
-          </span>
+            {' '}{studio('builder_613_1')}{' '}{blocks.filter((b) => b.enabled).length} / {blocks.length} {' '}{studio('builder_613_2')}{' '}</span>
           <div className="flex gap-2">
             <button
               type="button"
               onClick={onClose}
               className="px-4 py-2 bg-neutral-800 hover:bg-neutral-700 text-neutral-300 text-xs font-bold rounded-xl cursor-pointer"
             >
-              ยกเลิก
-            </button>
+              {' '}{studio('builder_621_0')}{' '}</button>
             <button
-              type="button"
-              onClick={() => onSave(blocks)}
+              type="submit"
+              form={formId}
               disabled={isSaving}
               className="px-5 py-2 bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold rounded-xl cursor-pointer flex items-center gap-2 shadow-lg shadow-blue-600/20 disabled:opacity-50"
             >
               <Save className="w-4 h-4" />
-              {isSaving ? 'กำลังบันทึก...' : 'บันทึกรูปแบบฟอร์มนี้'}
+              {isSaving ? studio('builder_630_1') : studio('builder_630_2')}
             </button>
           </div>
         </div>
-      </div>
+      </StudioDialog>
     </div>,
     document.body
   );

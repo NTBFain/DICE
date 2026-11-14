@@ -28,7 +28,7 @@ export default function SecureImage({
       try {
         setLoading(true);
         setError(false);
-        const response = await apiClient.get(src, { responseType: 'blob' });
+        const response = await apiClient.get(src.replace(/^\/api(?=\/)/, ''), { responseType: 'blob' });
         if (active) {
           const url = window.URL.createObjectURL(response.data);
           localImageUrl = url;

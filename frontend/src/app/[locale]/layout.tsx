@@ -8,6 +8,7 @@ import {getMessages} from 'next-intl/server';
 import {notFound} from 'next/navigation';
 import {routing} from '@/i18n/routing';
 import PageTransitionLoader from "@/components/PageTransitionLoader";
+import QueryRecoveryNotice from "@/components/QueryRecoveryNotice";
 
 export const metadata: Metadata = {
   title: "DICE - Digital Illustration Commission Exchange",
@@ -40,6 +41,7 @@ export default async function RootLayout({
             <PageTransitionLoader />
             <Header />
             <main className="flex-1 flex flex-col">
+              <QueryRecoveryNotice />
               {children}
             </main>
             <BottomNav />

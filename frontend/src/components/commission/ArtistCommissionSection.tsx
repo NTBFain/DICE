@@ -1,6 +1,12 @@
 'use client';
 
+import { useLocale } from 'next-intl';
+import { StudioFormDialog } from '@/components/StudioDialog';
+import { isArtistProfileOwner } from '@/lib/artistOwnership';
+import { getCommissionBlockText } from '@/lib/commissionBlockText';
+
 import { useState } from 'react';
+import { useTranslations } from 'next-intl';
 import { createPortal } from 'react-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '@/components/AuthContext';
@@ -33,18 +39,23 @@ import {
   Sliders,
   ShieldCheck,
 } from 'lucide-react';
-import { Link } from '@/i18n/routing';
+import { Link, useRouter } from '@/i18n/routing';
 
 interface ArtistCommissionSectionProps {
   handle: string;
 }
 
 export default function ArtistCommissionSection({ handle }: ArtistCommissionSectionProps) {
+  const locale = useLocale();
   const { user } = useAuth();
+  const c = useTranslations('ArtistClient');
+  const o = useTranslations('ArtistOwner');
+  const router = useRouter();
   const queryClient = useQueryClient();
 
   const [selectedService, setSelectedService] = useState<CommissionServiceDetail | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [openedServiceIds, setOpenedServiceIds] = useState<number[]>([]);
   const [submittedReq, setSubmittedReq] = useState<CommissionRequest | null>(null);
   const [showTos, setShowTos] = useState(false);
 
@@ -71,10 +82,10 @@ export default function ArtistCommissionSection({ handle }: ArtistCommissionSect
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['artist-commission-info', handle] });
       setEditingScaleService(null);
-      alert('บันทึกการแก้ไขสเกลงานเรียบร้อยแล้ว!');
+      alert(o('scaleSaved'));
     },
     onError: (err: any) => {
-      alert(err.response?.data?.detail || 'เกิดข้อผิดพลาดในการแก้ไขสเกลงาน');
+      alert(err.response?.data?.detail || o('scaleError'));
     },
   });
 
@@ -84,10 +95,10 @@ export default function ArtistCommissionSection({ handle }: ArtistCommissionSect
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['artist-commission-info', handle] });
       setEditingFormSchemaService(null);
-      alert('บันทึกรูปแบบฟอร์มบรีฟสำหรับสเกลนี้เรียบร้อยแล้ว!');
+      alert(o('formSaved'));
     },
     onError: (err: any) => {
-      alert(err.response?.data?.detail || 'เกิดข้อผิดพลาดในการบันทึกฟอร์ม');
+      alert(err.response?.data?.detail || o('formError'));
     },
   });
 
@@ -112,10 +123,10 @@ export default function ArtistCommissionSection({ handle }: ArtistCommissionSect
       setNewScaleEstimatedDays(7);
       setNewScaleMaxSlots(3);
       setNewScaleIsOpen(true);
-      alert('สร้างสเกลงานใหม่สำเร็จ!');
+      alert(o('created'));
     },
     onError: (err: any) => {
-      alert(err.response?.data?.detail || 'เกิดข้อผิดพลาดในการสร้างสเกล');
+      alert(err.response?.data?.detail || o('createError'));
     },
   });
 
@@ -123,7 +134,7 @@ export default function ArtistCommissionSection({ handle }: ArtistCommissionSect
     return (
       <div className="p-8 text-center text-neutral-400 bg-neutral-900/40 rounded-2xl border border-neutral-800">
         <Loader2 className="w-6 h-6 animate-spin mx-auto text-blue-500 mb-2" />
-        <p className="text-xs font-semibold">กำลังโหลดข้อมูลแพ็กเกจคอมมิชชัน...</p>
+        <p className="text-xs font-semibold">{c('loadingServices')}</p>
       </div>
     );
   }
@@ -134,15 +145,14 @@ export default function ArtistCommissionSection({ handle }: ArtistCommissionSect
 
   const { policy, services, artist_id, artist_user_id } = commissionInfo;
 
-  // Determine if logged-in user is the artist owner
-  const isOwner = Boolean(
-    user && (
-      (artist_user_id && user.id === artist_user_id) ||
-      (user.is_artist && (user.id === artist_id || user.full_name?.toLowerCase().includes('akira')))
-    )
-  );
+  const isOwner = isArtistProfileOwner(user, artist_user_id);
 
   const handleOpenIntake = (svc: CommissionServiceDetail) => {
+    if (!user) {
+      router.push(`/login?redirect=${encodeURIComponent(`/artists/${handle}`)}`);
+      return;
+    }
+    setOpenedServiceIds((ids) => ids.includes(svc.id) ? ids : [...ids, svc.id]);
     setSelectedService(svc);
     setIsModalOpen(true);
   };
@@ -158,14 +168,12 @@ export default function ArtistCommissionSection({ handle }: ArtistCommissionSect
             </div>
             <div>
               <div className="flex items-center gap-2">
-                <h4 className="text-sm font-bold text-white">โหมดจัดการร้านค้าของศิลปิน (Artist Owner)</h4>
+                <h4 className="text-sm font-bold text-white">{o('ownerTitle')}</h4>
                 <span className="text-[10px] bg-blue-500/20 text-blue-300 font-extrabold px-2 py-0.5 rounded-full border border-blue-500/30">
-                  คุณเป็นเจ้าของหน้านี้
-                </span>
+                  {' '}{o('ownerBadge')}{' '}</span>
               </div>
               <p className="text-xs text-neutral-300 mt-0.5">
-                คุณสามารถกด ✏️ แก้ไขสเกล, ⚙️ ปรับกล่องฟอร์มบรีฟ หรือกด 👁️ ทดลองเปิดฟอร์ม ได้โดยตรงจากหน้านี้
-              </p>
+                {' '}{o('ownerHelp')}{' '}</p>
             </div>
           </div>
 
@@ -174,14 +182,12 @@ export default function ArtistCommissionSection({ handle }: ArtistCommissionSect
               onClick={() => setNewScaleModalOpen(true)}
               className="flex-1 sm:flex-none px-3.5 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-bold transition flex items-center justify-center gap-1.5 cursor-pointer shadow-sm"
             >
-              <Plus className="w-3.5 h-3.5" /> + เพิ่มสเกลใหม่
-            </button>
+              <Plus className="w-3.5 h-3.5" /> {' '}{o('addNew')}{' '}</button>
             <Link
               href="/dashboard/artist/commissions?tab=scales"
               className="flex-1 sm:flex-none px-3.5 py-2 bg-neutral-900 hover:bg-neutral-800 border border-neutral-700 text-neutral-200 hover:text-white rounded-xl text-xs font-bold transition flex items-center justify-center gap-1.5"
             >
-              <Sliders className="w-3.5 h-3.5 text-blue-400" /> ไปยัง Hub หลังบ้าน
-            </Link>
+              <Sliders className="w-3.5 h-3.5 text-blue-400" /> {' '}{o('studio')}{' '}</Link>
           </div>
         </div>
       )}
@@ -192,9 +198,9 @@ export default function ArtistCommissionSection({ handle }: ArtistCommissionSect
           <div className="flex items-start gap-2.5">
             <CheckCircle className="w-5 h-5 flex-shrink-0 mt-0.5" />
             <div>
-              <h4 className="text-sm font-bold text-white">ส่งคำขอจ้างงานเรียบร้อยแล้ว!</h4>
+              <h4 className="text-sm font-bold text-white">{c('requestSent')}</h4>
               <p className="text-xs text-neutral-300 mt-0.5">
-                ศิลปินได้รับบรีฟ {submittedReq.character_name} เรียบร้อยแล้ว ระบบจะส่งการแจ้งเตือนทันทีที่ศิลปินตอบรับคำขอ
+                {c('receivedBrief',{character:submittedReq.character_name})}
               </p>
             </div>
           </div>
@@ -217,7 +223,7 @@ export default function ArtistCommissionSection({ handle }: ArtistCommissionSect
         <div className="flex items-center justify-between">
           <h3 className="text-base font-bold text-white flex items-center gap-2">
             <Sparkles className="w-4 h-4 text-blue-400" />
-            <span>สเกลงานที่เปิดรับ (Commission Services &amp; Scales)</span>
+            <span>{c('scales')}</span>
           </h3>
 
           <div className="flex items-center gap-3">
@@ -226,8 +232,7 @@ export default function ArtistCommissionSection({ handle }: ArtistCommissionSect
                 onClick={() => setNewScaleModalOpen(true)}
                 className="text-xs text-emerald-400 hover:text-emerald-300 flex items-center gap-1 font-bold cursor-pointer"
               >
-                <Plus className="w-3.5 h-3.5" /> เพิ่มสเกล
-              </button>
+                <Plus className="w-3.5 h-3.5" /> {' '}{o('add')}{' '}</button>
             )}
 
             {policy?.terms_of_service && (
@@ -236,7 +241,7 @@ export default function ArtistCommissionSection({ handle }: ArtistCommissionSect
                 className="text-xs text-neutral-400 hover:text-blue-400 flex items-center gap-1 cursor-pointer font-semibold"
               >
                 <FileText className="w-3.5 h-3.5" />
-                <span>สัญญา TOS ของศิลปิน</span>
+                <span>{c('artistTerms')}</span>
                 {showTos ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
               </button>
             )}
@@ -246,11 +251,11 @@ export default function ArtistCommissionSection({ handle }: ArtistCommissionSect
         {/* Collapsible TOS */}
         {showTos && policy?.terms_of_service && (
           <div className="bg-neutral-900/80 border border-neutral-800 rounded-2xl p-5 text-xs text-neutral-300 space-y-2 whitespace-pre-wrap leading-relaxed">
-            <h4 className="font-bold text-white">ข้อตกลงและลิขสิทธิ์ (Terms of Service):</h4>
+            <h4 className="font-bold text-white">{c('terms')}</h4>
             <p>{policy.terms_of_service}</p>
             {policy.refund_policy && (
               <div className="pt-2 border-t border-neutral-800">
-                <span className="font-bold text-white block">นโยบายการคืนเงิน:</span>
+                <span className="font-bold text-white block">{c('refund')}</span>
                 <p>{policy.refund_policy}</p>
               </div>
             )}
@@ -262,7 +267,7 @@ export default function ArtistCommissionSection({ handle }: ArtistCommissionSect
 
         {services.length === 0 ? (
           <div className="p-8 text-center text-neutral-500 bg-neutral-900/40 rounded-2xl border border-neutral-800 text-xs">
-            ศิลปินยังไม่ได้เปิดแพ็กเกจสเกลงานในขณะนี้
+            {c('emptyServices')}
           </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -295,10 +300,10 @@ export default function ArtistCommissionSection({ handle }: ArtistCommissionSect
                         }`}
                       >
                         {svc.effective_status === 'OPEN'
-                          ? `🟢 เปิดรับ (${svc.max_slots - svc.used_slots} สล็อต)`
+                          ? c('slotsOpen',{count:svc.max_slots-svc.used_slots})
                           : svc.effective_status === 'WAITLIST'
-                          ? '🟡 รอคิว (Waitlist)'
-                          : '⚫ ปิดรับชั่วคราว'}
+                          ? c('slotWaitlist')
+                          : svc.effective_status === 'FULL' ? c('slotFull') : c('slotClosed')}
                       </span>
                     </div>
 
@@ -309,26 +314,26 @@ export default function ArtistCommissionSection({ handle }: ArtistCommissionSect
                     {/* Stats pills */}
                     <div className="grid grid-cols-2 gap-2 bg-neutral-950 p-2.5 rounded-xl border border-neutral-800/60 text-xs">
                       <div>
-                        <span className="text-[10px] text-neutral-500 block">ราคาเริ่มต้น:</span>
+                        <span className="text-[10px] text-neutral-500 block">{c('startingPrice')}</span>
                         <span className="font-bold text-emerald-400">฿{svc.base_price.toLocaleString()}</span>
                       </div>
                       <div>
-                        <span className="text-[10px] text-neutral-500 block">ระยะเวลาเฉลี่ย:</span>
-                        <span className="font-bold text-neutral-200">{svc.estimated_days} วัน</span>
+                        <span className="text-[10px] text-neutral-500 block">{c('duration')}</span>
+                        <span className="font-bold text-neutral-200">{c('days',{days:svc.estimated_days})}</span>
                       </div>
                     </div>
 
                     {/* Modular Form Blocks active tags preview */}
                     {svc.form_schema && svc.form_schema.filter((b) => b.enabled).length > 0 && (
                       <div className="text-[11px] text-neutral-400 space-y-1">
-                        <span className="text-[10px] text-neutral-500 block font-bold">กล่องฟอร์มที่เปิดใช้:</span>
+                        <span className="text-[10px] text-neutral-500 block font-bold">{c('formOptions')}</span>
                         <div className="flex flex-wrap gap-1">
                           {svc.form_schema.filter((b) => b.enabled).map((b) => (
                             <span
                               key={b.id || b.type}
                               className="bg-neutral-950 px-2 py-0.5 rounded-md text-[10px] border border-neutral-800 text-blue-300"
                             >
-                              ✓ {b.title || b.type}
+                              ✓ {getCommissionBlockText(b, locale)}
                             </span>
                           ))}
                         </div>
@@ -338,7 +343,7 @@ export default function ArtistCommissionSection({ handle }: ArtistCommissionSect
                     {/* Addons Preview */}
                     {svc.addons.length > 0 && (
                       <div className="text-[11px] text-neutral-400 space-y-1">
-                        <span className="text-[10px] text-neutral-500 block font-bold">ตัวเลือกเสริมที่มีให้เลือก:</span>
+                        <span className="text-[10px] text-neutral-500 block font-bold">{c('availableAddons')}</span>
                         <div className="flex flex-wrap gap-1">
                           {svc.addons.slice(0, 3).map((ad) => (
                             <span
@@ -350,7 +355,7 @@ export default function ArtistCommissionSection({ handle }: ArtistCommissionSect
                           ))}
                           {svc.addons.length > 3 && (
                             <span className="text-[10px] text-neutral-500 self-center">
-                              +{svc.addons.length - 3} รายการ
+                              {c('moreAddons',{count:svc.addons.length-3})}
                             </span>
                           )}
                         </div>
@@ -369,16 +374,14 @@ export default function ArtistCommissionSection({ handle }: ArtistCommissionSect
                           className="py-2 px-2.5 bg-neutral-950 hover:bg-neutral-900 border border-neutral-800 hover:border-amber-500/50 rounded-xl text-xs font-bold text-neutral-200 hover:text-white flex items-center justify-center gap-1.5 cursor-pointer transition shadow-sm"
                         >
                           <Edit3 className="w-3.5 h-3.5 text-amber-400" />
-                          ✏️ แก้ไขสเกล
-                        </button>
+                          {' '}{o('edit')}{' '}</button>
                         <button
                           type="button"
                           onClick={() => setEditingFormSchemaService(svc)}
                           className="py-2 px-2.5 bg-neutral-950 hover:bg-neutral-900 border border-neutral-800 hover:border-blue-500/50 rounded-xl text-xs font-bold text-neutral-200 hover:text-white flex items-center justify-center gap-1.5 cursor-pointer transition shadow-sm"
                         >
                           <Settings className="w-3.5 h-3.5 text-blue-400" />
-                          ⚙️ ปรับฟอร์มบรีฟ
-                        </button>
+                          {' '}{o('configure')}{' '}</button>
                       </div>
                     )}
 
@@ -394,11 +397,10 @@ export default function ArtistCommissionSection({ handle }: ArtistCommissionSect
                       >
                         {isOwner ? (
                           <>
-                            <Eye className="w-3.5 h-3.5 text-blue-400" /> 👁️ ทดลองเปิดฟอร์มบรีฟ (Preview)
-                          </>
+                            <Eye className="w-3.5 h-3.5 text-blue-400" /> {' '}{o('preview')}{' '}</>
                         ) : (
                           <>
-                            <Sparkles className="w-3.5 h-3.5" /> ส่งบรีฟขอจ้างงาน
+                            <Sparkles className="w-3.5 h-3.5" /> {c('request')}
                           </>
                         )}
                       </button>
@@ -407,11 +409,10 @@ export default function ArtistCommissionSection({ handle }: ArtistCommissionSect
                         onClick={() => handleOpenIntake(svc)}
                         className="w-full bg-neutral-800 hover:bg-neutral-700 border border-neutral-700 text-neutral-200 text-xs font-bold py-2.5 rounded-xl transition-all flex items-center justify-center gap-1.5 cursor-pointer"
                       >
-                        <Eye className="w-3.5 h-3.5 text-blue-400" /> 👁️ ทดลองเปิดฟอร์มบรีฟ (Preview แม้คิวปิด)
-                      </button>
+                        <Eye className="w-3.5 h-3.5 text-blue-400" /> {' '}{o('previewClosed')}{' '}</button>
                     ) : (
                       <div className="w-full flex items-center justify-between gap-2">
-                        <span className="text-[11px] text-neutral-500 italic">คิวเต็มหรือปิดรับ</span>
+                        <span className="text-[11px] text-neutral-500 italic">{svc.effective_status === 'FULL' ? c('fullyBooked') : c('slotClosed')}</span>
                         <SlotAlertBell
                           artistId={artist_id}
                           serviceId={svc.id}
@@ -428,19 +429,22 @@ export default function ArtistCommissionSection({ handle }: ArtistCommissionSect
       </div>
 
       {/* Client Intake Modal */}
-      {selectedService && (
+      {commissionInfo.services.filter((service) => openedServiceIds.includes(service.id)).map((service) => (
         <CommissionIntakeModal
-          isOpen={isModalOpen}
+          key={`${user?.id ?? 'guest'}:${handle}:${service.id}`}
+          isOpen={isModalOpen && selectedService?.id === service.id}
           onClose={() => setIsModalOpen(false)}
-          service={selectedService}
+          service={service}
           policy={policy}
           artistHandle={handle}
           onSuccess={(req) => {
             setIsModalOpen(false);
+            // Reset only the submitted form; other-service drafts remain mounted.
+            setOpenedServiceIds(ids => ids.filter(id => id !== service.id));
             setSubmittedReq(req);
           }}
         />
-      )}
+      ))}
 
       {/* Owner: Edit Scale Modal */}
       {editingScaleService && (
@@ -477,11 +481,12 @@ export default function ArtistCommissionSection({ handle }: ArtistCommissionSect
       {/* Owner: New Scale Modal */}
       {newScaleModalOpen && typeof document !== 'undefined' && createPortal(
         <div className="fixed inset-0 z-[200] bg-black/85 backdrop-blur-sm flex items-center justify-center p-3 sm:p-4">
-          <form
+          <StudioFormDialog label={o('createTitle')} onClose={() => setNewScaleModalOpen(false)}
             onSubmit={(e) => {
               e.preventDefault();
+              if (createScaleMutation.isPending) return;
               if (!newScaleTitle.trim()) {
-                alert('กรุณากรอกชื่อสเกลงาน');
+                alert(o('titleRequired'));
                 return;
               }
               createScaleMutation.mutate();
@@ -492,11 +497,11 @@ export default function ArtistCommissionSection({ handle }: ArtistCommissionSect
             <div className="flex items-center justify-between px-5 py-3.5 border-b border-neutral-800 bg-neutral-900/95 shrink-0">
               <h3 className="text-sm sm:text-base font-bold text-white flex items-center gap-2">
                 <Plus className="w-4 h-4 text-emerald-400" />
-                เพิ่มสเกลงาน / ฟอร์มคอมมิชชันใหม่
-              </h3>
+                {' '}{o('createTitle')}{' '}</h3>
               <button
                 type="button"
                 onClick={() => setNewScaleModalOpen(false)}
+                aria-label={o('close')}
                 className="text-neutral-400 hover:text-white p-1.5 rounded-xl bg-neutral-800/60 hover:bg-neutral-800 cursor-pointer"
               >
                 ✕
@@ -508,27 +513,27 @@ export default function ArtistCommissionSection({ handle }: ArtistCommissionSect
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                 <div className="sm:col-span-2">
                   <label className="text-neutral-300 font-bold block mb-1">
-                    ชื่อสเกลงาน (Scale Title) <span className="text-red-400">*</span>:
+                    {' '}{o('title')}{' '}<span className="text-red-400">*</span>:
                   </label>
                   <input
                     type="text"
                     required
                     data-testid="input-new-scale-title-public"
-                    value={newScaleTitle}
+                    aria-label={o('title')} value={newScaleTitle}
                     onChange={(e) => setNewScaleTitle(e.target.value)}
-                    placeholder="เช่น Full-body Character, Bust-up Avatar..."
+                    placeholder={o('titlePlaceholder')}
                     className="w-full bg-neutral-950 border border-neutral-800 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-emerald-500 font-semibold"
                   />
                 </div>
 
                 <div>
-                  <label className="text-neutral-300 font-bold block mb-1">หมวดหมู่ (Category):</label>
+                  <label className="text-neutral-300 font-bold block mb-1">{o('category')}</label>
                   <input
                     type="text"
                     data-testid="input-new-scale-category-public"
-                    value={newScaleCategory}
+                    aria-label={o('category')} value={newScaleCategory}
                     onChange={(e) => setNewScaleCategory(e.target.value)}
-                    placeholder="เช่น Illustration..."
+                    placeholder={o('categoryPlaceholder')}
                     className="w-full bg-neutral-950 border border-neutral-800 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-emerald-500"
                   />
                 </div>
@@ -536,14 +541,13 @@ export default function ArtistCommissionSection({ handle }: ArtistCommissionSect
 
               <div>
                 <label className="text-neutral-300 font-bold block mb-1">
-                  รายละเอียดสเกลงาน (Description):
-                </label>
+                  {' '}{o('description')}{' '}</label>
                 <textarea
                   rows={2}
                   data-testid="input-new-scale-description-public"
-                  value={newScaleDescription}
+                  aria-label={o('description')} value={newScaleDescription}
                   onChange={(e) => setNewScaleDescription(e.target.value)}
-                  placeholder="อธิบายขอบเขตของสเกลนี้ เช่น วาดเต็มตัว ลงสีละเอียด พร้อมฉากหลังธรรมดา..."
+                  placeholder={o('descriptionPlaceholder')}
                   className="w-full bg-neutral-950 border border-neutral-800 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-emerald-500"
                 />
               </div>
@@ -551,14 +555,14 @@ export default function ArtistCommissionSection({ handle }: ArtistCommissionSect
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                 <div>
                   <label className="text-neutral-300 font-bold block mb-1">
-                    ราคาเริ่มต้น (฿) <span className="text-red-400">*</span>:
+                    {' '}{o('price')}{' '}<span className="text-red-400">*</span>:
                   </label>
                   <input
-                    type="number"
+                    type="number" step="0.01"
                     min={1}
                     required
                     data-testid="input-new-scale-price-public"
-                    value={newScaleBasePrice}
+                    aria-label={o('price')} value={newScaleBasePrice}
                     onChange={(e) => setNewScaleBasePrice(Number(e.target.value))}
                     className="w-full bg-neutral-950 border border-neutral-800 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-emerald-500 font-bold"
                   />
@@ -566,14 +570,13 @@ export default function ArtistCommissionSection({ handle }: ArtistCommissionSect
 
                 <div>
                   <label className="text-neutral-300 font-bold block mb-1">
-                    เวลาเฉลี่ย (วัน):
-                  </label>
+                    {' '}{o('days')}{' '}</label>
                   <input
                     type="number"
                     min={1}
                     max={365}
                     data-testid="input-new-scale-days-public"
-                    value={newScaleEstimatedDays}
+                    aria-label={o('days')} value={newScaleEstimatedDays}
                     onChange={(e) => setNewScaleEstimatedDays(Number(e.target.value))}
                     className="w-full bg-neutral-950 border border-neutral-800 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-emerald-500 font-bold"
                   />
@@ -581,14 +584,13 @@ export default function ArtistCommissionSection({ handle }: ArtistCommissionSect
 
                 <div>
                   <label className="text-neutral-300 font-bold block mb-1">
-                    สล็อตสูงสุด:
-                  </label>
+                    {' '}{o('slots')}{' '}</label>
                   <input
                     type="number"
                     min={1}
                     max={100}
                     data-testid="input-new-scale-slots-public"
-                    value={newScaleMaxSlots}
+                    aria-label={o('slots')} value={newScaleMaxSlots}
                     onChange={(e) => setNewScaleMaxSlots(Number(e.target.value))}
                     className="w-full bg-neutral-950 border border-neutral-800 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-emerald-500 font-bold"
                   />
@@ -596,15 +598,14 @@ export default function ArtistCommissionSection({ handle }: ArtistCommissionSect
 
                 <div>
                   <label className="text-neutral-300 font-bold block mb-1">
-                    สถานะฟอร์ม:
-                  </label>
+                    {' '}{o('availability')}{' '}</label>
                   <select
-                    value={newScaleIsOpen ? 'OPEN' : 'CLOSED'}
+                    aria-label={o('availability')} value={newScaleIsOpen ? 'OPEN' : 'CLOSED'}
                     onChange={(e) => setNewScaleIsOpen(e.target.value === 'OPEN')}
                     className="w-full bg-neutral-950 border border-neutral-800 rounded-xl px-2.5 py-2 text-white focus:outline-none focus:border-emerald-500 font-bold"
                   >
-                    <option value="OPEN">🟢 เปิดรับ</option>
-                    <option value="CLOSED">⚫ ปิดรับ</option>
+                    <option value="OPEN">{o('open')}</option>
+                    <option value="CLOSED">{o('closed')}</option>
                   </select>
                 </div>
               </div>
@@ -617,8 +618,7 @@ export default function ArtistCommissionSection({ handle }: ArtistCommissionSect
                 onClick={() => setNewScaleModalOpen(false)}
                 className="px-4 py-2 bg-neutral-800 hover:bg-neutral-700 text-neutral-300 text-xs font-bold rounded-xl cursor-pointer"
               >
-                ยกเลิก
-              </button>
+                {' '}{o('cancel')}{' '}</button>
               <button
                 type="submit"
                 data-testid="btn-submit-new-scale-public"
@@ -627,16 +627,14 @@ export default function ArtistCommissionSection({ handle }: ArtistCommissionSect
               >
                 {createScaleMutation.isPending ? (
                   <>
-                    <Loader2 className="w-3.5 h-3.5 animate-spin" /> กำลังสร้าง...
-                  </>
+                    <Loader2 className="w-3.5 h-3.5 animate-spin" /> {' '}{o('creating')}{' '}</>
                 ) : (
                   <>
-                    <Plus className="w-3.5 h-3.5" /> สร้างสเกลงาน
-                  </>
+                    <Plus className="w-3.5 h-3.5" /> {' '}{o('create')}{' '}</>
                 )}
               </button>
             </div>
-          </form>
+          </StudioFormDialog>
         </div>,
         document.body
       )}

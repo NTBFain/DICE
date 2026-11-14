@@ -8,11 +8,12 @@ def get_setting(session: Session, key: str, default: str) -> str:
         return default
     return setting.value
 
-def set_setting(session: Session, key: str, value: str):
+def set_setting(session: Session, key: str, value: str, *, commit: bool = True):
     setting = session.get(SystemSetting, key)
     if not setting:
         setting = SystemSetting(key=key, value=value)
     else:
         setting.value = value
     session.add(setting)
-    session.commit()
+    if commit:
+        session.commit()

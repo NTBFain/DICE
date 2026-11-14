@@ -4,16 +4,27 @@ from sqlmodel import Session, select
 from typing import List
 import os
 import secrets
+import re
 
 from core.db import get_session
 from core.auth import get_admin_user, get_artist_user
 from core.security_file import validate_and_save_upload
-from models import Character, User, ArtistProfile
+from models import Character, User, ArtistProfile, Artwork
 from schemas import CharacterResponse
 
 router = APIRouter(prefix="/api/characters", tags=["characters"])
 
 ALLOWED_CHARACTER_IMAGE_EXTENSIONS = {".jpg", ".jpeg", ".png", ".webp", ".gif"}
+
+
+def _validated_theme_colour(value):
+    if value is None or not value.strip():
+        return None
+    colour = value.strip()
+    if not re.fullmatch(r"#[0-9a-fA-F]{6}", colour):
+        raise HTTPException(status_code=422, detail="Character colour must be a six-digit hex value, such as #3366FF.")
+    return colour
+
 
 @router.get("", response_model=List[CharacterResponse])
 def get_characters(session: Session = Depends(get_session)):
@@ -44,6 +55,7 @@ def create_character(
         raise HTTPException(status_code=400, detail="You must register an artist profile before adding characters")
         
     artist_id = profile.id if profile else None
+    validated_colour = _validated_theme_colour(theme_color)
 
     image_url = None
     if image and image.filename:
@@ -61,7 +73,7 @@ def create_character(
     character = Character(
         name=name.strip(),
         description=description.strip() if description else None,
-        theme_color=theme_color.strip() if theme_color else None,
+        theme_color=validated_colour,
         image_url=image_url,
         artist_id=artist_id
     )
@@ -89,12 +101,13 @@ def update_character(
         if not profile or character.artist_id != profile.id:
             raise HTTPException(status_code=403, detail="Not authorized to modify this character")
 
+    validated_colour = _validated_theme_colour(theme_color)
     if name is not None:
         character.name = name.strip()
     if description is not None:
         character.description = description.strip()
     if theme_color is not None:
-        character.theme_color = theme_color.strip()
+        character.theme_color = validated_colour
         
     if image and image.filename:
         ext = os.path.splitext(image.filename)[1].lower()
@@ -136,15 +149,20 @@ def delete_character(
         if not profile or character.artist_id != profile.id:
             raise HTTPException(status_code=403, detail="Not authorized to modify this character")
 
+    image_path = None
     if character.image_url and "/api/characters/images/" in character.image_url:
-        filename = os.path.basename(character.image_url)
-        path = os.path.join("uploads/characters", filename)
-        if os.path.exists(path):
-            try:
-                os.remove(path)
-            except OSError:
-                pass
+        image_path = os.path.join("uploads/characters", os.path.basename(character.image_url))
 
+    # Keep artworks, removing only their link to the deleted character.
+    for artwork in session.exec(select(Artwork).where(Artwork.character_id == character.id)).all():
+        artwork.character_id = None
+        session.add(artwork)
+    session.flush()
     session.delete(character)
     session.commit()
+    if image_path and os.path.exists(image_path):
+        try:
+            os.remove(image_path)
+        except OSError:
+            pass
     return {"message": "Character deleted successfully"}

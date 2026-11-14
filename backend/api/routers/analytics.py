@@ -3,6 +3,7 @@ from sqlmodel import Session, select, func
 from typing import List, Optional
 from pydantic import BaseModel
 import calendar
+from decimal import Decimal
 from datetime import datetime, timedelta
 
 from core.db import get_session
@@ -37,6 +38,8 @@ def get_analytics(
     artist_id = profile.id if profile else None
     user_id = current_user.id
     
+    if period not in {'week', 'month', 'quarter', 'year'}:
+        period = 'month'
     now = datetime.utcnow()
     
     # Define start and end dates based on period
@@ -63,30 +66,33 @@ def get_analytics(
         _, last_day = calendar.monthrange(now.year, now.month)
         end_date = start_date.replace(day=last_day, hour=23, minute=59, second=59)
 
-    # 1. Revenue from paid invoices within the time frame
-    inv_statement = select(MilestoneInvoice).where(
+    # Each paid invoice contributes once, using the same selected time window
+    # for the trend and source totals. Unpaid auction wins are not earnings.
+    inv_statement = select(MilestoneInvoice, Auction.auction_type).join(
+        Order, Order.id == MilestoneInvoice.order_id
+    ).outerjoin(Auction, Auction.id == Order.auction_id).where(
         MilestoneInvoice.is_paid == True,
         MilestoneInvoice.created_at >= start_date,
-        MilestoneInvoice.created_at <= end_date
+        MilestoneInvoice.created_at < end_date + timedelta(seconds=1),
     )
     if not current_user.is_admin:
-        inv_statement = inv_statement.join(Order).where((Order.artist_id == user_id) | (Order.artist_id == artist_id))
-        
-    invoices = session.exec(inv_statement).all()
-    
+        inv_statement = inv_statement.where(Order.artist_id == user_id)
+    paid_rows = session.exec(inv_statement).all()
+    invoices = [invoice for invoice, _auction_type in paid_rows]
+
     period_data = {}
     if period == "week":
         for d in ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]:
-            period_data[d] = 0
+            period_data[d] = Decimal('0')
     elif period == "month":
         for w in range(1, 6):
-            period_data[f"Week {w}"] = 0
+            period_data[f"Week {w}"] = Decimal('0')
     elif period == "quarter":
         for m in range(start_date.month, end_date.month + 1):
-            period_data[calendar.month_abbr[m]] = 0
+            period_data[calendar.month_abbr[m]] = Decimal('0')
     elif period == "year":
         for m in range(1, 13):
-            period_data[calendar.month_abbr[m]] = 0
+            period_data[calendar.month_abbr[m]] = Decimal('0')
 
     for inv in invoices:
         dt = inv.created_at
@@ -99,29 +105,19 @@ def get_analytics(
             period_str = dt.strftime("%b")
             
         if period_str in period_data:
-            period_data[period_str] += inv.amount
+            period_data[period_str] += Decimal(str(inv.amount))
         
-    revenue_data = [{"period": k, "revenue": round(v, 2)} for k, v in period_data.items()]
+    revenue_data = [{"period": k, "revenue": float(round(v, 2))} for k, v in period_data.items()]
     
-    # 2. Commission revenue sum
-    comm_sum_query = select(func.sum(MilestoneInvoice.amount)).where(MilestoneInvoice.is_paid == True)
-    if not current_user.is_admin:
-        comm_sum_query = comm_sum_query.join(Order).where((Order.artist_id == user_id) | (Order.artist_id == artist_id))
-    commission_revenue = session.exec(comm_sum_query).first() or 0.0
-
-    # 3. Adoptable Auctions revenue
-    auc_sum_query = select(func.sum(Auction.winning_bid)).where(
-        Auction.winning_bid != None,
-        Auction.auction_type == AuctionType.ADOPTABLE
-    )
-    if not current_user.is_admin:
-        auc_sum_query = auc_sum_query.where((Auction.artist_id == artist_id) | (Auction.artist_id == user_id))
-    adoptable_revenue = session.exec(auc_sum_query).first() or 0.0
+    commission_revenue = sum((Decimal(str(invoice.amount)) for invoice, auction_type in paid_rows
+                              if auction_type != AuctionType.ADOPTABLE), Decimal('0'))
+    adoptable_revenue = sum((Decimal(str(invoice.amount)) for invoice, auction_type in paid_rows
+                             if auction_type == AuctionType.ADOPTABLE), Decimal('0'))
 
     # 4. Average bid / order stats
     auc_stats_query = select(func.sum(Auction.winning_bid), func.count(Auction.id)).where(Auction.winning_bid != None)
     if not current_user.is_admin:
-        auc_stats_query = auc_stats_query.where((Auction.artist_id == artist_id) | (Auction.artist_id == user_id))
+        auc_stats_query = auc_stats_query.where(Auction.artist_id == artist_id)
     stats = session.exec(auc_stats_query).first()
     
     total_bids = stats[0] if stats and stats[0] else 0.0
@@ -131,7 +127,7 @@ def get_analytics(
     # 5. Completed orders & clients count
     order_query = select(Order)
     if not current_user.is_admin:
-        order_query = order_query.where((Order.artist_id == user_id) | (Order.artist_id == artist_id))
+        order_query = order_query.where(Order.artist_id == user_id)
     orders = session.exec(order_query).all()
     
     completed_orders = len([o for o in orders if o.status == OrderStatus.COMPLETED])

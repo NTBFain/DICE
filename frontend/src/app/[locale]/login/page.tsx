@@ -6,13 +6,20 @@ import { useRouter } from '@/i18n/routing';
 import { useSearchParams } from 'next/navigation';
 import { Loader2, Lock, Mail, User, Eye, EyeOff } from 'lucide-react';
 import { useTranslations } from 'next-intl';
+import { getErrorMessage } from '@/lib/errorMessage';
+import { useQuery } from '@tanstack/react-query';
+import { apiClient } from '@/lib/api';
 
 function LoginFormContent() {
-  const { user, loginUser, registerUser } = useAuth();
+  const { user, loginUser, registerUser, loading: sessionLoading } = useAuth();
   const router = useRouter();
   const searchParams = useSearchParams();
   const redirectUrl = searchParams.get('redirect');
   const t = useTranslations('Login');
+  const { data: demoEnabled = false } = useQuery({
+    queryKey: ['demo-mode'], queryFn: async () => (await apiClient.get('/demo')).data.enabled === true,
+    retry: false,
+  });
   const [isRegister, setIsRegister] = useState(false);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -37,25 +44,27 @@ function LoginFormContent() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (loading || sessionLoading) return;
     setError('');
+    if (isRegister && !fullName.trim()) { setError(t('nameRequired')); return; }
+    if (isRegister && (password.length < 8 || password.length > 128)) { setError(t('passwordLength')); return; }
     setLoading(true);
 
     try {
       if (isRegister) {
-        await registerUser({ email, password, full_name: fullName });
+        await registerUser({ email: email.trim().toLowerCase(), password, full_name: fullName.trim() });
       } else {
-        await loginUser({ email, password });
+        await loginUser({ email: email.trim().toLowerCase(), password });
       }
     } catch (err) {
-      const errorMsg = (err as { response?: { data?: { detail?: string } } }).response?.data?.detail || 'An error occurred. Please try again.';
-      setError(errorMsg);
+      setError(getErrorMessage(err, t('requestError')));
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <div className="flex-1 flex items-center justify-center p-4 sm:p-6 bg-neutral-950">
+    <div data-page-surface className="flex-1 flex items-center justify-center p-4 sm:p-6 bg-neutral-950">
       <div className="w-full max-w-md bg-neutral-900/50 border border-neutral-800/90 p-6 sm:p-8 rounded-2xl shadow-xl relative overflow-hidden">
         <div className="relative">
           <div className="text-center mb-6">
@@ -68,7 +77,7 @@ function LoginFormContent() {
           </div>
 
           {/* Quick Demo Login Credentials Buttons */}
-          {!isRegister && (
+          {!isRegister && demoEnabled && (
             <div className="mb-6 p-3 bg-neutral-950 border border-neutral-800 rounded-xl space-y-2">
               <span className="text-[10px] font-bold uppercase tracking-wider text-neutral-400 block">
                 {t('quickCredentials')}
@@ -112,7 +121,7 @@ function LoginFormContent() {
           )}
 
           {error && (
-            <div className="bg-red-500/10 border border-red-500/20 text-red-400 text-xs px-4 py-3 rounded-xl mb-5">
+            <div role="alert" className="bg-red-500/10 border border-red-500/20 text-red-400 text-xs px-4 py-3 rounded-xl mb-5">
               {error}
             </div>
           )}
@@ -129,6 +138,8 @@ function LoginFormContent() {
                   </span>
                   <input
                     type="text"
+                    aria-label={t('fullName')}
+                    autoComplete="name"
                     required
                     placeholder="John Doe"
                     value={fullName}
@@ -149,6 +160,8 @@ function LoginFormContent() {
                 </span>
                 <input
                   type="email"
+                  aria-label={t('email')}
+                  autoComplete="email"
                   required
                   placeholder="name@example.com"
                   value={email}
@@ -168,6 +181,10 @@ function LoginFormContent() {
                 </span>
                 <input
                   type={showPassword ? 'text' : 'password'}
+                  aria-label={t('password')}
+                  autoComplete={isRegister ? 'new-password' : 'current-password'}
+                  minLength={isRegister ? 8 : undefined}
+                  maxLength={128}
                   required
                   placeholder="••••••••"
                   value={password}
@@ -176,6 +193,8 @@ function LoginFormContent() {
                 />
                 <button
                   type="button"
+                  aria-label={showPassword ? t('hidePassword') : t('showPassword')}
+                  aria-pressed={showPassword}
                   onClick={() => setShowPassword(!showPassword)}
                   className="absolute inset-y-0 right-0 pr-3 flex items-center text-neutral-500 hover:text-white transition-colors cursor-pointer"
                 >
@@ -186,7 +205,7 @@ function LoginFormContent() {
 
             <button
               type="submit"
-              disabled={loading}
+              disabled={loading || sessionLoading}
               className="w-full bg-blue-600 hover:bg-blue-500 text-white font-bold py-3 rounded-xl transition-all flex items-center justify-center gap-2 disabled:opacity-50 disabled:hover:bg-blue-600 cursor-pointer text-sm shadow-md"
             >
               {loading ? (
@@ -224,7 +243,7 @@ export default function LoginPage() {
   return (
     <Suspense
       fallback={
-        <div className="flex-1 flex items-center justify-center p-4 sm:p-6 bg-neutral-950 min-h-[60vh]">
+        <div data-page-surface className="flex-1 flex items-center justify-center p-4 sm:p-6 bg-neutral-950 min-h-[60vh]">
           <Loader2 className="w-8 h-8 text-neutral-500 animate-spin" />
         </div>
       }

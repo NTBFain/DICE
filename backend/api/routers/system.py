@@ -8,7 +8,7 @@ import shutil
 from core.db import get_session
 from core.auth import get_admin_user, get_current_user_optional
 from core.security_file import validate_and_save_upload
-from models import User, ArtistProfile
+from models import User, ArtistProfile, SystemSetting
 from schemas import CommissionStatusResponse, CommissionStatusUpdateRequest
 from services import get_setting, set_setting
 
@@ -66,33 +66,37 @@ def update_watermark_settings(
     session: Session = Depends(get_session),
     admin_user: User = Depends(get_admin_user)
 ):
-    set_setting(session, "watermark_type", type)
-    set_setting(session, "watermark_text", text)
-    set_setting(session, "watermark_pattern", pattern)
-    set_setting(session, "watermark_rotation", str(rotation))
-    set_setting(session, "watermark_opacity", str(opacity))
-    set_setting(session, "watermark_tile_density", tile_density)
-    set_setting(session, "watermark_include_anti_ai_grid", "true" if include_anti_ai_grid else "false")
-    
-    if image and image.filename:
-        ext = os.path.splitext(image.filename)[1].lower()
-        if ext not in ALLOWED_LOGO_EXTENSIONS:
-            raise HTTPException(
-                status_code=400, 
-                detail="Only raster images (.png, .jpg, .jpeg, .webp) are allowed as watermark logos. SVG files are disallowed."
-            )
-            
-        os.makedirs("uploads/watermark_logos", exist_ok=True)
-        filename = f"logo_{secrets.token_hex(4)}{ext}"
-        logo_path = os.path.join("uploads/watermark_logos", filename)
-        
-        validate_and_save_upload(image, logo_path, max_size=5 * 1024 * 1024, is_deliverable=False)
-            
-        web_path = f"/api/commissions/watermark/logo?filename={filename}"
-        set_setting(session, "watermark_image_path", web_path)
-        set_setting(session, "watermark_image_filename", filename)
-        
+    values = {
+        "watermark_type": type,
+        "watermark_text": text,
+        "watermark_pattern": pattern,
+        "watermark_rotation": str(rotation),
+        "watermark_opacity": str(opacity),
+        "watermark_tile_density": tile_density,
+        "watermark_include_anti_ai_grid": "true" if include_anti_ai_grid else "false",
+    }
+    logo_path = None
+    try:
+        if image and image.filename:
+            ext = os.path.splitext(image.filename)[1].lower()
+            if ext not in ALLOWED_LOGO_EXTENSIONS:
+                raise HTTPException(status_code=400, detail="Only raster images (.png, .jpg, .jpeg, .webp) are allowed as watermark logos. SVG files are disallowed.")
+            os.makedirs("uploads/watermark_logos", exist_ok=True)
+            filename = f"logo_{secrets.token_hex(4)}{ext}"
+            logo_path = os.path.join("uploads/watermark_logos", filename)
+            validate_and_save_upload(image, logo_path, max_size=5 * 1024 * 1024, is_deliverable=False)
+            values["watermark_image_path"] = f"/api/commissions/watermark/logo?filename={filename}"
+            values["watermark_image_filename"] = filename
+        for key, value in values.items():
+            set_setting(session, key, value, commit=False)
+        session.commit()
+    except Exception:
+        session.rollback()
+        if logo_path and os.path.exists(logo_path):
+            os.remove(logo_path)
+        raise
     return get_watermark_settings(session)
+
 
 @router.get("/watermark/logo")
 def get_watermark_logo(filename: str):
@@ -105,6 +109,7 @@ def get_watermark_logo(filename: str):
 @router.get("/homepage_text")
 def get_homepage_text(session: Session = Depends(get_session)):
     return {
+        "is_customized": any(session.get(SystemSetting, f"homepage_{key}") is not None for key in ["hero_tag", "hero_title_1", "hero_title_2", "hero_subtitle", "badge_1", "badge_2", "badge_3"]),
         "hero_tag": get_setting(session, "homepage_hero_tag", "2D CHARACTER ATELIER"),
         "hero_title_1": get_setting(session, "homepage_hero_title_1", "Handcrafted 2D Character"),
         "hero_title_2": get_setting(session, "homepage_hero_title_2", "Illustrations & Models"),

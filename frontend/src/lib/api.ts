@@ -1,3 +1,4 @@
+import type { CommissionBrief } from './commissionBrief';
 import axios from 'axios';
 
 const hostname = typeof window !== 'undefined' ? window.location.hostname : '127.0.0.1';
@@ -84,7 +85,9 @@ export type User = {
 };
 
 export type Order = {
+  commission_brief?: CommissionBrief | null;
   id: number;
+  auction_id?: number;
   title: string;
   description: string;
   status: 'PENDING' | 'ACCEPTED' | 'SKETCHING' | 'COLORING' | 'COMPLETED' | 'CANCELLED';
@@ -391,6 +394,7 @@ export const createOrder = async (data: {
   title: string; 
   description: string; 
   artist_id: number;
+  client_email?: string;
   revision_quota?: number;
   start_date?: string;
   due_date?: string;
@@ -409,7 +413,7 @@ export type PublicQueueSlot = {
   order_id: number;
   status: string;
   stage: string;
-  client_id: number;
+  client_id: number | null;
   title: string;
   client_name: string;
   start_date?: string;
@@ -417,8 +421,8 @@ export type PublicQueueSlot = {
   created_at?: string;
 };
 
-export const getPublicQueue = async () => {
-  const response = await apiClient.get<PublicQueueSlot[]>('/public/queue');
+export const getPublicQueue = async (artistId?: number) => {
+  const response = await apiClient.get<PublicQueueSlot[]>('/public/queue', { params: artistId === undefined ? undefined : { artist_id: artistId } });
   return response.data;
 };
 
@@ -514,7 +518,7 @@ export const downloadOrderFile = async (orderId: number, fileId: number, filenam
   const response = await apiClient.get(`/orders/${orderId}/files/${fileId}/download`, {
     responseType: 'blob',
   });
-  const url = window.URL.createObjectURL(new Blob([response.data]));
+  const url = window.URL.createObjectURL(response.data);
   const link = document.createElement('a');
   link.href = url;
   link.setAttribute('download', filename);
@@ -605,6 +609,7 @@ export const updateCommissionStatus = async (open: boolean) => {
 };
 
 export interface HomepageTextSettings {
+  is_customized?: boolean;
   hero_tag: string;
   hero_title_1: string;
   hero_title_2: string;

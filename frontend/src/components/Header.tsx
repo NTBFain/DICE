@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useId, useRef, useState } from 'react';
 import { Link, useRouter, usePathname } from '@/i18n/routing';
 import { useAuth } from './AuthContext';
 import { LayoutTemplate, UserCircle, LogOut, LayoutDashboard, Gavel, Globe, Users } from 'lucide-react';
@@ -16,6 +16,20 @@ export default function Header() {
   const t = useTranslations('Navigation');
 
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const mobileMenuButton = useRef<HTMLButtonElement>(null);
+  const mobileMenuId = useId();
+
+  useEffect(() => {
+    if (!mobileMenuOpen) return;
+    const dismiss = (event: KeyboardEvent) => {
+      if (event.key !== 'Escape') return;
+      event.preventDefault();
+      setMobileMenuOpen(false);
+      mobileMenuButton.current?.focus();
+    };
+    document.addEventListener('keydown', dismiss);
+    return () => document.removeEventListener('keydown', dismiss);
+  }, [mobileMenuOpen]);
 
   const handleLogout = () => {
     logoutUser();
@@ -24,8 +38,9 @@ export default function Header() {
   };
 
   const switchLanguage = () => {
+    setMobileMenuOpen(false);
     const nextLocale = locale === 'en' ? 'th' : 'en';
-    router.replace(pathname, { locale: nextLocale });
+    router.replace(`${pathname}${window.location.search}${window.location.hash}`, { locale: nextLocale });
   };
 
   return (
@@ -70,7 +85,7 @@ export default function Header() {
               href={user.is_admin ? '/dashboard/admin' : (user.is_artist ? '/dashboard/artist' : '/dashboard/client')}
               className={`text-sm font-medium transition-all flex items-center gap-1.5 hover-lift ${pathname.startsWith('/dashboard') ? 'text-[var(--accent-primary,#3b82f6)] font-semibold active-nav-indicator' : 'text-[var(--text-muted,#a1a1aa)] hover:text-[var(--text-primary,#f4f4f5)]'}`}
             >
-              <LayoutDashboard className="w-4 h-4" /> {user.is_admin ? '👑 Admin Control' : (user.is_artist ? `🎨 ${t('artistStudio')}` : t('myOrders'))}
+              <LayoutDashboard className="w-4 h-4" /> {user.is_admin ? t('adminControl') : (user.is_artist ? `🎨 ${t('artistStudio')}` : t('myOrders'))}
             </Link>
           )}
 
@@ -100,9 +115,9 @@ export default function Header() {
               <span className="text-sm text-[var(--text-muted,#a1a1aa)] font-medium flex items-center gap-1">
                 {t('hi')} <span className="text-[var(--text-primary,#f4f4f5)] font-semibold">{user.full_name}</span>
                 {user.is_admin ? (
-                  <span className="ml-1 text-xs bg-purple-500/20 text-purple-300 px-2 py-0.5 rounded-full border border-purple-500/30 font-extrabold">👑 Admin</span>
+                  <span className="ml-1 text-xs bg-purple-500/20 text-purple-300 px-2 py-0.5 rounded-full border border-purple-500/30 font-extrabold">{t('adminRole')}</span>
                 ) : user.is_artist ? (
-                  <span className="ml-1 text-xs bg-blue-500/20 text-blue-300 px-2 py-0.5 rounded-full border border-blue-500/30 font-semibold">🎨 Artist</span>
+                  <span className="ml-1 text-xs bg-blue-500/20 text-blue-300 px-2 py-0.5 rounded-full border border-blue-500/30 font-semibold">{t('artistRole')}</span>
                 ) : null}
               </span>
               <NotificationBell />
@@ -138,9 +153,10 @@ export default function Header() {
           {user && <NotificationBell />}
 
           <button
+            ref={mobileMenuButton}
             onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
             className="p-2 text-[var(--text-primary,#f4f4f5)] bg-[var(--bg-primary,#09090b)] rounded-xl border border-[var(--border-subtle,#27272a)] cursor-pointer focus:outline-none"
-            aria-label="Toggle Navigation Menu"
+            aria-label={t('toggleNavigation')} aria-expanded={mobileMenuOpen} aria-controls={mobileMenuOpen ? mobileMenuId : undefined}
           >
             {mobileMenuOpen ? (
               <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -157,7 +173,7 @@ export default function Header() {
 
       {/* Mobile Navigation Drawer */}
       {mobileMenuOpen && (
-        <div className="md:hidden bg-[var(--bg-surface,#121215)]/95 border-b border-[var(--border-subtle,#27272a)] px-4 py-4 space-y-3 backdrop-blur-xl transition-all animate-in slide-in-from-top-2">
+        <nav id={mobileMenuId} aria-label={t('toggleNavigation')} className="md:hidden bg-[var(--bg-surface,#121215)]/95 border-b border-[var(--border-subtle,#27272a)] px-4 py-4 space-y-3 backdrop-blur-xl transition-all animate-in slide-in-from-top-2">
           {user && (
             <div className="p-3 bg-[var(--bg-primary,#09090b)] rounded-xl border border-[var(--border-subtle,#27272a)] flex items-center justify-between">
               <div>
@@ -223,7 +239,7 @@ export default function Header() {
                     : 'bg-[var(--bg-primary,#09090b)] border-[var(--border-subtle,#27272a)] text-[var(--text-muted,#a1a1aa)] hover:text-[var(--text-primary,#f4f4f5)]'
                 }`}
               >
-                <LayoutDashboard className="w-5 h-5" /> {user.is_admin ? '👑 Admin Control' : (user.is_artist ? '🎨 Artist Studio' : t('myOrders'))}
+                <LayoutDashboard className="w-5 h-5" /> {user.is_admin ? t('adminControl') : (user.is_artist ? `🎨 ${t('artistStudio')}` : t('myOrders'))}
               </Link>
             ) : (
               <Link
@@ -235,7 +251,7 @@ export default function Header() {
               </Link>
             )}
           </div>
-        </div>
+        </nav>
       )}
     </header>
   );

@@ -1,7 +1,12 @@
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useRef, useId } from 'react';
+import { useDialogFocus } from '@/components/useDialogFocus';
+import { calculateCommissionPrice, roundMoney } from '@/lib/commissionMoney';
+import { bangkokDate } from '@/lib/bangkokDate';
 import { createPortal } from 'react-dom';
+import { useTranslations, useLocale } from 'next-intl';
+import { getCommissionOptionText } from '@/lib/commissionBlockText';
 import {
   CommissionServiceDetail,
   CommissionPolicy,
@@ -49,7 +54,13 @@ export default function CommissionIntakeModal({
   artistHandle,
   onSuccess,
 }: CommissionIntakeModalProps) {
+  const tDashboard = useTranslations('ClientDashboard');
+  const c = useTranslations('CommissionIntake');
+  const locale = useLocale();
   const [currentStep, setCurrentStep] = useState<1 | 2 | 3>(1);
+  const dialogRef = useRef<HTMLDivElement>(null);
+  const titleId = useId();
+  useDialogFocus(isOpen, dialogRef, onClose);
 
   // Form Blocks Map
   const blocksMap = useMemo(() => {
@@ -80,6 +91,9 @@ export default function CommissionIntakeModal({
     canvasBlock?.config?.allowed_ratios?.[0] || 'Square (1:1)'
   );
   const [deadline, setDeadline] = useState<string>('');
+  // Match the selected calendar date to Bangkok on both client and server.
+  const todayDate = bangkokDate();
+  const deadlineIsPast = () => Boolean(deadline && deadline < bangkokDate());
   const [refLinks, setRefLinks] = useState<string>('');
   const [refFiles, setRefFiles] = useState<File[]>([]);
   const [agreedToTos, setAgreedToTos] = useState<boolean>(false);
@@ -103,16 +117,16 @@ export default function CommissionIntakeModal({
 
   // Real-time price calculation matching server formula
   const basePrice = service.base_price;
-  let fixedSum = 0;
-  let pctSum = 0;
+  const fixedFees: number[] = [];
+  const percentageRates: number[] = [];
 
   // 1. Standard Add-ons
   service.addons.forEach((ad) => {
     if (selectedAddonIds.includes(ad.id)) {
       if (ad.price_type === 'FIXED') {
-        fixedSum += ad.price_value;
+        fixedFees.push(ad.price_value);
       } else if (ad.price_type === 'PERCENTAGE') {
-        pctSum += ad.price_value;
+        percentageRates.push(ad.price_value);
       }
     }
   });
@@ -123,33 +137,42 @@ export default function CommissionIntakeModal({
     const extra = characterCount - 1;
     const rate = Number(charBlock.config?.extra_price_percent ?? 70);
     extraCharPct = extra * rate;
-    pctSum += extraCharPct;
+    percentageRates.push(...Array(extra).fill(rate));
   }
 
   // 3. Background Tier
   let bgFee = 0;
   if (bgBlock && selectedBgTier) {
     bgFee = Number(selectedBgTier.price || 0);
-    fixedSum += bgFee;
+    fixedFees.push(bgFee);
   }
 
   // 4. Rush Rate (% of base)
   let rushPct = 0;
   if (rushBlock && selectedRushRate) {
     rushPct = Number(selectedRushRate.percent || 0);
-    pctSum += rushPct;
+    percentageRates.push(rushPct);
   }
 
   // 5. NDA Fee (Fixed)
   let ndaFee = 0;
   if (ndaBlock && isNdaSelected) {
-    ndaFee = Number(ndaBlock.config?.price || 500);
-    fixedSum += ndaFee;
+    ndaFee = Number(ndaBlock.config?.price ?? 0);
+    fixedFees.push(ndaFee);
   }
 
-  const estimatedTotal = Math.round(basePrice + fixedSum + (basePrice * pctSum) / 100);
+  const estimatedTotal = calculateCommissionPrice(basePrice, fixedFees, percentageRates);
   const depositPct = policy?.deposit_percent ?? 50;
-  const initialDeposit = Math.round(estimatedTotal * (depositPct / 100));
+  const initialDeposit = calculateCommissionPrice(estimatedTotal, [], [depositPct], false);
+  const formatMoney = (value: number) => value.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  const extraCharacterFee = calculateCommissionPrice(basePrice, [], charBlock ? Array(Math.max(0, characterCount - 1)).fill(Number(charBlock.config?.extra_price_percent ?? 70)) : [], false);
+  const rushFee = calculateCommissionPrice(basePrice, [], [rushPct], false);
+  const selectedAddons = service.addons.filter(addon => selectedAddonIds.includes(addon.id));
+  const addonsFee = calculateCommissionPrice(basePrice,
+    selectedAddons.filter(addon => addon.price_type === 'FIXED').map(addon => addon.price_value),
+    selectedAddons.filter(addon => addon.price_type === 'PERCENTAGE').map(addon => addon.price_value), false);
+  const roundingAdjustment = roundMoney(estimatedTotal - [basePrice, extraCharacterFee, bgFee, rushFee, ndaFee, addonsFee].reduce((sum, value) => sum + roundMoney(value), 0));
+  const requiredAnswersPresent = () => (customQBlock?.config?.questions || []).every((question: any) => !question.required || customAnswers[question.id]?.trim());
 
   const handleToggleAddon = (addonId: number) => {
     setSelectedAddonIds((prev) =>
@@ -160,8 +183,9 @@ export default function CommissionIntakeModal({
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files) {
       const filesArr = Array.from(e.target.files);
+      e.currentTarget.value = '';
       if (refFiles.length + filesArr.length > 5) {
-        alert('อัปโหลดไฟล์ภาพอ้างอิงได้สูงสุด 5 รูป');
+        alert(c('referenceLimit'));
         return;
       }
       setRefFiles((prev) => [...prev, ...filesArr].slice(0, 5));
@@ -174,16 +198,27 @@ export default function CommissionIntakeModal({
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (isSubmitting) return;
+    if (deadlineIsPast()) {
+      setErrorMsg(c('deadlinePast'));
+      setCurrentStep(2);
+      return;
+    }
+    if (!requiredAnswersPresent()) {
+      setErrorMsg(c('requiredAnswers'));
+      setCurrentStep(2);
+      return;
+    }
     if (!agreedToTos) {
-      setErrorMsg('กรุณายอมรับเงื่อนไขสัญญา TOS ก่อนส่งคำขอ');
+      setErrorMsg(c('acceptTerms'));
       return;
     }
     if (scopeBlock && !scopeExclusionsAck) {
-      setErrorMsg('กรุณากดยืนยันว่าคำขอของท่านไม่มีรายการงานที่ไม่รับวาด');
+      setErrorMsg(c('acknowledgeScope'));
       return;
     }
     if (!characterName.trim() || !brief.trim()) {
-      setErrorMsg('กรุณากรอกชื่อตัวละครและรายละเอียดบรีฟ');
+      setErrorMsg(c('briefRequired'));
       return;
     }
 
@@ -230,7 +265,7 @@ export default function CommissionIntakeModal({
       } else if (typeof detail === 'string') {
         setErrorMsg(detail);
       } else {
-        setErrorMsg('เกิดข้อผิดพลาดในการส่งคำขอ กรุณาตรวจสอบข้อมูลอีกครั้ง');
+        setErrorMsg(c('submitError'));
       }
     } finally {
       setIsSubmitting(false);
@@ -239,7 +274,7 @@ export default function CommissionIntakeModal({
 
   return createPortal(
     <div className="fixed inset-0 z-[200] bg-black/85 backdrop-blur-sm flex items-center justify-center p-3 sm:p-4">
-      <div className="bg-neutral-900 border border-neutral-800 rounded-2xl max-w-3xl w-full shadow-2xl relative max-h-[88vh] flex flex-col overflow-hidden">
+      <div ref={dialogRef} role="dialog" aria-modal="true" aria-labelledby={titleId} tabIndex={-1} className="bg-neutral-900 border border-neutral-800 rounded-2xl max-w-3xl w-full shadow-2xl relative max-h-[88vh] flex flex-col overflow-hidden">
         {/* Fixed Header & Stepper */}
         <div className="px-5 py-3 border-b border-neutral-800 bg-neutral-900/95 shrink-0">
           <div className="flex items-center justify-between gap-3">
@@ -247,17 +282,17 @@ export default function CommissionIntakeModal({
               <span className="text-[10px] font-bold uppercase tracking-wider text-blue-400 bg-blue-500/10 border border-blue-500/20 px-2 py-0.5 rounded-full">
                 {service.category} • @{artistHandle}
               </span>
-              <h2 className="text-sm sm:text-base font-bold text-white">
-                ส่งบรีฟ: {service.title}
+              <h2 id={titleId} className="text-sm sm:text-base font-bold text-white">
+                {c('title', {service: service.title})}
               </h2>
               <span className="text-xs font-bold text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-2 py-0.5 rounded-full">
-                รวม ฿{estimatedTotal.toLocaleString()} ({service.estimated_days} วัน)
+                {c('total', {amount: formatMoney(estimatedTotal), days: selectedRushRate?.days ?? service.estimated_days})}
               </span>
             </div>
             <button
               onClick={onClose}
               data-testid="close-intake-modal"
-              aria-label="Close"
+              aria-label={c('close')}
               className="text-neutral-400 hover:text-white p-1.5 rounded-xl bg-neutral-800/60 hover:bg-neutral-800 transition-colors cursor-pointer"
             >
               <X className="w-4 h-4" />
@@ -268,17 +303,17 @@ export default function CommissionIntakeModal({
           <div className="flex items-center justify-between mt-2.5 pt-2 border-t border-neutral-800/80 text-xs font-bold">
             <div className={`flex items-center gap-1.5 ${currentStep >= 1 ? 'text-blue-400' : 'text-neutral-500'}`}>
               <span className="w-4 h-4 rounded-full border flex items-center justify-center text-[10px]">1</span>
-              <span>ออปชัน &amp; ขอบเขต</span>
+              <span>{c('optionsStep')}</span>
             </div>
             <div className={`h-0.5 flex-1 mx-2.5 ${currentStep >= 2 ? 'bg-blue-500' : 'bg-neutral-800'}`} />
             <div className={`flex items-center gap-1.5 ${currentStep >= 2 ? 'text-blue-400' : 'text-neutral-500'}`}>
               <span className="w-4 h-4 rounded-full border flex items-center justify-center text-[10px]">2</span>
-              <span>บรีฟ &amp; สเปกงาน</span>
+              <span>{c('briefStep')}</span>
             </div>
             <div className={`h-0.5 flex-1 mx-2.5 ${currentStep >= 3 ? 'bg-blue-500' : 'bg-neutral-800'}`} />
             <div className={`flex items-center gap-1.5 ${currentStep >= 3 ? 'text-blue-400' : 'text-neutral-500'}`}>
               <span className="w-4 h-4 rounded-full border flex items-center justify-center text-[10px]">3</span>
-              <span>สัญญา TOS &amp; สรุปยอด</span>
+              <span>{c('reviewStep')}</span>
             </div>
           </div>
         </div>
@@ -286,7 +321,7 @@ export default function CommissionIntakeModal({
         {/* Content Body */}
         <div className="flex-1 overflow-y-auto px-5 py-3.5 space-y-3 text-xs">
           {errorMsg && (
-            <div className="bg-red-500/10 border border-red-500/30 text-red-400 p-2.5 rounded-xl flex items-center gap-2">
+            <div role="alert" className="bg-red-500/10 border border-red-500/30 text-red-400 p-2.5 rounded-xl flex items-center gap-2">
               <AlertCircle className="w-4 h-4 flex-shrink-0" />
               <span>{errorMsg}</span>
             </div>
@@ -301,12 +336,12 @@ export default function CommissionIntakeModal({
                   <div className="flex items-center justify-between">
                     <label className="text-neutral-300 font-bold flex items-center gap-1.5">
                       <Users className="w-3.5 h-3.5 text-indigo-400" />
-                      จำนวนตัวละครในภาพ (Character Count):
+                      {c('characterCount')}
                     </label>
                     <span className="text-emerald-400 font-bold text-xs">
                       {characterCount > 1
-                        ? `+${extraCharPct}% (+฿${Math.round((basePrice * extraCharPct) / 100).toLocaleString()})`
-                        : '1 ตัวละคร (รวมในราคาฐาน)'}
+                        ? `+${extraCharPct}% (+฿${formatMoney(extraCharacterFee)})`
+                        : c('oneCharacter')}
                     </span>
                   </div>
                   <div className="grid grid-cols-4 gap-2">
@@ -321,7 +356,7 @@ export default function CommissionIntakeModal({
                             : 'bg-neutral-900 border-neutral-800 text-neutral-400 hover:text-white'
                         }`}
                       >
-                        {n} ตัว {n > 1 && <span className="text-[10px] opacity-80">(+{((n - 1) * (charBlock.config?.extra_price_percent || 70))}%)</span>}
+                        {c('characters', {count:n})} {n > 1 && <span className="text-[10px] opacity-80">(+{((n - 1) * (charBlock.config?.extra_price_percent ?? 70))}%)</span>}
                       </button>
                     ))}
                   </div>
@@ -333,14 +368,16 @@ export default function CommissionIntakeModal({
                 <div className="space-y-1.5">
                   <label className="text-neutral-300 font-bold flex items-center gap-1.5">
                     <Layers className="w-3.5 h-3.5 text-emerald-400" />
-                    ระดับความละเอียดฉากหลัง (Background Complexity):
+                    {c('background')}
                   </label>
                   <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
                     {bgBlock.config.tiers.map((t: any, idx: number) => {
                       const isSelected = selectedBgTier?.label === t.label;
                       return (
-                        <div
+                        <button
+                          type="button"
                           key={idx}
+                          aria-pressed={isSelected}
                           onClick={() => setSelectedBgTier(t)}
                           className={`p-2.5 rounded-xl border cursor-pointer transition text-left flex flex-col justify-between ${
                             isSelected
@@ -348,11 +385,11 @@ export default function CommissionIntakeModal({
                               : 'border-neutral-800 bg-neutral-950/60 text-neutral-400 hover:text-white'
                           }`}
                         >
-                          <span className="font-semibold text-xs leading-snug">{t.label}</span>
+                          <span className="font-semibold text-xs leading-snug">{getCommissionOptionText(t.label, locale)}</span>
                           <span className="text-emerald-400 font-bold mt-1">
-                            {t.price > 0 ? `+฿${t.price.toLocaleString()}` : 'ฟรี (Free)'}
+                            {t.price > 0 ? `+฿${t.price.toLocaleString()}` : c('free')}
                           </span>
-                        </div>
+                        </button>
                       );
                     })}
                   </div>
@@ -366,7 +403,7 @@ export default function CommissionIntakeModal({
                     <div className="space-y-1.5 bg-neutral-950/60 p-2.5 rounded-xl border border-neutral-800">
                       <label className="text-neutral-300 font-bold flex items-center gap-1.5">
                         <Zap className="w-3.5 h-3.5 text-yellow-400" />
-                        งานเร่งด่วน (Rush Order):
+                        {c('rush')}
                       </label>
                       <div className="grid grid-cols-1 gap-1.5">
                         <button
@@ -378,7 +415,7 @@ export default function CommissionIntakeModal({
                               : 'border-neutral-800 bg-neutral-900 text-neutral-400'
                           }`}
                         >
-                          เวลาปกติ ({service.estimated_days} วัน)
+                          {c('normalTime', {days:service.estimated_days})}
                         </button>
                         {rushBlock.config.rates.map((r: any, idx: number) => {
                           const isSelected = selectedRushRate?.days === r.days;
@@ -393,7 +430,7 @@ export default function CommissionIntakeModal({
                                   : 'border-neutral-800 bg-neutral-900 text-neutral-400'
                               }`}
                             >
-                              <span>ด่วน {r.days} วัน</span>
+                              <span>{c('rushTime', {days:r.days})}</span>
                               <span className="text-yellow-400 font-bold">+{r.percent}%</span>
                             </button>
                           );
@@ -403,7 +440,9 @@ export default function CommissionIntakeModal({
                   )}
 
                   {ndaBlock && (
-                    <div
+                    <button
+                      type="button"
+                      aria-pressed={isNdaSelected}
                       onClick={() => setIsNdaSelected(!isNdaSelected)}
                       className={`p-3 rounded-xl border flex items-center justify-between cursor-pointer transition ${
                         isNdaSelected
@@ -417,29 +456,29 @@ export default function CommissionIntakeModal({
                         </div>
                         <div>
                           <span className="font-bold text-white block text-xs">
-                            สัญญาปิดเป็นความลับ / NDA
+                            {c('nda')}
                           </span>
                           <span className="text-[11px] text-neutral-400">
-                            {ndaBlock.config?.description || 'ไม่เผยแพร่ผลงานก่อนอนุญาต'}
+                            {ndaBlock.config?.description ? getCommissionOptionText(ndaBlock.config.description, locale) : c('ndaDescription')}
                           </span>
                         </div>
                       </div>
                       <span className="text-purple-400 font-bold text-xs">
-                        +฿{(ndaBlock.config?.price || 500).toLocaleString()}
+                        +฿{(ndaBlock.config?.price ?? 0).toLocaleString()}
                       </span>
-                    </div>
+                    </button>
                   )}
                 </div>
               )}
 
               {/* Usage Type Selection */}
               <div className="space-y-1.5">
-                <label className="text-neutral-300 font-bold block">วัตถุประสงค์การนำไปใช้ (Usage License):</label>
+                <label className="text-neutral-300 font-bold block">{c('usage')}</label>
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
                   {[
-                    { id: 'PERSONAL', label: 'ส่วนตัว (Personal Use)', desc: 'รูปโปรไฟล์ / ตั้งจอ' },
-                    { id: 'COMMERCIAL_STREAMING', label: 'สตรีมมิ่ง / VTuber', desc: 'Youtube / Twitch' },
-                    { id: 'COMMERCIAL_MERCH', label: 'สินค้า (Commercial Merch)', desc: 'พิมพ์ขาย / สินค้าที่ระลึก' },
+                    { id: 'PERSONAL', label: c('personal'), desc: c('personalDescription') },
+                    { id: 'COMMERCIAL_STREAMING', label: c('streaming'), desc: 'Youtube / Twitch' },
+                    { id: 'COMMERCIAL_MERCH', label: c('merch'), desc: c('merchDescription') },
                   ].map((item) => (
                     <button
                       key={item.id}
@@ -462,15 +501,14 @@ export default function CommissionIntakeModal({
               {service.addons.length > 0 && (
                 <div className="space-y-1.5">
                   <label className="text-neutral-300 font-bold block">
-                    ตัวเลือกเสริมพิเศษ (Add-ons):
+                    {c('addons')}
                   </label>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                     {service.addons.map((ad) => {
                       const isSelected = selectedAddonIds.includes(ad.id);
                       return (
-                        <div
+                        <label
                           key={ad.id}
-                          onClick={() => handleToggleAddon(ad.id)}
                           className={`p-2.5 rounded-xl border flex items-center justify-between cursor-pointer transition-all ${
                             isSelected
                               ? 'border-blue-500 bg-blue-500/10 text-white'
@@ -481,7 +519,7 @@ export default function CommissionIntakeModal({
                             <input
                               type="checkbox"
                               checked={isSelected}
-                              onChange={() => {}}
+                              onChange={() => handleToggleAddon(ad.id)}
                               className="w-3.5 h-3.5 rounded text-blue-600"
                             />
                             <span className="font-semibold text-xs">{ad.name}</span>
@@ -489,7 +527,7 @@ export default function CommissionIntakeModal({
                           <span className="font-bold text-emerald-400 text-xs">
                             {ad.price_type === 'FIXED' ? `+฿${ad.price_value}` : `+${ad.price_value}%`}
                           </span>
-                        </div>
+                        </label>
                       );
                     })}
                   </div>
@@ -507,7 +545,7 @@ export default function CommissionIntakeModal({
                   <div className="flex items-center justify-between gap-2 flex-wrap">
                     <div className="flex items-center gap-1.5 text-red-400 font-bold text-xs">
                       <ShieldAlert className="w-3.5 h-3.5" />
-                      <span>ข้อจำกัดประเภทงานที่ไม่รับวาด:</span>
+                      <span>{c('exclusions')}</span>
                     </div>
                     <div className="flex flex-wrap gap-1.5">
                       {scopeBlock.config.exclusions.map((ex: string, exIdx: number) => (
@@ -515,7 +553,7 @@ export default function CommissionIntakeModal({
                           key={exIdx}
                           className="bg-red-900/40 text-red-300 px-2 py-0.5 rounded-lg text-[11px] font-semibold border border-red-700/50"
                         >
-                          🚫 {ex}
+                          🚫 {getCommissionOptionText(ex, locale)}
                         </span>
                       ))}
                     </div>
@@ -529,7 +567,7 @@ export default function CommissionIntakeModal({
                       className="w-3.5 h-3.5 rounded text-red-600 cursor-pointer"
                     />
                     <span className="text-red-200 font-bold text-xs">
-                      ข้าพเจ้ารับทราบและยืนยันว่า บรีฟงานนี้ไม่มีองค์ประกอบต้องห้ามตามที่ระบุไว้ข้างต้น
+                      {c('scopeAck')}
                     </span>
                   </label>
                 </div>
@@ -539,20 +577,20 @@ export default function CommissionIntakeModal({
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
                 <div>
                   <label className="text-neutral-300 font-bold block mb-1">
-                    ชื่อตัวละคร (Character) <span className="text-red-400">*</span>:
+                    {c('character')} <span className="text-red-400">*</span>:
                   </label>
                   <input
                     type="text"
                     value={characterName}
                     onChange={(e) => setCharacterName(e.target.value)}
-                    placeholder="เช่น Aethelgard, ลูเซียนา..."
+                    aria-label={c('character')} placeholder={c('characterPlaceholder')}
                     className="w-full bg-neutral-950 border border-neutral-800 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-blue-500 font-medium"
                   />
                 </div>
 
                 <div>
-                  <label className="text-neutral-300 font-bold block mb-1">สัดส่วนภาพ (Canvas Ratio):</label>
-                  <select
+                  <label className="text-neutral-300 font-bold block mb-1">{c('canvas')}</label>
+                  <select aria-label={c('canvas')}
                     value={canvasSize}
                     onChange={(e) => setCanvasSize(e.target.value)}
                     className="w-full bg-neutral-950 border border-neutral-800 rounded-xl px-2.5 py-2 text-white focus:outline-none focus:border-blue-500 font-bold"
@@ -564,16 +602,16 @@ export default function CommissionIntakeModal({
                       'A4 / Printable',
                     ]).map((r: string, idx: number) => (
                       <option key={idx} value={r}>
-                        {r}
+                        {getCommissionOptionText(r, locale)}
                       </option>
                     ))}
                   </select>
                 </div>
 
                 <div>
-                  <label className="text-neutral-300 font-bold block mb-1">วันส่งงานที่ต้องการ (Deadline):</label>
+                  <label className="text-neutral-300 font-bold block mb-1">{c('deadline')}</label>
                   <input
-                    type="date"
+                    type="date" min={todayDate} aria-label={c('deadline')}
                     value={deadline}
                     onChange={(e) => setDeadline(e.target.value)}
                     className="w-full bg-neutral-950 border border-neutral-800 rounded-xl px-2.5 py-1.5 text-white focus:outline-none focus:border-blue-500"
@@ -586,7 +624,7 @@ export default function CommissionIntakeModal({
                 <div className="space-y-1">
                   <label className="text-neutral-300 font-bold flex items-center gap-1.5">
                     <Smile className="w-3.5 h-3.5 text-pink-400" />
-                    ความต้องการท่าทางและสีหน้า (Pose &amp; Expression):
+                    {c('pose')}
                   </label>
                   <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
                     {poseBlock.config.options.map((opt: string, optIdx: number) => {
@@ -602,7 +640,7 @@ export default function CommissionIntakeModal({
                               : 'border-neutral-800 bg-neutral-950/60 text-neutral-400'
                           }`}
                         >
-                          {opt}
+                          {getCommissionOptionText(opt, locale)}
                         </button>
                       );
                     })}
@@ -614,13 +652,13 @@ export default function CommissionIntakeModal({
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
                 <div>
                   <label className="text-neutral-300 font-bold block mb-1">
-                    รายละเอียดบรีฟ (ท่าทาง, สีหน้า, อารมณ์) <span className="text-red-400">*</span>:
+                    {c('brief')} <span className="text-red-400">*</span>:
                   </label>
                   <textarea
                     rows={3}
                     value={brief}
                     onChange={(e) => setBrief(e.target.value)}
-                    placeholder="อธิบายสิ่งที่ต้องการ เช่น ยิ้มมั่นใจ มือขวาจับดาบ เสื้อคลุมสีน้ำเงิน..."
+                    aria-label={c('brief')} placeholder={c('briefPlaceholder')}
                     className="w-full bg-neutral-950 border border-neutral-800 rounded-xl p-2.5 text-white focus:outline-none focus:border-blue-500"
                   />
                 </div>
@@ -628,21 +666,22 @@ export default function CommissionIntakeModal({
                 <div className="space-y-2">
                   <div>
                     <label className="text-neutral-300 font-bold block mb-1">
-                      ลิงก์อ้างอิง (Google Drive / Pinterest):
+                      {c('referenceLinks')}
                     </label>
                     <input
                       type="url"
                       value={refLinks}
                       onChange={(e) => setRefLinks(e.target.value)}
-                      placeholder="https://drive.google.com/..."
+                      aria-label={c('referenceLinks')} placeholder="https://drive.google.com/..."
                       className="w-full bg-neutral-950 border border-neutral-800 rounded-xl px-2.5 py-1.5 text-white focus:outline-none focus:border-blue-500"
                     />
                   </div>
 
                   <div>
-                    <div className="border border-dashed border-neutral-800 hover:border-neutral-700 bg-neutral-950/60 rounded-xl p-2 text-center cursor-pointer relative flex items-center justify-center gap-2">
+                    <div className="border border-dashed border-neutral-800 hover:border-neutral-700 focus-within:border-blue-500 focus-within:ring-2 focus-within:ring-blue-500/40 bg-neutral-950/60 rounded-xl p-2 text-center cursor-pointer relative flex items-center justify-center gap-2">
                       <input
                         type="file"
+                        aria-label={c('attachReferences')}
                         multiple
                         accept="image/png,image/jpeg,image/webp"
                         onChange={handleFileChange}
@@ -650,7 +689,7 @@ export default function CommissionIntakeModal({
                       />
                       <UploadCloud className="w-4 h-4 text-neutral-400 shrink-0" />
                       <span className="text-neutral-300 font-semibold text-[11px]">
-                        แนบภาพเรฟเฟอเรนซ์ (สูงสุด 5 รูป)
+                        {c('attachReferences')}
                       </span>
                     </div>
                     {refFiles.length > 0 && (
@@ -665,7 +704,7 @@ export default function CommissionIntakeModal({
                             />
                             <button
                               type="button"
-                              onClick={() => handleRemoveFile(idx)}
+                              aria-label={c('removeReference', {name:file.name})} onClick={() => handleRemoveFile(idx)}
                               className="absolute top-0.5 right-0.5 bg-black/70 text-white rounded-full p-0.5 hover:bg-red-600 transition-colors cursor-pointer"
                             >
                               <X className="w-2.5 h-2.5" />
@@ -684,10 +723,12 @@ export default function CommissionIntakeModal({
                   {customQBlock.config.questions.map((q: any) => (
                     <div key={q.id} className="space-y-1">
                       <label className="text-neutral-300 font-semibold block text-xs">
-                        {q.label} {q.required && <span className="text-red-400">*</span>}
+                        {getCommissionOptionText(q.label, locale)} {q.required && <span className="text-red-400">*</span>}
                       </label>
                       <input
                         type="text"
+                        aria-label={getCommissionOptionText(q.label, locale)}
+                        required={!!q.required}
                         value={customAnswers[q.id] || ''}
                         onChange={(e) =>
                           setCustomAnswers({ ...customAnswers, [q.id]: e.target.value })
@@ -707,67 +748,71 @@ export default function CommissionIntakeModal({
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 {/* Summary Card */}
                 <div className="bg-neutral-950 p-3.5 rounded-xl border border-neutral-800 space-y-1.5">
-                  <span className="text-neutral-400 font-bold block">สรุปรายการคำขอจ้างงาน:</span>
+                  <span className="text-neutral-400 font-bold block">{c('summary')}</span>
                   <div className="flex justify-between text-neutral-300">
-                    <span>สเกลงาน: {service.title}</span>
-                    <span>฿{basePrice.toLocaleString()}</span>
+                    <span>{c('scale', {service:service.title})}</span>
+                    <span>฿{formatMoney(basePrice)}</span>
                   </div>
 
                   {charBlock && characterCount > 1 && (
                     <div className="flex justify-between text-indigo-400">
-                      <span>ตัวละครเสริม ({characterCount - 1} ตัว • +{extraCharPct}%):</span>
-                      <span>+฿{Math.round((basePrice * extraCharPct) / 100).toLocaleString()}</span>
+                      <span>{c('extraCharacters', {count:characterCount-1,percent:extraCharPct})}</span>
+                      <span>+฿{formatMoney(extraCharacterFee)}</span>
                     </div>
                   )}
 
                   {bgBlock && selectedBgTier && bgFee > 0 && (
                     <div className="flex justify-between text-emerald-400">
-                      <span>ฉากหลัง: {selectedBgTier.label}</span>
-                      <span>+฿{bgFee.toLocaleString()}</span>
+                      <span>{c('backgroundSummary', {label:getCommissionOptionText(selectedBgTier.label, locale)})}</span>
+                      <span>+฿{formatMoney(bgFee)}</span>
                     </div>
                   )}
 
                   {rushBlock && selectedRushRate && (
                     <div className="flex justify-between text-yellow-400">
-                      <span>งานเร่งด่วน ({selectedRushRate.days} วัน • +{rushPct}%):</span>
-                      <span>+฿{Math.round((basePrice * rushPct) / 100).toLocaleString()}</span>
+                      <span>{c('rushSummary', {days:selectedRushRate.days,percent:rushPct})}</span>
+                      <span>+฿{formatMoney(rushFee)}</span>
                     </div>
                   )}
 
                   {ndaBlock && isNdaSelected && (
                     <div className="flex justify-between text-purple-400">
-                      <span>สัญญาไม่เปิดเผยผลงาน (NDA):</span>
-                      <span>+฿{ndaFee.toLocaleString()}</span>
+                      <span>{c('ndaSummary')}</span>
+                      <span>+฿{formatMoney(ndaFee)}</span>
                     </div>
                   )}
 
                   {selectedAddonIds.length > 0 && (
                     <div className="flex justify-between text-neutral-400">
-                      <span>ตัวเลือกเสริม ({selectedAddonIds.length} รายการ):</span>
-                      <span>+฿{service.addons.filter(a => selectedAddonIds.includes(a.id)).reduce((acc, a) => acc + (a.price_type === 'FIXED' ? a.price_value : (basePrice * a.price_value / 100)), 0).toLocaleString()}</span>
+                      <span>{c('addonsSummary', {count:selectedAddonIds.length})}</span>
+                      <span>+฿{formatMoney(addonsFee)}</span>
                     </div>
                   )}
 
+                  {roundingAdjustment !== 0 && <div className="flex justify-between text-neutral-400">
+                    <span>{tDashboard('roundingAdjustment')}</span>
+                    <span>{roundingAdjustment > 0 ? '+' : '−'}฿{formatMoney(Math.abs(roundingAdjustment))}</span>
+                  </div>}
                   <div className="pt-2 border-t border-neutral-800 flex justify-between items-baseline font-bold">
-                    <span className="text-white text-sm">ราคารวมประเมิน:</span>
-                    <span className="text-emerald-400 text-base">฿{estimatedTotal.toLocaleString()}</span>
+                    <span className="text-white text-sm">{c('estimate')}</span>
+                    <span className="text-emerald-400 text-base">฿{formatMoney(estimatedTotal)}</span>
                   </div>
                   <div className="text-[11px] text-neutral-400">
-                    * มัดจำงวดแรก {depositPct}% = <span className="text-neutral-200 font-bold">฿{initialDeposit.toLocaleString()}</span>
+                    {c('deposit', {percent:depositPct})} <span className="text-neutral-200 font-bold">฿{formatMoney(initialDeposit)}</span>
                   </div>
                 </div>
 
                 {/* TOS Box */}
                 <div className="bg-neutral-950 p-3.5 rounded-xl border border-neutral-800 space-y-1.5 max-h-44 overflow-y-auto">
                   <span className="text-neutral-300 font-bold flex items-center gap-1.5">
-                    <ShieldCheck className="w-4 h-4 text-blue-400" /> ข้อตกลงสัญญาของศิลปิน (TOS):
+                    <ShieldCheck className="w-4 h-4 text-blue-400" /> {c('terms')}
                   </span>
                   <p className="text-neutral-400 leading-relaxed whitespace-pre-wrap text-[11px]">
-                    {policy?.terms_of_service || 'ศิลปินใช้ข้อตกลงมาตรฐานของแพลตฟอร์ม DICE'}
+                    {policy?.terms_of_service || c('standardTerms')}
                   </p>
                   {policy?.refund_policy && (
                     <div className="pt-1.5 border-t border-neutral-800 text-neutral-400 text-[11px]">
-                      <span className="font-bold text-neutral-300 block">นโยบายการคืนเงิน:</span>
+                      <span className="font-bold text-neutral-300 block">{c('refund')}</span>
                       {policy.refund_policy}
                     </div>
                   )}
@@ -777,7 +822,7 @@ export default function CommissionIntakeModal({
               {/* No-AI Notice & Checkbox */}
               <div className="bg-emerald-500/10 border border-emerald-500/20 p-2.5 rounded-xl flex items-center gap-2 text-emerald-400">
                 <Sparkles className="w-4 h-4 flex-shrink-0" />
-                <span>ผลงานที่ส่งมอบได้รับการคุ้มครองลิขสิทธิ์ และห้ามนำไปใช้เทรนโมเดล AI ทุกกรณี</span>
+                <span>{c('copyright')}</span>
               </div>
 
               <label className="flex items-center gap-2.5 cursor-pointer pt-0.5">
@@ -789,7 +834,7 @@ export default function CommissionIntakeModal({
                   className="w-4 h-4 rounded text-blue-600 cursor-pointer"
                 />
                 <span className="text-neutral-300 font-semibold">
-                  ข้าพเจ้ายืนยันว่าได้อ่านและยอมรับเงื่อนไขสัญญาของศิลปินฉบับนี้อย่างครบถ้วน
+                  {c('termsAck')}
                 </span>
               </label>
             </div>
@@ -804,7 +849,7 @@ export default function CommissionIntakeModal({
               onClick={() => setCurrentStep((prev) => (prev - 1) as any)}
               className="px-4 py-2 bg-neutral-800 hover:bg-neutral-700 text-neutral-300 font-bold text-xs rounded-xl flex items-center gap-1 cursor-pointer"
             >
-              <ChevronLeft className="w-4 h-4" /> ย้อนกลับ
+              <ChevronLeft className="w-4 h-4" /> {c('back')}
             </button>
           ) : (
             <div />
@@ -815,12 +860,20 @@ export default function CommissionIntakeModal({
               type="button"
               onClick={() => {
                 if (currentStep === 2) {
+                  if (deadlineIsPast()) {
+                    setErrorMsg(c('deadlinePast'));
+                    return;
+                  }
+                  if (!requiredAnswersPresent()) {
+                    setErrorMsg(c('requiredAnswers'));
+                    return;
+                  }
                   if (scopeBlock && !scopeExclusionsAck) {
-                    setErrorMsg('กรุณากดยืนยันว่าคำขอของท่านไม่มีรายการงานที่ไม่รับวาด');
+                    setErrorMsg(c('acknowledgeScope'));
                     return;
                   }
                   if (!characterName.trim() || !brief.trim()) {
-                    setErrorMsg('กรุณากรอกชื่อตัวละครและรายละเอียดบรีฟก่อนไปต่อ');
+                    setErrorMsg(c('briefRequired'));
                     return;
                   }
                 }
@@ -829,7 +882,7 @@ export default function CommissionIntakeModal({
               }}
               className="px-5 py-2 bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs rounded-xl flex items-center gap-1 cursor-pointer"
             >
-              ถัดไป <ChevronRight className="w-4 h-4" />
+              {c('next')} <ChevronRight className="w-4 h-4" />
             </button>
           ) : (
             <button
@@ -841,12 +894,12 @@ export default function CommissionIntakeModal({
               {isSubmitting ? (
                 <>
                   <Loader2 className="w-4 h-4 animate-spin" />
-                  กำลังส่งบรีฟ...
+                  {c('submitting')}
                 </>
               ) : (
                 <>
                   <CheckCircle className="w-4 h-4" />
-                  ยืนยันส่งคำขอจ้างงาน
+                  {c('submit')}
                 </>
               )}
             </button>

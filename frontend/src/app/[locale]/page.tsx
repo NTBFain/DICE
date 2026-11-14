@@ -7,6 +7,8 @@ import { Users, Search, Sparkles, Loader2, Compass } from 'lucide-react';
 import { Link } from '@/i18n/routing';
 import { useAuth } from '@/components/AuthContext';
 
+import { useQuery } from '@tanstack/react-query';
+import { getHomepageText } from '@/lib/api';
 import { useTranslations } from 'next-intl';
 
 const STYLE_CATEGORIES = [
@@ -21,6 +23,8 @@ export default function Home() {
   const { user } = useAuth();
   const tHome = useTranslations('Home');
   const tCat = useTranslations('Categories');
+  const { data: homepageCopy } = useQuery({ queryKey: ['homepage-text'], queryFn: getHomepageText });
+  const publishedCopy = homepageCopy?.is_customized ? homepageCopy : null;
 
   const [artists, setArtists] = useState<ArtistProfile[]>([]);
   const [loading, setLoading] = useState(true);
@@ -64,7 +68,7 @@ export default function Home() {
   }, [debouncedQuery, selectedStyle, onlyOpenCommissions]);
 
   return (
-    <div className="min-h-screen bg-[var(--bg-primary,#09090b)] text-[var(--text-primary,#f4f4f5)] px-3 py-4 sm:px-6 sm:py-6 lg:px-8 max-w-7xl mx-auto space-y-6 pb-20 md:pb-10 w-full overflow-x-hidden">
+    <div data-page-surface className="min-h-screen bg-[var(--bg-primary,#09090b)] text-[var(--text-primary,#f4f4f5)] px-3 py-4 sm:px-6 sm:py-6 lg:px-8 max-w-7xl mx-auto space-y-6 pb-20 md:pb-10 w-full overflow-x-hidden">
       
       {/* 🚀 MAIN HOMEPAGE HERO: MULTI-ARTIST SELECTION HUB */}
       <div className="bg-[var(--bg-surface,#121215)] border border-[var(--border-subtle,#27272a)] rounded-2xl p-4 sm:p-6 shadow-lg relative overflow-hidden animate-fade-in-up">
@@ -75,15 +79,16 @@ export default function Home() {
             <div className="space-y-2">
               <span className="inline-flex items-center gap-1.5 text-[10px] font-mono font-bold text-[var(--accent-primary,#3b82f6)] uppercase tracking-wider bg-[var(--accent-primary,#3b82f6)]/10 px-2.5 py-0.5 rounded-full border border-[var(--accent-primary,#3b82f6)]/30 max-w-full truncate">
                 <Compass className="w-3.5 h-3.5 shrink-0 text-[var(--accent-primary,#3b82f6)]" />
-                <span className="truncate">{tHome('badge')}</span>
+                <span className="truncate">{publishedCopy?.hero_tag ?? tHome('badge')}</span>
               </span>
               <h1 className="text-xl sm:text-3xl lg:text-3xl font-black tracking-tight text-[var(--text-primary,#f4f4f5)] leading-snug">
-                {tHome('title1')}<span className="text-[var(--accent-primary,#3b82f6)]">{tHome('titleHighlight')}</span>{tHome('title2')}
+                {publishedCopy ? <>{publishedCopy.hero_title_1} <span className="text-[var(--accent-primary,#3b82f6)]">{publishedCopy.hero_title_2}</span></> : <>{tHome('title1')}<span className="text-[var(--accent-primary,#3b82f6)]">{tHome('titleHighlight')}</span>{tHome('title2')}</>}
               </h1>
               <p className="text-xs text-[var(--text-muted,#a1a1aa)] leading-relaxed max-w-2xl">
-                {tHome('description')}
+                {publishedCopy?.hero_subtitle ?? tHome('description')}
               </p>
 
+              {publishedCopy && <div className="flex flex-wrap gap-2 text-xs text-neutral-300">{[publishedCopy.badge_1, publishedCopy.badge_2, publishedCopy.badge_3].filter(Boolean).map((badge, index) => <span key={index} className="rounded-full border border-neutral-700 px-2 py-1">{badge}</span>)}</div>}
               {(!user || !user.is_admin) && (
                 <div className="pt-0.5">
                   <Link

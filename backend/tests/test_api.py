@@ -1,10 +1,11 @@
-import urllib.request
-import urllib.error
+import unittest
+from isolated_app import isolated_client
 
-try:
-    print(urllib.request.urlopen('http://127.0.0.1:8080/api/portfolio').read().decode())
-except urllib.error.HTTPError as e:
-    print(f"HTTPError: {e.code}")
-    print(e.read().decode())
-except Exception as e:
-    print(f"Error: {e}")
+class PublicApiTests(unittest.TestCase):
+    def test_empty_catalogue_uses_disposable_database(self):
+        with isolated_client() as (client,_):
+            response=client.get('/api/portfolio')
+            self.assertEqual(response.status_code,200)
+            self.assertEqual(response.json(),[])
+
+if __name__=='__main__':unittest.main()

@@ -9,7 +9,7 @@ from sqlmodel import Session, select
 
 from core.db import get_session
 from core.auth import get_current_user
-from core.time import utcnow
+from core.time import utcnow, bangkok_today
 from core.security_file import validate_and_save_upload
 from models import User, ArtistProfile, ArtistService, NotificationType
 from models.commission import (
@@ -23,7 +23,7 @@ from schemas.commission import (
 )
 from services.commission_service import (
     count_used_slots, get_effective_status, compute_total_price,
-    accept_commission_request
+    accept_commission_request, validate_custom_responses, snapshot_custom_responses
 )
 from services.notification_service import background_create_notification
 
@@ -86,6 +86,10 @@ async def submit_commission_request(
     if not payload.agreed_to_tos:
         raise HTTPException(status_code=422, detail="You must agree to the artist's Terms of Service and No-AI policy.")
 
+    # The selected deadline is a calendar date, judged consistently in Bangkok.
+    if payload.requested_deadline and payload.requested_deadline.date() < bangkok_today(utcnow()):
+        raise HTTPException(status_code=422, detail="Requested deadline cannot be in the past. Choose today or a later date.")
+
     service = session.get(ArtistService, payload.service_id)
     if not service:
         raise HTTPException(status_code=404, detail="Selected commission service not found")
@@ -128,6 +132,7 @@ async def submit_commission_request(
             .where(ServiceAddon.is_active == True)
         ).all()
 
+    validate_custom_responses(service, payload.custom_responses)
     total_price, addons_snapshot = compute_total_price(service, addons, payload.custom_responses)
 
     # Fetch policy for snapshot
@@ -171,7 +176,7 @@ async def submit_commission_request(
         reference_links=payload.reference_links.strip() if payload.reference_links else None,
         reference_images=saved_images,
         addons_snapshot=addons_snapshot,
-        custom_responses=payload.custom_responses or {},
+        custom_responses=snapshot_custom_responses(service, payload.custom_responses or {}),
         base_price_snapshot=float(service.base_price),
         total_price=total_price,
         tos_snapshot=tos_snapshot,
