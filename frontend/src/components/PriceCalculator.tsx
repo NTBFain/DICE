@@ -2,15 +2,25 @@
 
 import { useState } from 'react';
 import { Calculator, Sparkles, Check, ArrowRight } from 'lucide-react';
-import { Link } from '@/i18n/routing';
-import { useAuth } from './AuthContext';
+import { useTranslations } from 'next-intl';
 
-export default function PriceCalculator() {
-  const { user } = useAuth();
-  const [characterScope, setCharacterScope] = useState<'bust' | 'half' | 'full'>('half');
-  const [usageType, setUsageType] = useState<'personal' | 'commercial'>('personal');
-  const [backgroundType, setBackgroundType] = useState<'simple' | 'complex'>('simple');
-  const [expressDelivery, setExpressDelivery] = useState(false);
+export interface EstimateSelection {
+  characterScope: 'bust' | 'half' | 'full';
+  usageType: 'personal' | 'commercial';
+  backgroundType: 'simple' | 'complex';
+  expressDelivery: boolean;
+}
+
+export default function PriceCalculator({ onProceed, initialSelection }: {
+  onProceed: (brief: string, selection: EstimateSelection) => void;
+  initialSelection?: EstimateSelection;
+}) {
+  const t = useTranslations('ClientDashboard');
+  const c = useTranslations('ClientWidgets');
+  const [characterScope, setCharacterScope] = useState<EstimateSelection['characterScope']>(initialSelection?.characterScope ?? 'half');
+  const [usageType, setUsageType] = useState<EstimateSelection['usageType']>(initialSelection?.usageType ?? 'personal');
+  const [backgroundType, setBackgroundType] = useState<EstimateSelection['backgroundType']>(initialSelection?.backgroundType ?? 'simple');
+  const [expressDelivery, setExpressDelivery] = useState(initialSelection?.expressDelivery ?? false);
 
   // Price calculation logic
   const scopePrices = {
@@ -30,13 +40,13 @@ export default function PriceCalculator() {
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 border-b border-neutral-800/80 pb-4 mb-4">
         <div>
           <div className="inline-flex items-center gap-1.5 bg-neutral-800/80 text-neutral-300 text-[11px] font-semibold px-2.5 py-0.5 rounded-lg border border-neutral-700/50 mb-1.5">
-            <Calculator className="w-3.5 h-3.5 text-blue-400" /> Commission Estimator
+            <Calculator className="w-3.5 h-3.5 text-blue-400" /> {c('estimator')}
           </div>
-          <h2 className="text-lg sm:text-xl font-bold text-white">Price & Package Calculator</h2>
-          <p className="text-xs text-neutral-400 mt-0.5">Instant estimate for custom artwork orders.</p>
+          <h2 className="text-lg sm:text-xl font-bold text-white">{c('calculator')}</h2>
+          <p className="text-xs text-neutral-400 mt-0.5">{c('calculatorDescription')}</p>
         </div>
         <div className="bg-neutral-950 border border-neutral-800 px-4 py-2.5 rounded-xl text-right w-full sm:w-auto flex sm:flex-col items-center sm:items-end justify-between hover-lift">
-          <span className="text-[10px] uppercase tracking-wider text-neutral-400 font-semibold">Estimated Price</span>
+          <span className="text-[10px] uppercase tracking-wider text-neutral-400 font-semibold">{c('estimate')}</span>
           <span key={totalPrice} className="text-xl sm:text-2xl font-black text-blue-400 inline-block animate-number-pop">
             ฿{totalPrice.toLocaleString()}
           </span>
@@ -49,13 +59,13 @@ export default function PriceCalculator() {
           {/* Character Scope */}
           <div>
             <label className="text-xs font-bold text-neutral-300 uppercase tracking-wider mb-2 block">
-              1. Coverage Scope
+              {c('scope')}
             </label>
             <div className="grid grid-cols-3 gap-2">
               {[
-                { id: 'bust', label: 'Bust-Up', price: '฿1,200' },
-                { id: 'half', label: 'Half Body', price: '฿2,200' },
-                { id: 'full', label: 'Full Body', price: '฿3,800' },
+                { id: 'bust', label: c('bust'), price: '฿1,200' },
+                { id: 'half', label: c('half'), price: '฿2,200' },
+                { id: 'full', label: c('full'), price: '฿3,800' },
               ].map((item) => (
                 <button
                   key={item.id}
@@ -77,12 +87,12 @@ export default function PriceCalculator() {
           {/* Usage License */}
           <div>
             <label className="text-xs font-bold text-neutral-300 uppercase tracking-wider mb-2 block">
-              2. Usage License
+              {c('license')}
             </label>
             <div className="grid grid-cols-2 gap-2">
               {[
-                { id: 'personal', label: 'Personal Use', desc: 'Social profile, collection' },
-                { id: 'commercial', label: 'Commercial Use', desc: 'Merch, VTuber, monetize (1.8x)' },
+                { id: 'personal', label: c('personal'), desc: c('personalDescription') },
+                { id: 'commercial', label: c('commercial'), desc: c('commercialDescription') },
               ].map((item) => (
                 <button
                   key={item.id}
@@ -106,12 +116,12 @@ export default function PriceCalculator() {
         <div className="space-y-5 flex flex-col justify-between">
           <div>
             <label className="text-xs font-bold text-neutral-300 uppercase tracking-wider mb-2 block">
-              3. Background Detail
+              {c('background')}
             </label>
             <div className="grid grid-cols-2 gap-2">
               {[
-                { id: 'simple', label: 'Simple / Solid', price: 'Free' },
-                { id: 'complex', label: 'Full Environment', price: '+฿1,200' },
+                { id: 'simple', label: c('simple'), price: c('free') },
+                { id: 'complex', label: c('complex'), price: '+฿1,200' },
               ].map((item) => (
                 <button
                   key={item.id}
@@ -140,9 +150,9 @@ export default function PriceCalculator() {
                 />
                 <div>
                   <div className="text-xs font-bold text-neutral-200 flex items-center gap-1">
-                    <Sparkles className="w-3.5 h-3.5 text-amber-400" /> Express 3-Day Delivery (+฿1,000)
+                    <Sparkles className="w-3.5 h-3.5 text-amber-400" /> {c('express')}
                   </div>
-                  <div className="text-[10px] text-neutral-400">Expedited queue priority</div>
+                  <div className="text-[10px] text-neutral-400">{c('priority')}</div>
                 </div>
               </label>
             </div>
@@ -151,23 +161,22 @@ export default function PriceCalculator() {
           {/* Submit Action */}
           <div className="pt-2 space-y-3">
             <div className="p-3 bg-neutral-950 border border-neutral-800/80 rounded-xl space-y-1.5 text-[11px] text-neutral-400">
-              <div className="font-bold text-neutral-300 text-xs flex items-center gap-1">
-                <Check className="w-3.5 h-3.5 text-emerald-400" /> Commission Rules & TOS Summary
-              </div>
-              <ul className="list-disc list-inside space-y-0.5 text-[10px] text-neutral-400">
-                <li>Deposit 50% required upon price agreement to lock queue slot.</li>
-                <li>Includes 3 free WIP draft revision rounds before final lineart.</li>
-                <li>Final high-res PNG & PSD files delivered without watermark upon balance completion.</li>
-              </ul>
+              <p>{t('estimateDisclaimer')}</p>
             </div>
 
-            <Link
-              href={user ? (user.is_admin ? '/dashboard/admin' : '/dashboard/client') : '/login'}
+            <button
+              type="button"
+              onClick={() => onProceed([
+                `Coverage: ${{ bust: 'Bust-Up', half: 'Half Body', full: 'Full Body' }[characterScope]}`,
+                `Usage: ${usageType}`, `Background: ${backgroundType}`,
+                `Express delivery requested: ${expressDelivery ? 'Yes' : 'No'}`,
+                `Provisional example estimate: THB ${totalPrice}. Artist confirmation required.`,
+              ].join('\n'), { characterScope, usageType, backgroundType, expressDelivery })}
               className="w-full py-3.5 px-6 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-bold text-sm flex items-center justify-center gap-2 transition-all shadow-md cursor-pointer"
             >
-              <span>{user ? 'Proceed with Order Request' : 'Sign In to Request Order'}</span>
+              <span>{t('proceedRequest')}</span>
               <ArrowRight className="w-4 h-4" />
-            </Link>
+            </button>
           </div>
         </div>
       </div>

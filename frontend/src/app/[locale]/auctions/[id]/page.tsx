@@ -1,10 +1,14 @@
 'use client';
 
+import { parseApiDate } from '@/lib/apiDate';
+import { getAuctionPhase } from '@/lib/auctionPhase';
+
 import { useState, useEffect } from 'react';
 import { useParams } from 'next/navigation';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { 
   getAuctionById, 
+  getOrders,
   placeBid, 
   updateAuction, 
   closeAuction, 
@@ -15,6 +19,7 @@ import {
   AuctionMessage 
 } from '@/lib/api';
 import { useAuth } from '@/components/AuthContext';
+import { getErrorMessage } from '@/lib/errorMessage';
 import {
   Loader2,
   Gavel,
@@ -42,11 +47,12 @@ const getAuctionImageUrl = (url?: string) => {
 
 // Countdown Timer Component
 function LiveTimer({ endTime }: { endTime: string }) {
+  const t = useTranslations('Auctions');
   const [timeLeft, setTimeLeft] = useState('');
 
   useEffect(() => {
     const calculate = () => {
-      const diff = +new Date(endTime) - +new Date();
+      const diff = +parseApiDate(endTime) - +new Date();
       if (diff <= 0) {
         setTimeLeft('ENDED');
         return;
@@ -72,7 +78,7 @@ function LiveTimer({ endTime }: { endTime: string }) {
   if (timeLeft === 'ENDED') {
     return (
       <span className="px-3 py-1 bg-rose-500/10 text-rose-500 border border-rose-500/30 rounded-full text-xs font-bold uppercase tracking-wider">
-        Auction Ended
+        {t('auctionEnded')}
       </span>
     );
   }
@@ -99,12 +105,38 @@ export default function AuctionDetailPage() {
   const [rightPanelTab, setRightPanelTab] = useState<'bids' | 'chat'>('bids');
 
   // Fetch auction data
-  const { data: auction, isLoading } = useQuery({
+  const { data: auction, isLoading, isError: auctionFailed, error: auctionError, isFetching: fetchingAuction, refetch: retryAuction } = useQuery({
     queryKey: ['auction', auctionId],
     queryFn: () => getAuctionById(auctionId),
     enabled: !!auctionId,
     refetchInterval: 5000,
   });
+  const [auctionClock, setAuctionClock] = useState(Date.now);
+  useEffect(() => {
+    if (!auction) return;
+    let timer: ReturnType<typeof setTimeout>;
+    const updateBoundary = () => {
+      const now = Date.now();
+      setAuctionClock(now);
+      const next = [Number(parseApiDate(auction.start_time)), Number(parseApiDate(auction.end_time))].find(time => time > now);
+      if (next !== undefined) timer = setTimeout(updateBoundary, Math.min(next - now + 1, 2147483647));
+    };
+    updateBoundary();
+    return () => clearTimeout(timer);
+  }, [auction?.start_time, auction?.end_time]);
+  const phase = auction ? getAuctionPhase(auction.status, Number(parseApiDate(auction.start_time)), Number(parseApiDate(auction.end_time)), auctionClock) : 'closed';
+  const biddingOpen = phase === 'open' && !auctionFailed;
+  const unavailable = auctionFailed && (auctionError as { response?: { status?: number } })?.response?.status !== 404;
+  const { data: orders = [] } = useQuery({ queryKey: ['client-orders'], queryFn: getOrders, enabled: !!user && auction?.winner_id === user.id });
+  const winningOrder = orders.find(order => order.auction_id === auctionId);
+
+  // Bid validation describes a particular auction state. Discard it after
+  // another bid, expiry or a seller change makes that state obsolete.
+  useEffect(() => { setErrorMessage(''); }, [
+    auctionId, user?.id, auction?.status, auction?.bids?.length,
+    auction?.auto_buy, auction?.end_time,
+  ]);
+
 
   // Fetch auction inquiry messages
   const { data: chatMessages = [], isLoading: loadingChat } = useQuery({
@@ -123,24 +155,24 @@ export default function AuctionDetailPage() {
       setChatInput('');
     },
     onError: (err: any) => {
-      const msg = err.response?.data?.detail || 'Failed to send message.';
+      const msg = getErrorMessage(err, t('chatError'));
       alert(msg);
     }
   });
 
-  // Place Bid Mutation
+  // {t('placeBid')} Mutation
   const placeBidMutation = useMutation({
     mutationFn: (amount: number) => placeBid(auctionId, amount),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['auction', auctionId] });
       queryClient.invalidateQueries({ queryKey: ['auctions'] });
-      setSuccessMessage('Your bid was successfully placed!');
+      setSuccessMessage(t('bidSuccess'));
       setErrorMessage('');
       setBidInput('');
       setTimeout(() => setSuccessMessage(''), 4000);
     },
     onError: (err: any) => {
-      const msg = err.response?.data?.detail || 'Failed to place bid. Please try again.';
+      const msg = getErrorMessage(err, t('bidError'));
       setErrorMessage(msg);
       setSuccessMessage('');
     },
@@ -157,7 +189,7 @@ export default function AuctionDetailPage() {
       setTimeout(() => setSuccessMessage(''), 4000);
     },
     onError: (err: any) => {
-      const msg = err.response?.data?.detail || 'Failed to update Auto Buy price.';
+      const msg = getErrorMessage(err, 'Failed to update Auto Buy price.');
       setErrorMessage(msg);
       setSuccessMessage('');
       setTimeout(() => setErrorMessage(''), 4000);
@@ -175,7 +207,7 @@ export default function AuctionDetailPage() {
       setTimeout(() => setSuccessMessage(''), 4000);
     },
     onError: (err: any) => {
-      const msg = err.response?.data?.detail || 'Failed to close auction.';
+      const msg = getErrorMessage(err, 'Failed to close auction.');
       setErrorMessage(msg);
       setSuccessMessage('');
       setTimeout(() => setErrorMessage(''), 4000);
@@ -200,24 +232,25 @@ export default function AuctionDetailPage() {
 
   if (isLoading) {
     return (
-      <div className="min-h-screen bg-[var(--bg-primary,#09090b)] text-[var(--text-primary,#f4f4f5)] flex flex-col items-center justify-center space-y-4">
+      <div data-page-surface className="min-h-screen bg-[var(--bg-primary,#09090b)] text-[var(--text-primary,#f4f4f5)] flex flex-col items-center justify-center space-y-4">
         <Loader2 className="w-10 h-10 animate-spin text-[var(--accent-primary,#3b82f6)]" />
-        <p className="text-sm font-medium opacity-70">Loading Auction Room...</p>
+        <p className="text-sm font-medium opacity-70">{t('loadingRoom')}</p>
       </div>
     );
   }
 
   if (!auction) {
     return (
-      <div className="min-h-screen bg-[var(--bg-primary,#09090b)] text-[var(--text-primary,#f4f4f5)] flex flex-col items-center justify-center p-8 text-center">
+      <div data-page-surface className="min-h-screen bg-[var(--bg-primary,#09090b)] text-[var(--text-primary,#f4f4f5)] flex flex-col items-center justify-center p-8 text-center">
         <AlertCircle className="w-16 h-16 opacity-50 mb-4" />
-        <h2 className="text-xl font-bold mb-2">Auction Not Found</h2>
-        <p className="text-xs opacity-70 mb-6">This auction might have been removed or does not exist.</p>
+        <h2 className="text-xl font-bold mb-2">{t(unavailable ? 'loadError' : 'notFound')}</h2>
+        <p className="text-xs opacity-70 mb-6">{t(unavailable ? 'loadErrorDescription' : 'notFoundDescription')}</p>
+        {unavailable && <button type="button" disabled={fetchingAuction} onClick={() => { void retryAuction(); }} className="mb-4 rounded-xl border px-4 py-2 disabled:opacity-50">{t('retryAuction')}</button>}
         <Link
           href="/auctions"
           className="inline-flex items-center gap-2 px-5 py-2.5 bg-[var(--accent-primary,#3b82f6)] hover:opacity-90 text-white font-bold text-xs rounded-xl transition-all shadow-md"
         >
-          <ArrowLeft className="w-4 h-4" /> Back to Auctions
+          <ArrowLeft className="w-4 h-4" /> {t('back')}
         </Link>
       </div>
     );
@@ -227,13 +260,17 @@ export default function AuctionDetailPage() {
   const highestBid = bids.length > 0 ? bids[0].amount : null;
   const currentPrice = highestBid ?? auction.starting_bid;
   const minNextBid = highestBid ? highestBid + auction.bid_increment : auction.starting_bid;
-  const isEnded = auction.status === 'ENDED' || new Date(auction.end_time) <= new Date();
+  const isEnded = phase === 'closed' || phase === 'finalizing';
 
   const handleBidSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    if (placeBidMutation.isPending || !biddingOpen) return;
     const amount = parseFloat(bidInput);
+    if (!Number.isNaN(amount) && (!Number.isFinite(amount) || amount > 100000000)) {
+      setErrorMessage(t('maximumBid')); return;
+    }
     if (isNaN(amount) || amount < minNextBid) {
-      setErrorMessage(`Bid must be at least ฿${minNextBid}.`);
+      setErrorMessage(t('minimumBid',{amount:minNextBid}));
       return;
     }
     placeBidMutation.mutate(amount);
@@ -245,20 +282,21 @@ export default function AuctionDetailPage() {
   };
 
   const handleAutoBuy = () => {
-    if (auction.auto_buy && confirm(`Auto Buy this auction for ฿${auction.auto_buy}?`)) {
+    if (placeBidMutation.isPending || !biddingOpen) return;
+    if (auction.auto_buy && confirm(t('confirmAutoBuy',{amount:auction.auto_buy}))) {
       placeBidMutation.mutate(auction.auto_buy);
     }
   };
 
   return (
-    <div className="min-h-screen bg-[var(--bg-primary,#09090b)] text-[var(--text-primary,#f4f4f5)] pb-20 transition-colors duration-200">
+    <div data-page-surface className="min-h-screen bg-[var(--bg-primary,#09090b)] text-[var(--text-primary,#f4f4f5)] pb-20 transition-colors duration-200">
       {/* Dynamic Header Bar bound to active Theme Variables */}
       <div className="border-b border-[var(--border-subtle,#27272a)] bg-[var(--bg-surface,#121215)]/90 backdrop-blur-md sticky top-16 z-40 px-6 py-4 flex items-center justify-between shadow-sm">
         <Link
           href="/auctions"
           className="flex items-center gap-2 text-xs font-bold text-[var(--text-primary,#f4f4f5)] hover:opacity-80 transition-opacity bg-[var(--bg-primary,#09090b)] px-3.5 py-2 rounded-xl border border-[var(--border-subtle,#27272a)]"
         >
-          <ArrowLeft className="w-4 h-4 text-[var(--accent-primary,#3b82f6)]" /> Back to Auctions
+          <ArrowLeft className="w-4 h-4 text-[var(--accent-primary,#3b82f6)]" /> {t('back')}
         </Link>
 
         <div className="flex items-center gap-3">
@@ -275,14 +313,18 @@ export default function AuctionDetailPage() {
           <span className="text-xs font-extrabold px-3 py-1 rounded-full border uppercase bg-[var(--accent-primary,#3b82f6)]/10 text-[var(--accent-primary,#3b82f6)] border-[var(--accent-primary,#3b82f6)]/30">
             {auction.auction_type}
           </span>
-          <LiveTimer endTime={auction.end_time} />
+          {isEnded ? <span className="text-xs font-bold text-rose-500">{t(phase === 'finalizing' ? 'finalizing' : 'closed')}</span> : <LiveTimer endTime={auction.end_time} />}
         </div>
       </div>
 
       <div className="max-w-6xl mx-auto px-6 py-8">
+        {(auctionFailed || phase === 'finalizing') && <section role="alert" className="mb-6 rounded-2xl border border-amber-500/40 bg-amber-500/10 p-4 text-sm">
+          <p>{t(phase === 'finalizing' ? 'finalizingDescription' : 'loadErrorDescription')}</p>
+          <button type="button" disabled={fetchingAuction} onClick={() => { void retryAuction(); }} className="mt-3 rounded-xl border px-4 py-2 font-bold disabled:opacity-50">{t('retryAuction')}</button>
+        </section>}
         {/* Global Alert Messages */}
         {errorMessage && (
-          <div className="mb-6 text-rose-500 text-xs flex items-center gap-1.5 bg-rose-500/10 border border-rose-500/30 p-3.5 rounded-2xl animate-in fade-in duration-200">
+          <div role="alert" className="mb-6 text-rose-500 text-xs flex items-center gap-1.5 bg-rose-500/10 border border-rose-500/30 p-3.5 rounded-2xl animate-in fade-in duration-200">
             <AlertCircle className="w-4 h-4 shrink-0" />
             <span>{errorMessage}</span>
           </div>
@@ -308,7 +350,7 @@ export default function AuctionDetailPage() {
             ) : (
               <div className="w-full aspect-square flex flex-col items-center justify-center bg-[var(--bg-primary,#09090b)] p-6">
                 <Gavel className="w-16 h-16 mb-3 text-[var(--accent-primary,#3b82f6)]" />
-                <span className="text-xs font-bold uppercase tracking-widest text-[var(--text-muted,#a1a1aa)]">Commission Slot Auction</span>
+                <span className="text-xs font-bold uppercase tracking-widest text-[var(--text-muted,#a1a1aa)]">{t('slotAuction')}</span>
               </div>
             )}
           </div>
@@ -345,16 +387,16 @@ export default function AuctionDetailPage() {
             {/* Price Matrix */}
             <div className="grid grid-cols-2 gap-3 text-xs">
               <div className="bg-[var(--bg-primary,#09090b)] p-3 rounded-2xl border border-[var(--border-subtle,#27272a)]">
-                <span className="text-[var(--text-muted,#a1a1aa)] block text-[10px] uppercase font-bold">Starting Bid</span>
+                <span className="text-[var(--text-muted,#a1a1aa)] block text-[10px] uppercase font-bold">{t('startingBid')}</span>
                 <span className="text-[var(--text-primary,#f4f4f5)] font-bold text-sm font-mono">฿{auction.starting_bid}</span>
               </div>
               <div className="bg-[var(--bg-primary,#09090b)] p-3 rounded-2xl border border-[var(--border-subtle,#27272a)]">
-                <span className="text-[var(--text-muted,#a1a1aa)] block text-[10px] uppercase font-bold">Min Increment</span>
+                <span className="text-[var(--text-muted,#a1a1aa)] block text-[10px] uppercase font-bold">{t('minIncrement')}</span>
                 <span className="text-[var(--text-primary,#f4f4f5)] font-bold text-sm font-mono">฿{auction.bid_increment}</span>
               </div>
               <div className="bg-[var(--bg-primary,#09090b)] p-3 rounded-2xl border border-[var(--border-subtle,#27272a)]">
                 <div className="flex items-center justify-between text-[10px] font-bold text-[var(--text-muted,#a1a1aa)] mb-0.5">
-                  <span>Auto Buy (AB)</span>
+                  <span>{t('autoBuy')}</span>
                   {user && user.is_admin && (
                     <button
                       type="button"
@@ -373,10 +415,10 @@ export default function AuctionDetailPage() {
                     </button>
                   )}
                 </div>
-                <span className="text-[var(--accent-primary,#3b82f6)] font-extrabold text-sm font-mono">{auction.auto_buy ? `฿${auction.auto_buy}` : 'None'}</span>
+                <span className="text-[var(--accent-primary,#3b82f6)] font-extrabold text-sm font-mono">{auction.auto_buy ? `฿${auction.auto_buy}` : t('none')}</span>
               </div>
               <div className="bg-emerald-500/10 p-3 rounded-2xl border border-emerald-500/30">
-                <span className="text-emerald-500 block text-[10px] uppercase font-bold">Current Price</span>
+                <span className="text-emerald-500 block text-[10px] uppercase font-bold">{t('currentPrice')}</span>
                 <span className="text-emerald-500 font-extrabold text-base font-mono">฿{currentPrice}</span>
               </div>
             </div>
@@ -385,14 +427,15 @@ export default function AuctionDetailPage() {
             {auction.winner_id && (
               <div className="bg-gradient-to-r from-emerald-500/10 to-teal-500/10 border border-emerald-500/30 p-4 rounded-2xl space-y-1">
                 <div className="flex items-center gap-2 text-emerald-500 font-extrabold text-xs">
-                  <Trophy className="w-4 h-4" /> AUCTION WINNER
+                  <Trophy className="w-4 h-4" /> {t('winnerHeading')}
                 </div>
                 <div className="text-sm text-[var(--text-primary,#f4f4f5)] font-bold">
-                  {auction.winner_name || 'Anonymous Client'}
+                  {auction.winner_name || t('anonymous')}
                 </div>
                 <div className="text-xs text-emerald-500 font-mono">
-                  Winning Bid: <strong>฿{auction.winning_bid}</strong>
+                  {t('winningBid')} <strong>฿{auction.winning_bid}</strong>
                 </div>
+                {user?.id === auction.winner_id && <Link className="mt-3 inline-block rounded-xl bg-blue-600 px-4 py-2 text-sm font-bold text-white" href={winningOrder ? `/dashboard/client?order=${winningOrder.id}` : '/dashboard/client'}>{t('viewWinningOrder')}</Link>}
               </div>
             )}
           </div>
@@ -413,7 +456,7 @@ export default function AuctionDetailPage() {
                     : 'text-[var(--text-muted,#a1a1aa)] hover:text-[var(--text-primary,#f4f4f5)]'
                 }`}
               >
-                <Gavel className="w-4 h-4" /> ประวัติเสนอราคา ({bids.length})
+                <Gavel className="w-4 h-4" /> {t('bidHistory')} ({bids.length})
               </button>
               <button
                 type="button"
@@ -424,12 +467,12 @@ export default function AuctionDetailPage() {
                     : 'text-[var(--text-muted,#a1a1aa)] hover:text-[var(--text-primary,#f4f4f5)]'
                 }`}
               >
-                <MessageSquare className="w-4 h-4 text-[var(--accent-primary,#3b82f6)]" /> แชทสอบถาม ({chatMessages.length})
+                <MessageSquare className="w-4 h-4 text-[var(--accent-primary,#3b82f6)]" /> {t('chatTab')} ({chatMessages.length})
               </button>
             </div>
 
             <span className="text-[11px] font-mono text-[var(--text-muted,#a1a1aa)]">
-              {rightPanelTab === 'bids' ? 'Live Bidding' : 'Q&A Chat Room'}
+              {rightPanelTab === 'bids' ? t('liveBidding') : t('chatTitle')}
             </span>
           </div>
 
@@ -440,8 +483,8 @@ export default function AuctionDetailPage() {
                 {bids.length === 0 ? (
                   <div className="text-center py-16 text-[var(--text-muted,#a1a1aa)] space-y-2">
                     <Gavel className="w-12 h-12 opacity-40 mx-auto" />
-                    <p className="text-xs font-bold">No bids placed yet.</p>
-                    <p className="text-[11px] opacity-70">Be the first to place a bid on this item!</p>
+                    <p className="text-xs font-bold">{t('noBids')}</p>
+                    <p className="text-[11px] opacity-70">{t('firstBid')}</p>
                   </div>
                 ) : (
                   bids.map((bid, index) => {
@@ -471,12 +514,12 @@ export default function AuctionDetailPage() {
                                 </span>
                                 {isTopBid && (
                                   <span className="text-[9px] font-extrabold px-2 py-0.5 bg-emerald-500/10 text-emerald-500 rounded border border-emerald-500/30 flex items-center gap-1 uppercase tracking-wider animate-pulse">
-                                    ★ Highest Bidder
+                                    {t('highestBidder')}
                                   </span>
                                 )}
                               </div>
                               <span className="text-[10px] text-[var(--text-muted,#a1a1aa)] font-mono block mt-0.5">
-                                {new Date(bid.created_at).toLocaleString('en-US', {
+                                {parseApiDate(bid.created_at).toLocaleString('en-US', {
                                   dateStyle: 'medium',
                                   timeStyle: 'short',
                                 })}
@@ -495,11 +538,11 @@ export default function AuctionDetailPage() {
 
                         <div className="mt-2.5 pt-2 border-t border-[var(--border-subtle,#27272a)] text-xs flex items-center justify-between">
                           <span className="text-[11px] text-[var(--text-muted,#a1a1aa)] italic">
-                            Placed bid of ฿{bid.amount.toLocaleString()}
+                            {t('placedBid',{amount:bid.amount.toLocaleString()})}
                           </span>
                           {isTopBid && (
                             <span className="text-[10px] font-bold text-emerald-500 flex items-center gap-1">
-                              <CheckCircle2 className="w-3.5 h-3.5" /> Leading
+                              <CheckCircle2 className="w-3.5 h-3.5" /> {t('leading')}
                             </span>
                           )}
                         </div>
@@ -510,15 +553,15 @@ export default function AuctionDetailPage() {
               </div>
 
               {/* Interactive Bidding Panel Form */}
-              {!isEnded ? (
+              {biddingOpen ? (
                 user ? (
                   <div className="bg-[var(--bg-surface,#121215)] border border-[var(--border-subtle,#27272a)] rounded-3xl p-5 space-y-3 shadow-lg">
                     <div className="flex items-center justify-between">
                       <span className="text-xs font-bold text-[var(--text-primary,#f4f4f5)] flex items-center gap-1.5 uppercase tracking-wider">
-                        <Zap className="w-4 h-4 text-[var(--accent-primary,#3b82f6)]" /> Quick Place Bid
+                        <Zap className="w-4 h-4 text-[var(--accent-primary,#3b82f6)]" /> {t('quickBid')}
                       </span>
                       <span className="text-[11px] text-[var(--text-muted,#a1a1aa)]">
-                        Min Next Bid: <strong className="text-emerald-500 font-mono">฿{minNextBid}</strong>
+                        {t('minimumNext')} <strong className="text-emerald-500 font-mono">฿{minNextBid}</strong>
                       </span>
                     </div>
 
@@ -550,7 +593,7 @@ export default function AuctionDetailPage() {
                           onClick={handleAutoBuy}
                           className="px-3.5 py-1.5 bg-[var(--accent-primary,#3b82f6)] hover:opacity-90 text-white rounded-xl text-xs font-extrabold transition-all cursor-pointer shadow-md ml-auto"
                         >
-                          ⚡ Auto Buy ฿{auction.auto_buy}
+                          {t('quickAutoBuy',{amount:auction.auto_buy})}
                         </button>
                       )}
                     </div>
@@ -561,11 +604,11 @@ export default function AuctionDetailPage() {
                           ฿
                         </span>
                         <input
-                          type="number"
+                          type="number" aria-label={t('bidAmount')} max={100000000}
                           required
                           min={minNextBid}
                           step="any"
-                          placeholder={`Enter ฿${minNextBid} or higher`}
+                          placeholder={t('bidPlaceholder',{amount:minNextBid})}
                           value={bidInput}
                           onChange={(e) => setBidInput(e.target.value)}
                           className="w-full bg-[var(--bg-primary,#09090b)] border border-[var(--border-subtle,#27272a)] text-[var(--text-primary,#f4f4f5)] rounded-xl py-3 pl-8 pr-3 text-xs font-mono focus:outline-none focus:border-[var(--accent-primary,#3b82f6)]"
@@ -577,24 +620,24 @@ export default function AuctionDetailPage() {
                         className="bg-[var(--accent-primary,#3b82f6)] hover:opacity-90 text-white font-extrabold px-6 py-3 rounded-xl text-xs transition-all cursor-pointer disabled:opacity-50 shadow-md flex items-center gap-2"
                       >
                         {placeBidMutation.isPending && <Loader2 className="w-4 h-4 animate-spin" />}
-                        Place Bid
+                        {t('placeBid')}
                       </button>
                     </form>
                   </div>
                 ) : (
                   <div className="bg-[var(--bg-surface,#121215)] border border-[var(--border-subtle,#27272a)] rounded-3xl p-6 text-center space-y-3">
-                    <p className="text-xs text-[var(--text-muted,#a1a1aa)] font-bold">Log in to participate in live bidding</p>
+                    <p className="text-xs text-[var(--text-muted,#a1a1aa)] font-bold">{t('loginDescription')}</p>
                     <Link
                       href="/login"
                       className="inline-block bg-[var(--accent-primary,#3b82f6)] hover:opacity-90 text-white font-extrabold px-6 py-2.5 rounded-xl text-xs transition-all shadow-md"
                     >
-                      Log In to Bid
+                      {t('loginToBid')}
                     </Link>
                   </div>
                 )
               ) : (
                 <div className="bg-[var(--bg-surface,#121215)] border border-[var(--border-subtle,#27272a)] rounded-3xl p-6 text-center text-[var(--text-muted,#a1a1aa)] text-xs font-bold">
-                  This auction has ended. No further bids can be accepted.
+                  {t(phase === 'scheduled' ? 'notStartedDescription' : phase === 'finalizing' ? 'finalizingDescription' : auctionFailed ? 'loadErrorDescription' : 'endedDescription')}
                 </div>
               )}
             </>
@@ -608,7 +651,7 @@ export default function AuctionDetailPage() {
               <div className="bg-[var(--accent-primary,#3b82f6)]/10 border border-[var(--accent-primary,#3b82f6)]/20 p-3.5 rounded-2xl text-xs text-[var(--text-primary,#f4f4f5)] flex items-center justify-between gap-3">
                 <div className="flex items-center gap-2">
                   <HelpCircle className="w-4 h-4 text-[var(--accent-primary,#3b82f6)] shrink-0" />
-                  <span>ส่งคำถามสอบถามศิลปินผู้จัดประมูลเกี่ยวกับงาน สิทธิ์การใช้งาน หรือรายละเอียดเพิ่มเติม</span>
+                  <span>{t('chatDescription')}</span>
                 </div>
               </div>
 
@@ -617,8 +660,8 @@ export default function AuctionDetailPage() {
                 {chatMessages.length === 0 ? (
                   <div className="text-center py-16 text-[var(--text-muted,#a1a1aa)] space-y-2">
                     <MessageSquare className="w-12 h-12 opacity-40 mx-auto" />
-                    <p className="text-xs font-bold">ยังไม่มีคำถามยื่นในรายการประมูลนี้</p>
-                    <p className="text-[11px] opacity-70">เป็นคนแรกที่ส่งคำถามเกี่ยวกับรายละเอียดชิ้นงานได้ทันที</p>
+                    <p className="text-xs font-bold">{t('noQuestions')}</p>
+                    <p className="text-[11px] opacity-70">{t('firstQuestion')}</p>
                   </div>
                 ) : (
                   chatMessages.map((msg) => (
@@ -638,12 +681,12 @@ export default function AuctionDetailPage() {
                           </span>
                           {msg.is_artist && (
                             <span className="text-[9px] font-extrabold uppercase px-2 py-0.5 rounded bg-[var(--accent-primary,#3b82f6)]/20 text-[var(--accent-primary,#3b82f6)] border border-[var(--accent-primary,#3b82f6)]/30">
-                              ARTIST / CREATOR
+                              {t('creator')}
                             </span>
                           )}
                         </div>
                         <span className="text-[10px] text-[var(--text-muted,#a1a1aa)] font-mono">
-                          {new Date(msg.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                          {parseApiDate(msg.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                         </span>
                       </div>
                       <p className="text-[var(--text-primary,#f4f4f5)] leading-relaxed font-sans">{msg.content}</p>
@@ -655,29 +698,29 @@ export default function AuctionDetailPage() {
               {/* Inquiry Quick Prompt Chips */}
               <div className="pt-2 border-t border-[var(--border-subtle,#27272a)]">
                 <span className="text-[10px] font-bold text-[var(--text-muted,#a1a1aa)] uppercase tracking-wider block mb-1.5">
-                  คำถามที่พบบ่อย (Quick Questions):
+                  {t('quickQuestions')}
                 </span>
                 <div className="flex flex-wrap gap-1.5">
                   <button
                     type="button"
-                    onClick={() => insertPromptChip('ขอสอบถามเกี่ยวกับสิทธิ์การนำไปใช้เชิงพาณิชย์ (Commercial Use) ครับ')}
+                    onClick={() => insertPromptChip(t('commercialPrompt'))}
                     className="px-2.5 py-1 rounded-lg bg-[var(--bg-primary,#09090b)] hover:opacity-80 border border-[var(--border-subtle,#27272a)] text-[11px] text-[var(--text-primary,#f4f4f5)] transition-all cursor-pointer"
                   >
-                    ❓ สิทธิ์พาณิชย์
+                    {t('commercialQuestion')}
                   </button>
                   <button
                     type="button"
-                    onClick={() => insertPromptChip('ชิ้นงานมีไฟล์แยก Layer PSD หรือไฟล์โปร่งแสง PNG ให้ด้วยไหมครับ')}
+                    onClick={() => insertPromptChip(t('filesPrompt'))}
                     className="px-2.5 py-1 rounded-lg bg-[var(--bg-primary,#09090b)] hover:opacity-80 border border-[var(--border-subtle,#27272a)] text-[11px] text-[var(--text-primary,#f4f4f5)] transition-all cursor-pointer"
                   >
-                    ❓ ไฟล์ PSD/PNG
+                    {t('filesQuestion')}
                   </button>
                   <button
                     type="button"
-                    onClick={() => insertPromptChip('ใช้ระยะเวลาจัดส่งมอบชิ้นงานสมบูรณ์กี่วันหลังปิดประมูลครับ')}
+                    onClick={() => insertPromptChip(t('deliveryPrompt'))}
                     className="px-2.5 py-1 rounded-lg bg-[var(--bg-primary,#09090b)] hover:opacity-80 border border-[var(--border-subtle,#27272a)] text-[11px] text-[var(--text-primary,#f4f4f5)] transition-all cursor-pointer"
                   >
-                    ❓ ระยะเวลาส่งมอบ
+                    {t('deliveryQuestion')}
                   </button>
                 </div>
               </div>
@@ -688,7 +731,7 @@ export default function AuctionDetailPage() {
                   <input
                     type="text"
                     required
-                    placeholder="พิมพ์คำถามสอบถามศิลปิน..."
+                    aria-label={t('chatTitle')} placeholder={t('chatPlaceholder')}
                     value={chatInput}
                     onChange={(e) => setChatInput(e.target.value)}
                     className="flex-1 bg-[var(--bg-primary,#09090b)] border border-[var(--border-subtle,#27272a)] text-[var(--text-primary,#f4f4f5)] rounded-xl py-2.5 px-3.5 text-xs focus:outline-none focus:border-[var(--accent-primary,#3b82f6)]"
@@ -699,13 +742,13 @@ export default function AuctionDetailPage() {
                     className="px-4 py-2.5 bg-[var(--accent-primary,#3b82f6)] hover:opacity-90 text-white font-bold text-xs rounded-xl transition-all cursor-pointer disabled:opacity-50 flex items-center gap-1.5 shadow-md"
                   >
                     {sendMessageMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
-                    ส่งคำถาม
+                    {t('sendQuestion')}
                   </button>
                 </form>
               ) : (
                 <div className="text-center py-2 text-xs text-[var(--text-muted,#a1a1aa)]">
                   <Link href="/login" className="text-[var(--accent-primary,#3b82f6)] font-bold hover:underline">
-                    เข้าสู่ระบบเพื่อพิมพ์สอบถามคำถาม
+                    {t('loginChat')}
                   </Link>
                 </div>
               )}

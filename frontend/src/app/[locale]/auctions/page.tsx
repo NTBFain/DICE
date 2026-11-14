@@ -1,9 +1,12 @@
 'use client';
 
+import { parseApiDate } from '@/lib/apiDate';
+
 import { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { getAuctions, placeBid, Auction, Bid } from '@/lib/api';
 import { useAuth } from '@/components/AuthContext';
+import { getErrorMessage } from '@/lib/errorMessage';
 import { Loader2, Gavel, Clock, Trophy, AlertCircle, Sparkles, RefreshCw } from 'lucide-react';
 import { Link, useRouter } from '@/i18n/routing';
 import { useTranslations } from 'next-intl';
@@ -16,11 +19,12 @@ const getAuctionImageUrl = (url?: string) => {
 
 // Countdown Timer Component
 function CountdownTimer({ endTime, onEnd }: { endTime: string; onEnd: () => void }) {
+  const t = useTranslations('Auctions');
   const [timeLeft, setTimeLeft] = useState('');
 
   useEffect(() => {
     const calculate = () => {
-      const diff = +new Date(endTime) - +new Date();
+      const diff = +parseApiDate(endTime) - +new Date();
       if (diff <= 0) {
         setTimeLeft('ENDED');
         onEnd();
@@ -47,7 +51,7 @@ function CountdownTimer({ endTime, onEnd }: { endTime: string; onEnd: () => void
   if (timeLeft === 'ENDED') {
     return (
       <span className="px-2.5 py-0.5 bg-rose-500/10 text-rose-600 dark:text-rose-400 border border-rose-500/30 rounded-full text-[10px] font-bold uppercase tracking-wider">
-        Auction Ended
+        {t('auctionEnded')}
       </span>
     );
   }
@@ -91,7 +95,7 @@ export default function AuctionsPage() {
       placeBid(auctionId, amount),
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: ['auctions'] });
-      setSuccessMessages((prev) => ({ ...prev, [variables.auctionId]: 'Bid placed successfully!' }));
+      setSuccessMessages((prev) => ({ ...prev, [variables.auctionId]: t('bidSuccess') }));
       setErrorMessages((prev) => ({ ...prev, [variables.auctionId]: '' }));
       setBidInputs((prev) => ({ ...prev, [variables.auctionId]: '' }));
       setTimeout(() => {
@@ -99,7 +103,7 @@ export default function AuctionsPage() {
       }, 3000);
     },
     onError: (err: any, variables) => {
-      const msg = err.response?.data?.detail || 'Failed to place bid. Please try again.';
+      const msg = getErrorMessage(err, t('bidError'));
       setErrorMessages((prev) => ({ ...prev, [variables.auctionId]: msg }));
       setSuccessMessages((prev) => ({ ...prev, [variables.auctionId]: '' }));
     },
@@ -108,17 +112,21 @@ export default function AuctionsPage() {
   const now = new Date();
 
   const filteredAuctions = auctions.filter((auction) => {
-    const isEnded = auction.status === 'ENDED' || new Date(auction.end_time) <= now;
+    const isEnded = auction.status === 'ENDED' || parseApiDate(auction.end_time) <= now;
     return activeTab === 'active' ? !isEnded : isEnded;
   });
 
   const handleBidSubmit = (e: React.FormEvent, auctionId: number, minNextBid: number) => {
     e.preventDefault();
     const inputVal = bidInputs[auctionId];
+    if (placeBidMutation.isPending) return;
     const amount = parseFloat(inputVal);
+    if (!Number.isNaN(amount) && (!Number.isFinite(amount) || amount > 100000000)) {
+      setErrorMessages(previous => ({...previous,[auctionId]:t('maximumBid')})); return;
+    }
 
     if (isNaN(amount) || amount < minNextBid) {
-      setErrorMessages((prev) => ({ ...prev, [auctionId]: `Bid must be at least ฿${minNextBid}` }));
+      setErrorMessages((prev) => ({ ...prev, [auctionId]: t('minimumBid',{amount:minNextBid}) }));
       return;
     }
 
@@ -126,19 +134,19 @@ export default function AuctionsPage() {
   };
 
   const handleAutoBuy = (auctionId: number, autoBuyAmount: number) => {
-    if (confirm(`Are you sure you want to Auto Buy this item for ฿${autoBuyAmount}? This will win the auction immediately.`)) {
+    if (confirm(t('confirmAutoBuy',{amount:autoBuyAmount}))) {
       placeBidMutation.mutate({ auctionId, amount: autoBuyAmount });
     }
   };
 
   return (
-    <div className="min-h-screen bg-neutral-50 dark:bg-neutral-950 text-neutral-900 dark:text-white flex flex-col">
+    <div data-page-surface className="min-h-screen bg-neutral-50 dark:bg-neutral-950 text-neutral-900 dark:text-white flex flex-col">
       <div className="flex-1 p-6 sm:p-10 max-w-7xl w-full mx-auto space-y-8">
         
         {/* Header Bar */}
         <div className="bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 p-6 sm:p-8 rounded-3xl flex flex-col md:flex-row md:items-center justify-between gap-4 shadow-lg">
           <div>
-            <span className="text-[10px] font-mono font-bold text-blue-500 uppercase tracking-widest">Live Bidding Stage</span>
+            <span className="text-[10px] font-mono font-bold text-blue-500 uppercase tracking-widest">{t('stageBadge')}</span>
             <h1 className="text-3xl font-extrabold tracking-tight flex items-center gap-2 text-neutral-900 dark:text-white">
               <Gavel className="text-blue-500 w-8 h-8" /> {t('title')}
             </h1>
@@ -237,7 +245,7 @@ export default function AuctionsPage() {
                           {isAdoptable ? t('adoptable') : t('commissionSlot')}
                         </span>
                         
-                        {auction.status === 'ACTIVE' && new Date(auction.end_time) > now ? (
+                        {auction.status === 'ACTIVE' && parseApiDate(auction.end_time) > now ? (
                           <CountdownTimer endTime={auction.end_time} onEnd={refetch} />
                         ) : (
                           <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-neutral-100 dark:bg-neutral-950 text-neutral-500 dark:text-neutral-400 border border-neutral-200 dark:border-neutral-800 uppercase">
@@ -299,7 +307,7 @@ export default function AuctionsPage() {
                     </div>
 
                     {/* Bidding Action Box */}
-                    {auction.status === 'ACTIVE' && new Date(auction.end_time) > now ? (
+                    {auction.status === 'ACTIVE' && parseApiDate(auction.end_time) > now ? (
                       user ? (
                         <div className="border-t border-neutral-200 dark:border-neutral-800 pt-4 space-y-3">
                           <form
@@ -311,11 +319,11 @@ export default function AuctionsPage() {
                                 ฿
                               </span>
                               <input
-                                type="number"
+                                type="number" aria-label={t('bidAmount')} max={100000000}
                                 required
                                 min={minNextBid}
                                 step="any"
-                                placeholder={`Min ฿${minNextBid}`}
+                                placeholder={t('bidPlaceholder',{amount:minNextBid})}
                                 value={bidInputs[auction.id] || ''}
                                 onChange={(e) =>
                                   setBidInputs((prev) => ({ ...prev, [auction.id]: e.target.value }))

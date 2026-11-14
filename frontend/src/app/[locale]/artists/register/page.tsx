@@ -1,5 +1,8 @@
 'use client';
 
+import { useTranslations } from 'next-intl';
+import { getErrorMessage } from '@/lib/errorMessage';
+
 import { useState } from 'react';
 import { useRouter, Link } from '@/i18n/routing';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
@@ -33,6 +36,7 @@ import { useAuth } from '@/components/AuthContext';
 
 export default function ArtistRegisterPage() {
   const router = useRouter();
+  const c = useTranslations('ArtistOnboarding');
   const queryClient = useQueryClient();
   const { user, fetchUser } = useAuth();
 
@@ -60,13 +64,13 @@ export default function ArtistRegisterPage() {
       // Important: refresh user state so is_artist becomes true immediately
       await fetchUser();
       
-      setSuccessMessage('ลงทะเบียนโปรไฟล์ศิลปินสำเร็จเรียบร้อยแล้ว!');
+      setSuccessMessage(c('success'));
       setTimeout(() => {
         router.push(`/artists/${data.handle}`);
       }, 1500);
     },
     onError: (err: any) => {
-      const msg = err.response?.data?.detail || 'เกิดข้อผิดพลาดในการลงทะเบียน กรุณาตรวจสอบข้อมูลแล้วลองใหม่อีกครั้ง';
+      const msg = getErrorMessage(err, c('fallback'));
       setErrorMessage(msg);
     }
   });
@@ -81,23 +85,29 @@ export default function ArtistRegisterPage() {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    if (registerMutation.isPending) return;
     setErrorMessage('');
     setSuccessMessage('');
 
     const cleanHandle = handle.trim().toLowerCase().replace(/[^a-z0-9_]/g, '');
     if (!cleanHandle) {
-      setErrorMessage('กรุณาระบุ แฮนเดิล (@username) เป็นภาษาอังกฤษและตัวเลขเท่านั้น');
+      setErrorMessage(c('handleError'));
+      return;
+    }
+
+    if (!displayName.trim() || !tagline.trim() || !bio.trim()) {
+      setErrorMessage(c('requiredFields'));
       return;
     }
 
     const price = parseFloat(startingPrice);
-    if (isNaN(price) || price <= 0) {
-      setErrorMessage('กรุณาระบุเรตราคาเริ่มต้นเป็นตัวเลขที่ถูกต้อง');
+    if (!Number.isFinite(price) || price <= 0) {
+      setErrorMessage(c('priceError'));
       return;
     }
 
     if (selectedStyles.length === 0) {
-      setErrorMessage('กรุณาเลือกสไตล์งานวาดอย่างน้อย 1 สไตล์');
+      setErrorMessage(c('stylesError'));
       return;
     }
 
@@ -121,9 +131,8 @@ export default function ArtistRegisterPage() {
           href="/"
           className="flex items-center gap-2 text-xs font-bold text-[var(--text-primary,#f4f4f5)] bg-[var(--bg-surface,#121215)] border border-[var(--border-subtle,#27272a)] px-3.5 py-2 rounded-xl hover:opacity-80 transition-all"
         >
-          <ArrowLeft className="w-4 h-4 text-[var(--accent-primary,#3b82f6)]" /> กลับสู่หน้าหลัก
-        </Link>
-        <span className="text-xs font-mono text-[var(--text-muted,#a1a1aa)]">Creator Registration Portal</span>
+          <ArrowLeft className="w-4 h-4 text-[var(--accent-primary,#3b82f6)]" /> {' '}{c('back')}{' '}</Link>
+        <span className="text-xs font-mono text-[var(--text-muted,#a1a1aa)]">{c('portal')}</span>
       </div>
 
       {/* Main Registration Box */}
@@ -131,25 +140,22 @@ export default function ArtistRegisterPage() {
         
         <div className="space-y-2 border-b border-[var(--border-subtle,#27272a)] pb-6">
           <span className="text-[10px] font-mono font-bold text-[var(--accent-primary,#3b82f6)] uppercase bg-[var(--accent-primary,#3b82f6)]/10 px-3 py-1 rounded-full border border-[var(--accent-primary,#3b82f6)]/30">
-            Artist Onboarding
-          </span>
+            {' '}{c('onboarding')}{' '}</span>
           <h1 className="text-2xl sm:text-3xl font-black text-[var(--text-primary,#f4f4f5)] flex items-center gap-2">
-            <UserPlus className="w-7 h-7 text-[var(--accent-primary,#3b82f6)]" /> ลงทะเบียนโปรไฟล์ศิลปินใหม่
-          </h1>
+            <UserPlus className="w-7 h-7 text-[var(--accent-primary,#3b82f6)]" /> {' '}{c('title')}{' '}</h1>
           <p className="text-xs text-[var(--text-muted,#a1a1aa)] leading-relaxed">
-            สร้างโปรไฟล์ศิลปินของคุณเพื่อเปิดรับงานคอมมิชชัน ลงรายการประมูล และแสดงแกลเลอรีผลงานในแพลตฟอร์มกลาง DICE
-          </p>
+            {' '}{c('intro')}{' '}</p>
         </div>
 
         {errorMessage && (
-          <div className="p-4 bg-rose-500/10 border border-rose-500/30 text-rose-500 text-xs rounded-2xl flex items-center gap-2">
+          <div role="alert" className="p-4 bg-rose-500/10 border border-rose-500/30 text-rose-500 text-xs rounded-2xl flex items-center gap-2">
             <AlertCircle className="w-4 h-4 shrink-0" />
             <span>{errorMessage}</span>
           </div>
         )}
 
         {successMessage && (
-          <div className="p-4 bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 text-xs rounded-2xl flex items-center gap-2 font-bold justify-center">
+          <div role="status" className="p-4 bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 text-xs rounded-2xl flex items-center gap-2 font-bold justify-center">
             <CheckCircle2 className="w-4 h-4 shrink-0" />
             <span>{successMessage}</span>
           </div>
@@ -161,31 +167,31 @@ export default function ArtistRegisterPage() {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div className="space-y-2">
               <label className="text-xs font-bold text-[var(--text-primary,#f4f4f5)] block">
-                แฮนเดิลประจำตัว (@username) <span className="text-rose-500">*</span>
+                {' '}{c('handle')}{' '}<span className="text-rose-500">*</span>
               </label>
               <div className="relative">
                 <span className="absolute left-3.5 top-3 text-xs font-mono font-bold text-[var(--text-muted,#a1a1aa)]">@</span>
                 <input
                   type="text"
                   required
-                  placeholder="เช่น kiriko_art, neko_chibi"
-                  value={handle}
+                  placeholder={c('handlePlaceholder')}
+                  aria-label={c('handle')} value={handle}
                   onChange={(e) => setHandle(e.target.value)}
                   className="w-full bg-[var(--bg-primary,#09090b)] border border-[var(--border-subtle,#27272a)] text-[var(--text-primary,#f4f4f5)] rounded-2xl py-2.5 pl-8 pr-4 text-xs font-mono focus:outline-none focus:border-[var(--accent-primary,#3b82f6)]"
                 />
               </div>
-              <span className="text-[10px] text-[var(--text-muted,#a1a1aa)]">ใช้สำหรับตั้งเป็นลิงก์โปรไฟล์ส่วนตัวของคุณ</span>
+              <span className="text-[10px] text-[var(--text-muted,#a1a1aa)]">{c('handleHelp')}</span>
             </div>
 
             <div className="space-y-2">
               <label className="text-xs font-bold text-[var(--text-primary,#f4f4f5)] block">
-                ชื่อที่ใช้แสดง / นามปากกา (Display Name) <span className="text-rose-500">*</span>
+                {' '}{c('displayName')}{' '}<span className="text-rose-500">*</span>
               </label>
               <input
                 type="text"
                 required
-                placeholder="เช่น Kiriko Studio (คิริโกะ)"
-                value={displayName}
+                placeholder={c('displayNamePlaceholder')}
+                aria-label={c('displayName')} value={displayName}
                 onChange={(e) => setDisplayName(e.target.value)}
                 className="w-full bg-[var(--bg-primary,#09090b)] border border-[var(--border-subtle,#27272a)] text-[var(--text-primary,#f4f4f5)] rounded-2xl py-2.5 px-4 text-xs focus:outline-none focus:border-[var(--accent-primary,#3b82f6)]"
               />
@@ -195,13 +201,13 @@ export default function ArtistRegisterPage() {
           {/* Tagline */}
           <div className="space-y-2">
             <label className="text-xs font-bold text-[var(--text-primary,#f4f4f5)] block">
-              สโลแกน / ความเชี่ยวชาญสั้นๆ (Tagline) <span className="text-rose-500">*</span>
+              {' '}{c('tagline')}{' '}<span className="text-rose-500">*</span>
             </label>
             <input
               type="text"
               required
-              placeholder="เช่น 2D Live2D VTuber Models & Anime Character Design Specialist"
-              value={tagline}
+              placeholder={c('taglinePlaceholder')}
+              aria-label={c('tagline')} value={tagline}
               onChange={(e) => setTagline(e.target.value)}
               className="w-full bg-[var(--bg-primary,#09090b)] border border-[var(--border-subtle,#27272a)] text-[var(--text-primary,#f4f4f5)] rounded-2xl py-2.5 px-4 text-xs focus:outline-none focus:border-[var(--accent-primary,#3b82f6)]"
             />
@@ -210,13 +216,13 @@ export default function ArtistRegisterPage() {
           {/* Bio */}
           <div className="space-y-2">
             <label className="text-xs font-bold text-[var(--text-primary,#f4f4f5)] block">
-              คำแนะนำตัว / รายละเอียดศิลปิน (Bio) <span className="text-rose-500">*</span>
+              {' '}{c('bio')}{' '}<span className="text-rose-500">*</span>
             </label>
             <textarea
               rows={3}
               required
-              placeholder="แนะแนวนำสไตล์งาน ประสบการณ์ และเงื่อนไขการรับงานของคุณ..."
-              value={bio}
+              placeholder={c('bioPlaceholder')}
+              aria-label={c('bio')} value={bio}
               onChange={(e) => setBio(e.target.value)}
               className="w-full bg-[var(--bg-primary,#09090b)] border border-[var(--border-subtle,#27272a)] text-[var(--text-primary,#f4f4f5)] rounded-2xl p-4 text-xs leading-relaxed focus:outline-none focus:border-[var(--accent-primary,#3b82f6)]"
             />
@@ -225,15 +231,17 @@ export default function ArtistRegisterPage() {
           {/* Style Selector Chips */}
           <div className="space-y-2">
             <label className="text-xs font-bold text-[var(--text-primary,#f4f4f5)] block">
-              เลือกสไตล์งานวาดของคุณ (เลือกได้หลายสไตล์) <span className="text-rose-500">*</span>
+              {' '}{c('styles')}{' '}<span className="text-rose-500">*</span>
             </label>
             <div className="flex flex-wrap gap-2 pt-1">
-              {STYLE_OPTIONS.map((st) => {
+              {STYLE_OPTIONS.map((st, styleIndex) => {
                 const isSelected = selectedStyles.includes(st);
                 return (
                   <button
                     key={st}
                     type="button"
+                    aria-pressed={isSelected}
+                    aria-label={c(`style${styleIndex}`)}
                     onClick={() => toggleStyle(st)}
                     className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer border ${
                       isSelected
@@ -241,7 +249,7 @@ export default function ArtistRegisterPage() {
                         : 'bg-[var(--bg-primary,#09090b)] text-[var(--text-muted,#a1a1aa)] border-[var(--border-subtle,#27272a)] hover:text-[var(--text-primary,#f4f4f5)]'
                     }`}
                   >
-                    {isSelected ? '✓ ' : '+ '}{st}
+                    {isSelected ? '✓ ' : '+ '}{c(`style${styleIndex}`)}
                   </button>
                 );
               })}
@@ -252,16 +260,16 @@ export default function ArtistRegisterPage() {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div className="space-y-2">
               <label className="text-xs font-bold text-[var(--text-primary,#f4f4f5)] block">
-                ราคาเริ่มต้นแพ็กเกจ (฿) <span className="text-rose-500">*</span>
+                {' '}{c('startingPrice')}{' '}<span className="text-rose-500">*</span>
               </label>
               <div className="relative">
                 <span className="absolute left-3.5 top-3 text-xs font-bold text-[var(--text-muted,#a1a1aa)]">฿</span>
                 <input
-                  type="number"
+                  type="number" step="0.01"
                   required
                   min={100}
                   placeholder="1000"
-                  value={startingPrice}
+                  aria-label={c('startingPrice')} value={startingPrice}
                   onChange={(e) => setStartingPrice(e.target.value)}
                   className="w-full bg-[var(--bg-primary,#09090b)] border border-[var(--border-subtle,#27272a)] text-[var(--text-primary,#f4f4f5)] rounded-2xl py-2.5 pl-8 pr-4 text-xs font-mono focus:outline-none focus:border-[var(--accent-primary,#3b82f6)]"
                 />
@@ -270,12 +278,11 @@ export default function ArtistRegisterPage() {
 
             <div className="space-y-2">
               <label className="text-xs font-bold text-[var(--text-primary,#f4f4f5)] block">
-                Twitter / X Handle
-              </label>
+                {' '}{c('twitter')}{' '}</label>
               <input
                 type="text"
-                placeholder="เช่น @kiriko_art"
-                value={socialTwitter}
+                placeholder={c('twitterPlaceholder')}
+                aria-label={c('twitter')} value={socialTwitter}
                 onChange={(e) => setSocialTwitter(e.target.value)}
                 className="w-full bg-[var(--bg-primary,#09090b)] border border-[var(--border-subtle,#27272a)] text-[var(--text-primary,#f4f4f5)] rounded-2xl py-2.5 px-4 text-xs focus:outline-none focus:border-[var(--accent-primary,#3b82f6)]"
               />
@@ -290,8 +297,7 @@ export default function ArtistRegisterPage() {
               href="/"
               className="px-5 py-2.5 bg-[var(--bg-primary,#09090b)] hover:opacity-80 text-[var(--text-primary,#f4f4f5)] border border-[var(--border-subtle,#27272a)] font-bold rounded-2xl text-xs transition-all"
             >
-              ยกเลิก
-            </Link>
+              {' '}{c('cancel')}{' '}</Link>
 
             <button
               type="submit"
@@ -299,8 +305,7 @@ export default function ArtistRegisterPage() {
               className="px-6 py-2.5 bg-[var(--accent-primary,#3b82f6)] hover:opacity-90 text-white font-extrabold rounded-2xl text-xs transition-all cursor-pointer shadow-md flex items-center gap-2"
             >
               {registerMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />}
-              ยืนยันการลงทะเบียนศิลปิน
-            </button>
+              {' '}{c('submit')}{' '}</button>
           </div>
 
         </form>

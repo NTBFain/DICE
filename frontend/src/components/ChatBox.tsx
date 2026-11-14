@@ -1,5 +1,7 @@
 'use client';
 
+import { parseApiDate } from '@/lib/apiDate';
+
 import { useState, useEffect, useRef } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { getMessages, sendMessage } from '@/lib/api';
@@ -15,6 +17,7 @@ interface ChatBoxProps {
 export default function ChatBox({ orderId, currentUserId }: ChatBoxProps) {
   const t = useTranslations('ChatBox');
   const [content, setContent] = useState('');
+  const [sendError, setSendError] = useState('');
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const queryClient = useQueryClient();
   const { user } = useAuth();
@@ -30,7 +33,12 @@ export default function ChatBox({ orderId, currentUserId }: ChatBoxProps) {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['order-messages', orderId] });
       setContent('');
+      setSendError('');
       scrollToBottom();
+    },
+    onError: (error: any) => {
+      const detail = error.response?.data?.detail;
+      setSendError(typeof detail === 'string' ? detail : t('sendFailed'));
     },
   });
 
@@ -47,9 +55,10 @@ export default function ChatBox({ orderId, currentUserId }: ChatBoxProps) {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (content.trim()) {
-      sendMessageMutation.mutate(content);
-    }
+    if (!content.trim() || sendMessageMutation.isPending) return;
+    if (content.length > 2000) { setSendError(t('tooLong')); return; }
+    setSendError('');
+    sendMessageMutation.mutate(content.trim());
   };
 
   const quickReplies = [
@@ -90,7 +99,7 @@ export default function ChatBox({ orderId, currentUserId }: ChatBoxProps) {
                     {isMe ? t('you') : msg.sender_name}
                   </span>
                   <span className="text-[9px] text-neutral-600">
-                    {new Date(msg.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                    {parseApiDate(msg.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                   </span>
                 </div>
                 <div
@@ -126,18 +135,22 @@ export default function ChatBox({ orderId, currentUserId }: ChatBoxProps) {
       )}
 
       {/* Input Area */}
+      {sendError && <p role="alert" className="px-3 py-2 text-sm text-red-500">{sendError}</p>}
       <form onSubmit={handleSubmit} className="bg-white dark:bg-neutral-950 p-3 border-t border-neutral-200 dark:border-neutral-800 flex gap-2 shrink-0">
         <input
           type="text"
           value={content}
-          onChange={(e) => setContent(e.target.value)}
+          onChange={(e) => { setContent(e.target.value); setSendError(e.target.value.length > 2000 ? t('tooLong') : ''); }}
+          aria-label={t('typeMessage')}
+          aria-invalid={content.length > 2000}
           placeholder={t('typeMessage')}
           className="flex-1 bg-neutral-50 dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 text-neutral-900 dark:text-white text-sm rounded-xl px-4 py-2.5 focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500 transition-all placeholder-neutral-600"
           required
         />
         <button
           type="submit"
-          disabled={sendMessageMutation.isPending || !content.trim()}
+          disabled={sendMessageMutation.isPending || !content.trim() || content.length > 2000}
+          aria-label={t('send')}
           className="bg-blue-600 hover:bg-blue-500 disabled:bg-neutral-200 dark:bg-neutral-800 disabled:text-neutral-500 dark:text-neutral-500 text-white px-4 py-2.5 rounded-xl transition-all cursor-pointer flex items-center justify-center min-w-[50px]"
         >
           {sendMessageMutation.isPending ? (

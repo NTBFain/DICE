@@ -1,11 +1,14 @@
 'use client';
 
-import { useState, useRef, useEffect } from 'react';
+import { parseApiDate } from '@/lib/apiDate';
+import { getNotificationText } from '@/lib/notificationText';
+
+import { useState, useRef, useEffect, useId } from 'react';
 import { Bell, Check, ExternalLink } from 'lucide-react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from './AuthContext';
 import { getNotifications, markNotificationAsRead, markAllNotificationsAsRead } from '@/lib/api';
-import { useTranslations } from 'next-intl';
+import { useLocale, useTranslations } from 'next-intl';
 import { Link } from '@/i18n/routing';
 
 interface Notification {
@@ -22,9 +25,25 @@ interface Notification {
 export default function NotificationBell() {
   const { user } = useAuth();
   const t = useTranslations('Notifications');
+  const notificationCopy = useTranslations('NotificationCopy');
+  const locale = useLocale();
   const queryClient = useQueryClient();
   const [isOpen, setIsOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  const panelId = useId();
+
+  useEffect(() => {
+    if (!isOpen) return;
+    const dismiss = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        setIsOpen(false);
+        triggerRef.current?.focus();
+      }
+    };
+    document.addEventListener('keydown', dismiss);
+    return () => document.removeEventListener('keydown', dismiss);
+  }, [isOpen]);
 
   // Close dropdown when clicking outside
   useEffect(() => {
@@ -74,9 +93,12 @@ export default function NotificationBell() {
   return (
     <div className="relative" ref={dropdownRef}>
       <button
+        ref={triggerRef}
+        aria-expanded={isOpen}
+        aria-controls={panelId}
         onClick={() => setIsOpen(!isOpen)}
         className="relative p-2 text-neutral-400 hover:text-white transition-colors rounded-full hover:bg-neutral-800 btn-press cursor-pointer"
-        aria-label="Notifications"
+        aria-label={t('title')}
       >
         <Bell className={`w-5 h-5 ${unreadCount > 0 ? 'text-blue-400 animate-wiggle-repeat' : ''}`} />
         {unreadCount > 0 && (
@@ -88,7 +110,7 @@ export default function NotificationBell() {
       </button>
 
       {isOpen && (
-        <div className="absolute right-0 mt-2 w-80 bg-neutral-900 border border-neutral-800 rounded-2xl shadow-xl overflow-hidden z-50 animate-fade-in-scale">
+        <div id={panelId} role="region" aria-label={t('title')} className="absolute right-0 mt-2 w-80 max-w-[calc(100vw-1rem)] bg-neutral-900 border border-neutral-800 rounded-2xl shadow-xl overflow-hidden z-50 animate-fade-in-scale">
           <div className="flex items-center justify-between p-3 border-b border-neutral-800 bg-neutral-800/50">
             <h3 className="font-semibold text-white">{t('title')}</h3>
             {unreadCount > 0 && (
@@ -109,7 +131,9 @@ export default function NotificationBell() {
               </div>
             ) : (
               <div className="flex flex-col">
-                {notifications.map(notif => (
+                {notifications.map(notif => {
+                  const text = getNotificationText(notif, notificationCopy);
+                  return (
                   <div
                     key={notif.id}
                     className={`p-3 border-b border-neutral-800/50 transition-colors ${notif.is_read ? 'bg-neutral-900 opacity-70' : 'bg-neutral-800/30'}`}
@@ -117,13 +141,13 @@ export default function NotificationBell() {
                     <div className="flex justify-between items-start gap-2">
                       <div className="flex-1">
                         <p className={`text-sm ${notif.is_read ? 'text-neutral-300' : 'text-white font-medium'}`}>
-                          {notif.title}
+                          {text.title}
                         </p>
                         <p className="text-xs text-neutral-400 mt-1 line-clamp-2">
-                          {notif.message}
+                          {text.message}
                         </p>
                         <p className="text-[10px] text-neutral-500 mt-2">
-                          {new Date(notif.created_at).toLocaleString()}
+                          {parseApiDate(notif.created_at).toLocaleString(locale)}
                         </p>
                       </div>
                       {!notif.is_read && (
@@ -148,14 +172,15 @@ export default function NotificationBell() {
                         <button
                           onClick={() => markAsReadMutation.mutate(notif.id)}
                           className="p-1 text-neutral-400 hover:text-white transition-colors"
-                          title="Mark as read"
+                          title={t('markRead')}
+                          aria-label={t('markRead')}
                         >
                           <Check className="w-4 h-4" />
                         </button>
                       )}
                     </div>
                   </div>
-                ))}
+                );})}
               </div>
             )}
           </div>

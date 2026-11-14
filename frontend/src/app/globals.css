@@ -1,5 +1,9 @@
 @import "tailwindcss";
 
+/* Keep the wallpaper above the body paint and below readable content surfaces. */
+html[data-wallpaper] body { isolation: isolate; }
+html[data-wallpaper] [data-page-surface] { background-color: transparent; }
+
 :root {
   --bg-primary: #faf7f2;
   --bg-surface: #ffffff;

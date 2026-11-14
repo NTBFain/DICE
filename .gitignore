@@ -37,3 +37,6 @@ archives/
 
 # Tooling
 agy-termux-lse/
+
+# Local review dependencies and disposable data
+.audit-cache/

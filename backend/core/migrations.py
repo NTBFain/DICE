@@ -15,6 +15,7 @@ ADDED_COLUMNS = {
     "order": {
         "service_id": "INTEGER",
         "commission_request_id": "INTEGER",
+        "auction_id": "INTEGER",
     },
     "commissionrequest": {
         "custom_responses": "JSON",

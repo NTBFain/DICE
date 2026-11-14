@@ -4,11 +4,10 @@ import { useQuery } from '@tanstack/react-query';
 import { getCharacters } from '@/lib/api';
 import { Loader2, Users, ArrowRight } from 'lucide-react';
 import { useTranslations } from 'next-intl';
-import { Link, useRouter } from '@/i18n/routing';
+import { Link } from '@/i18n/routing';
 
 export default function CharactersPage() {
-  const t = useTranslations('Portfolio'); // Reuse Portfolio translations or add Character ones
-  const router = useRouter();
+  const t = useTranslations('Characters');
   
   const { data: characters, isLoading, isError } = useQuery({
     queryKey: ['characters'],
@@ -20,10 +19,10 @@ export default function CharactersPage() {
       <div className="mb-12 text-center max-w-2xl mx-auto">
         <h1 className="text-4xl font-bold tracking-tight mb-4 flex items-center justify-center gap-3">
           <Users className="w-10 h-10 text-blue-500" />
-          Characters Universe
+          {t('title')}
         </h1>
         <p className="text-neutral-600 dark:text-neutral-400 text-lg">
-          Explore artworks sorted by your favorite characters. Select a profile below to view their specific gallery.
+          {t('description')}
         </p>
       </div>
 
@@ -36,29 +35,26 @@ export default function CharactersPage() {
 
       {isError && (
         <div className="bg-red-500/10 border border-red-500/20 text-red-400 p-6 rounded-2xl text-center max-w-lg mx-auto">
-          Failed to load characters.
+          {t('error')}
         </div>
       )}
 
       {!isLoading && !isError && characters?.length === 0 && (
         <div className="text-center py-20 bg-neutral-50 dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-3xl">
           <Users className="w-16 h-16 text-neutral-700 mx-auto mb-4 opacity-50" />
-          <h3 className="text-xl font-bold text-neutral-700 dark:text-neutral-300">No Characters Found</h3>
-          <p className="text-neutral-500 dark:text-neutral-500 mt-2">There are currently no characters added to the database.</p>
+          <h3 className="text-xl font-bold text-neutral-700 dark:text-neutral-300">{t('emptyTitle')}</h3>
+          <p className="text-neutral-500 dark:text-neutral-500 mt-2">{t('emptyDescription')}</p>
         </div>
       )}
 
       {!isLoading && characters && characters.length > 0 && (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
           {characters.map((char) => (
-            <div 
+            <article
               key={char.id}
-              onClick={() => router.push(`/portfolio?character=${char.id}`)}
-              role="button"
-              tabIndex={0}
-              onKeyDown={(e) => { if (e.key === 'Enter') router.push(`/portfolio?character=${char.id}`); }}
               className="group block bg-neutral-900 border border-neutral-800 rounded-2xl overflow-hidden hover:border-blue-500/50 transition-all duration-300 relative shadow-sm cursor-pointer"
             >
+              <Link href={`/portfolio?character=${char.id}`} aria-label={t('galleryFor',{name:char.name})} className="absolute inset-0 z-10 rounded-2xl focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-blue-500"><span className="sr-only">{t('galleryFor',{name:char.name})}</span></Link>
               {char.image_url ? (
                 <div className="h-64 w-full relative overflow-hidden bg-neutral-950">
                   <img
@@ -75,7 +71,7 @@ export default function CharactersPage() {
                         style={{ backgroundColor: char.theme_color || '#3b82f6' }}
                       />
                       <span className="text-[10px] font-bold uppercase tracking-widest text-neutral-400">
-                        Character
+                        {t('character')}
                       </span>
                     </div>
                     <h3 className="text-xl font-extrabold text-white mb-1 group-hover:text-blue-400 transition-colors">
@@ -84,12 +80,7 @@ export default function CharactersPage() {
                     
                     {/* Artist Badge */}
                     {char.artist && (
-                      <div 
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          router.push(`/artists/${char.artist!.handle}`);
-                        }}
-                        className="flex items-center gap-1.5 mb-2 hover:bg-white/20 p-1 pr-2 rounded-full transition-colors w-fit border border-white/10 shadow-sm"
+                      <Link href={`/artists/${char.artist!.handle}`} aria-label={t('artistProfile',{name:char.artist.display_name})} className="relative z-20 flex items-center gap-1.5 mb-2 hover:bg-white/20 p-1 pr-2 rounded-full transition-colors w-fit border border-white/10 shadow-sm"
                       >
                         {char.artist.avatar_url ? (
                           <img src={char.artist.avatar_url} alt={char.artist.display_name} className="w-5 h-5 rounded-full object-cover" />
@@ -98,15 +89,15 @@ export default function CharactersPage() {
                             {char.artist.display_name.charAt(0)}
                           </div>
                         )}
-                        <span className="text-[10px] font-medium text-white/90">by {char.artist.display_name}</span>
-                      </div>
+                        <span className="text-[10px] font-medium text-white/90">{t('byArtist',{name:char.artist.display_name})}</span>
+                      </Link>
                     )}
                     
                     <p className="text-neutral-300 text-xs line-clamp-2 mb-3">
-                      {char.description || "A original character profile."}
+                      {char.description || t('defaultDescription')}
                     </p>
                     <div className="flex items-center text-xs font-bold text-blue-400 uppercase tracking-wider">
-                      Explore Gallery <ArrowRight className="w-3.5 h-3.5 ml-1 group-hover:translate-x-1 transition-transform" />
+                      {t('explore')} <ArrowRight className="w-3.5 h-3.5 ml-1 group-hover:translate-x-1 transition-transform" />
                     </div>
                   </div>
                 </div>
@@ -134,12 +125,7 @@ export default function CharactersPage() {
 
                       {/* Artist Badge */}
                       {char.artist && (
-                        <div 
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            router.push(`/artists/${char.artist!.handle}`);
-                          }}
-                          className="flex items-center gap-1.5 mb-2 hover:bg-neutral-800 p-1 pr-2 rounded-full transition-colors w-fit border border-neutral-800 shadow-sm"
+                        <Link href={`/artists/${char.artist!.handle}`} aria-label={t('artistProfile',{name:char.artist.display_name})} className="relative z-20 flex items-center gap-1.5 mb-2 hover:bg-neutral-800 p-1 pr-2 rounded-full transition-colors w-fit border border-neutral-800 shadow-sm"
                         >
                           {char.artist.avatar_url ? (
                             <img src={char.artist.avatar_url} alt={char.artist.display_name} className="w-5 h-5 rounded-full object-cover" />
@@ -148,21 +134,21 @@ export default function CharactersPage() {
                               {char.artist.display_name.charAt(0)}
                             </div>
                           )}
-                          <span className="text-[10px] font-medium text-white/90">by {char.artist.display_name}</span>
-                        </div>
+                          <span className="text-[10px] font-medium text-white/90">{t('byArtist',{name:char.artist.display_name})}</span>
+                        </Link>
                       )}
 
                       <p className="text-neutral-400 text-xs line-clamp-2 mb-4">
-                        {char.description || "An original character profile."}
+                        {char.description || t('defaultDescription')}
                       </p>
                       <div className="flex items-center text-xs font-bold text-blue-400">
-                        Explore Gallery <ArrowRight className="w-3.5 h-3.5 ml-1 group-hover:translate-x-1 transition-transform" />
+                        {t('explore')} <ArrowRight className="w-3.5 h-3.5 ml-1 group-hover:translate-x-1 transition-transform" />
                       </div>
                     </div>
                   </div>
                 </>
               )}
-            </div>
+            </article>
           ))}
         </div>
       )}

@@ -1,5 +1,5 @@
 from pydantic import BaseModel, Field
-from typing import Optional, List, Any
+from typing import Optional, List, Any, Literal
 from datetime import datetime
 
 class ArtistBasicResponse(BaseModel):
@@ -26,6 +26,32 @@ class ArtistReviewResponse(BaseModel):
     comment: str
     created_at: datetime
 
+class ArtistArtworkResponse(BaseModel):
+    id: int
+    title: str
+    image_url: str
+    work_type: str
+    description: Optional[str] = None
+
+class ArtistAuctionResponse(BaseModel):
+    id: int
+    title: str
+    auction_type: str
+    starting_bid: float
+    bid_increment: float
+    auto_buy: Optional[float] = None
+    current_price: float
+    status: str
+    end_time: datetime
+    image_url: Optional[str] = None
+
+class ArtistCharacterResponse(BaseModel):
+    id: int
+    name: str
+    description: Optional[str] = None
+    theme_color: Optional[str] = None
+    image_url: Optional[str] = None
+
 class ArtistProfileResponse(BaseModel):
     id: int
     user_id: Optional[int] = None
@@ -50,6 +76,9 @@ class ArtistProfileResponse(BaseModel):
     active_auctions_count: int = 0
     portfolio_count: int = 0
     public_queue: List[Any] = []
+    artworks: List[ArtistArtworkResponse] = Field(default_factory=list)
+    auctions: List[ArtistAuctionResponse] = Field(default_factory=list)
+    characters: List[ArtistCharacterResponse] = Field(default_factory=list)
 
 class ArtistUpdateRequest(BaseModel):
     display_name: Optional[str] = Field(None, min_length=1, max_length=100)
@@ -57,7 +86,7 @@ class ArtistUpdateRequest(BaseModel):
     bio: Optional[str] = Field(None, max_length=3000)
     styles: Optional[List[str]] = None
     starting_price: Optional[float] = Field(None, ge=0, le=10_000_000, allow_inf_nan=False)
-    commission_status: Optional[str] = None
+    commission_status: Optional[Literal["OPEN", "CLOSED", "WAITLIST"]] = None
     social_twitter: Optional[str] = None
     social_pixiv: Optional[str] = None
     social_discord: Optional[str] = None

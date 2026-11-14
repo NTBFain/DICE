@@ -1,6 +1,7 @@
 from typing import Optional, List, Dict, Any
 from datetime import datetime
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
+import math
 from models.commission import CommissionRequestStatus, AddonPriceType
 
 # --- Policy Schemas ---
@@ -56,6 +57,7 @@ class ServiceAvailabilityUpdateRequest(BaseModel):
     notify_followers: bool = True
 
 class ServiceScaleUpdateRequest(BaseModel):
+    is_form_open: Optional[bool] = None
     title: Optional[str] = None
     category: Optional[str] = None
     description: Optional[str] = None
@@ -68,6 +70,43 @@ class ServiceScaleUpdateRequest(BaseModel):
 
 class FormSchemaUpdateRequest(BaseModel):
     blocks: List[Dict[str, Any]] = Field(default_factory=list)
+
+    @field_validator("blocks")
+    @classmethod
+    def validate_numeric_configuration(cls, blocks):
+        def number(config, key, minimum=0, maximum=None, integer=False):
+            if key not in config:
+                return
+            value = config[key]
+            if (isinstance(value, bool) or not isinstance(value, (int, float))
+                    or not math.isfinite(value) or value < minimum
+                    or (maximum is not None and value > maximum)
+                    or (integer and value != int(value))):
+                raise ValueError(f"Invalid {key}: use a finite number within the allowed range")
+
+        for block in blocks:
+            config = block.get("config", {})
+            if not isinstance(config, dict):
+                raise ValueError("Block configuration must be an object")
+            block_type = block.get("type")
+            if block_type == "CHARACTER_COUNT":
+                number(config, "max_chars", minimum=1, maximum=10, integer=True)
+                number(config, "extra_price_percent", maximum=200)
+            elif block_type == "PRIVACY_NDA":
+                number(config, "price")
+            elif block_type in ("BACKGROUND_TIER", "RUSH_MODE"):
+                key = "tiers" if block_type == "BACKGROUND_TIER" else "rates"
+                entries = config.get(key, [])
+                if not isinstance(entries, list) or any(not isinstance(item, dict) for item in entries):
+                    raise ValueError(f"{key} must be a list of objects")
+                for item in entries:
+                    if block_type == "BACKGROUND_TIER":
+                        number(item, "price")
+                    else:
+                        number(item, "percent")
+                        number(item, "days", minimum=1, integer=True)
+        return blocks
+
 
 class CommissionServiceDetailResponse(BaseModel):
     id: int

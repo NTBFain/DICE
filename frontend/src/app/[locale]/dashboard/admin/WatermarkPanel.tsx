@@ -1,5 +1,9 @@
 'use client';
 
+import { useTranslations } from 'next-intl';
+
+import { useLocale } from 'next-intl';
+import { getErrorMessage } from '@/lib/errorMessage';
 import { useState, useEffect } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '@/components/AuthContext';
@@ -23,7 +27,11 @@ import {
   Plus
 } from 'lucide-react';
 
-export default function WatermarkPanel() {
+export default function WatermarkPanel({ readOnly = false }: { readOnly?: boolean }) {
+  const studio = useTranslations('Studio');
+  const locale = useLocale();
+  const [notice, setNotice] = useState('');
+  const [saveError, setSaveError] = useState('');
   const { apiClient } = useAuth();
   const queryClient = useQueryClient();
 
@@ -126,6 +134,8 @@ export default function WatermarkPanel() {
 
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (readOnly || saving) return;
+    setNotice(''); setSaveError('');
     setSaving(true);
     try {
       const formData = new FormData();
@@ -146,10 +156,10 @@ export default function WatermarkPanel() {
       });
 
       queryClient.invalidateQueries({ queryKey: ['watermark-settings'] });
-      alert('บันทึกการตั้งค่าระบบลายน้ำเรียบร้อยแล้ว!');
+      setNotice(locale === 'th' ? studio('watermark_156_0') : 'Watermark settings saved.');
     } catch (err) {
       console.error(err);
-      alert('ไม่สามารถบันทึกการตั้งค่าระบบลายน้ำได้');
+      setSaveError(getErrorMessage(err, locale === 'th' ? studio('watermark_159_0') : 'Unable to save watermark settings.'));
     } finally {
       setSaving(false);
     }
@@ -171,6 +181,9 @@ export default function WatermarkPanel() {
 
   return (
     <div className="w-full text-neutral-100">
+      {readOnly && <p role="note" className="mb-4 rounded-xl border border-blue-700 p-3">{locale === 'th' ? studio('watermark_181_0') : 'These are global watermark settings. Only administrators can save them; artists can explore the preview.'}</p>}
+      {notice && <p role="status" className="mb-4 text-emerald-300">{notice}</p>}
+      {saveError && <p role="alert" className="mb-4 text-red-300">{saveError}</p>}
       <div className="max-w-6xl mx-auto space-y-8">
         
         {/* Header Section */}
@@ -180,11 +193,9 @@ export default function WatermarkPanel() {
               <ShieldCheck className="w-3.5 h-3.5" /> Engine v2.0 & Dynamic Tags
             </div>
             <h1 className="text-3xl font-black tracking-tight flex items-center gap-3 text-white">
-              <Settings className="w-8 h-8 text-blue-500" /> ระบบตั้งค่าลายน้ำขั้นสูง (Watermark Studio)
-            </h1>
+              <Settings className="w-8 h-8 text-blue-500" /> {' '}{studio('watermark_193_0')}{' '}</h1>
             <p className="text-neutral-400 text-sm mt-1">
-              กำหนดรูปแบบ ตำแหน่ง และระบบป้องกันภาพหลุดสำหรับไฟล์งานร่าง (WIP) และภาพพรีวิวรอชำระเงิน
-            </p>
+              {' '}{studio('watermark_196_0')}{' '}</p>
           </div>
         </div>
 
@@ -192,9 +203,8 @@ export default function WatermarkPanel() {
         <div className="bg-neutral-900/80 border border-neutral-800 p-4 rounded-2xl">
           <div className="flex items-center justify-between mb-3">
             <span className="text-xs font-extrabold uppercase tracking-wider text-neutral-400 flex items-center gap-1.5">
-              <Sparkles className="w-4 h-4 text-amber-400" /> ชุดตั้งค่าด่วน (Quick Presets)
-            </span>
-            <span className="text-[11px] text-neutral-500">คลิกเพื่อปรับการตั้งค่าทั้งหมดอัตโนมัติ</span>
+              <Sparkles className="w-4 h-4 text-amber-400" /> {' '}{studio('watermark_205_0')}{' '}</span>
+            <span className="text-[11px] text-neutral-500">{studio('watermark_207_0')}</span>
           </div>
 
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
@@ -207,8 +217,8 @@ export default function WatermarkPanel() {
                 <Lock className="w-4 h-4" />
               </div>
               <div>
-                <p className="text-xs font-bold text-neutral-200 group-hover:text-red-400">🛡️ ป้องกันสูงสุด</p>
-                <p className="text-[10px] text-neutral-500">Grid หนา + ตาข่าย Anti-AI</p>
+                <p className="text-xs font-bold text-neutral-200 group-hover:text-red-400">{studio('watermark_220_0')}</p>
+                <p className="text-[10px] text-neutral-500">{studio('watermark_221_0')}</p>
               </div>
             </button>
 
@@ -221,8 +231,8 @@ export default function WatermarkPanel() {
                 <Grid className="w-4 h-4" />
               </div>
               <div>
-                <p className="text-xs font-bold text-neutral-200 group-hover:text-blue-400">⚡ WIP มาตรฐาน</p>
-                <p className="text-[10px] text-neutral-500">ลายทแยงมุม + เลขออเดอร์</p>
+                <p className="text-xs font-bold text-neutral-200 group-hover:text-blue-400">{studio('watermark_234_0')}</p>
+                <p className="text-[10px] text-neutral-500">{studio('watermark_235_0')}</p>
               </div>
             </button>
 
@@ -235,8 +245,8 @@ export default function WatermarkPanel() {
                 <CornerDownRight className="w-4 h-4" />
               </div>
               <div>
-                <p className="text-xs font-bold text-neutral-200 group-hover:text-purple-400">🎨 แบรนด์ศิลปิน</p>
-                <p className="text-[10px] text-neutral-500">โลโก้/ลายเซ็น มุมขวาล่าง</p>
+                <p className="text-xs font-bold text-neutral-200 group-hover:text-purple-400">{studio('watermark_248_0')}</p>
+                <p className="text-[10px] text-neutral-500">{studio('watermark_249_0')}</p>
               </div>
             </button>
 
@@ -249,8 +259,8 @@ export default function WatermarkPanel() {
                 <Maximize2 className="w-4 h-4" />
               </div>
               <div>
-                <p className="text-xs font-bold text-neutral-200 group-hover:text-amber-400">👁️ ตราประทับจาง</p>
-                <p className="text-[10px] text-neutral-500">ตราประทับกลางรูปจางๆ</p>
+                <p className="text-xs font-bold text-neutral-200 group-hover:text-amber-400">{studio('watermark_262_0')}</p>
+                <p className="text-[10px] text-neutral-500">{studio('watermark_263_0')}</p>
               </div>
             </button>
           </div>
@@ -265,7 +275,7 @@ export default function WatermarkPanel() {
             {/* 1. Watermark Mode (Text / Image / Hybrid) */}
             <div className="space-y-2.5">
               <label className="text-xs font-bold text-neutral-400 uppercase tracking-widest block flex items-center justify-between">
-                <span>1. รูปแบบองค์ประกอบ (Watermark Mode)</span>
+                <span>{studio('watermark_278_0')}</span>
                 <span className="text-[11px] text-blue-400 capitalize">{wType} Mode</span>
               </label>
 
@@ -279,8 +289,7 @@ export default function WatermarkPanel() {
                       : 'bg-neutral-950 border-neutral-800 text-neutral-400 hover:text-white hover:border-neutral-700'
                   }`}
                 >
-                  <Type className="w-4 h-4" /> ข้อความ (Text)
-                </button>
+                  <Type className="w-4 h-4" /> {' '}{studio('watermark_292_0')}{' '}</button>
 
                 <button
                   type="button"
@@ -291,8 +300,7 @@ export default function WatermarkPanel() {
                       : 'bg-neutral-950 border-neutral-800 text-neutral-400 hover:text-white hover:border-neutral-700'
                   }`}
                 >
-                  <ImageIcon className="w-4 h-4" /> โลโก้ (Logo)
-                </button>
+                  <ImageIcon className="w-4 h-4" /> {' '}{studio('watermark_304_0')}{' '}</button>
 
                 <button
                   type="button"
@@ -303,8 +311,7 @@ export default function WatermarkPanel() {
                       : 'bg-neutral-950 border-neutral-800 text-neutral-400 hover:text-white hover:border-neutral-700'
                   }`}
                 >
-                  <Layers className="w-4 h-4" /> ผสม (Hybrid)
-                </button>
+                  <Layers className="w-4 h-4" /> {' '}{studio('watermark_316_0')}{' '}</button>
               </div>
             </div>
 
@@ -312,22 +319,20 @@ export default function WatermarkPanel() {
             {(wType === 'text' || wType === 'hybrid') && (
               <div className="space-y-2.5 bg-neutral-950/80 p-4 rounded-2xl border border-neutral-800">
                 <label className="text-xs font-bold text-neutral-300 uppercase tracking-wider block">
-                  ข้อความลายน้ำ (Text Content)
-                </label>
+                  {' '}{studio('watermark_325_0')}{' '}</label>
                 <input
                   type="text"
                   required={wType === 'text'}
                   value={wText}
                   onChange={(e) => setWText(e.target.value)}
                   className="w-full bg-neutral-900 border border-neutral-700 text-white rounded-xl py-2.5 px-3.5 focus:outline-none focus:border-blue-500 text-sm font-mono transition-all"
-                  placeholder="เช่น WIP DICE #{order_id}"
+                  placeholder={studio('watermark_333_0')}
                 />
 
                 {/* Dynamic Tag Chips */}
                 <div className="pt-1">
                   <span className="text-[10px] font-bold text-neutral-500 uppercase tracking-wider block mb-1.5">
-                    คลิกเพื่อแทรกคำย่ออัตโนมัติ (Dynamic Tags):
-                  </span>
+                    {' '}{studio('watermark_339_0')}{' '}</span>
                   <div className="flex flex-wrap gap-1.5">
                     <button
                       type="button"
@@ -366,14 +371,13 @@ export default function WatermarkPanel() {
             {(wType === 'image' || wType === 'hybrid') && (
               <div className="space-y-2.5 bg-neutral-950/80 p-4 rounded-2xl border border-neutral-800">
                 <label className="text-xs font-bold text-neutral-300 uppercase tracking-wider block">
-                  ภาพโลโก้/ลายเซ็น (PNG แนะนำสไตล์โปร่งแสง)
-                </label>
+                  {' '}{studio('watermark_379_0')}{' '}</label>
                 <div className="flex items-center justify-center w-full">
                   <label className="flex flex-col items-center justify-center w-full h-28 border-2 border-dashed border-neutral-700 hover:border-blue-500/70 rounded-2xl cursor-pointer bg-neutral-900/50 hover:bg-neutral-900 transition-all">
                     <div className="flex flex-col items-center justify-center py-4">
                       <Upload className="w-6 h-6 text-neutral-400 mb-1.5" />
-                      <p className="text-xs text-neutral-300 font-medium">อัปโหลดไฟล์ภาพโลโก้ใหม่</p>
-                      <p className="text-[10px] text-neutral-500 mt-0.5">PNG, JPG, WebP (โปร่งแสง)</p>
+                      <p className="text-xs text-neutral-300 font-medium">{studio('watermark_385_0')}</p>
+                      <p className="text-[10px] text-neutral-500 mt-0.5">{studio('watermark_386_0')}</p>
                     </div>
                     <input
                       type="file"
@@ -389,8 +393,7 @@ export default function WatermarkPanel() {
             {/* 2. Watermark Layout Pattern */}
             <div className="space-y-2.5">
               <label className="text-xs font-bold text-neutral-400 uppercase tracking-widest block">
-                2. การจัดวางตำแหน่ง (Layout Pattern)
-              </label>
+                {' '}{studio('watermark_402_0')}{' '}</label>
 
               <div className="grid grid-cols-2 md:grid-cols-4 gap-2.5">
                 <button
@@ -402,8 +405,7 @@ export default function WatermarkPanel() {
                       : 'bg-neutral-950 border-neutral-800 text-neutral-400 hover:text-white'
                   }`}
                 >
-                  <Grid className="w-4 h-4" /> กระจายทั่วภาพ (Tiled)
-                </button>
+                  <Grid className="w-4 h-4" /> {' '}{studio('watermark_415_0')}{' '}</button>
 
                 <button
                   type="button"
@@ -414,8 +416,7 @@ export default function WatermarkPanel() {
                       : 'bg-neutral-950 border-neutral-800 text-neutral-400 hover:text-white'
                   }`}
                 >
-                  <Maximize2 className="w-4 h-4" /> ตรงกลาง (Center)
-                </button>
+                  <Maximize2 className="w-4 h-4" /> {' '}{studio('watermark_427_0')}{' '}</button>
 
                 <button
                   type="button"
@@ -426,8 +427,7 @@ export default function WatermarkPanel() {
                       : 'bg-neutral-950 border-neutral-800 text-neutral-400 hover:text-white'
                   }`}
                 >
-                  <CornerDownRight className="w-4 h-4" /> มุมภาพ (Corner)
-                </button>
+                  <CornerDownRight className="w-4 h-4" /> {' '}{studio('watermark_439_0')}{' '}</button>
 
                 <button
                   type="button"
@@ -438,8 +438,7 @@ export default function WatermarkPanel() {
                       : 'bg-neutral-950 border-neutral-800 text-neutral-400 hover:text-white'
                   }`}
                 >
-                  <Lock className="w-4 h-4" /> กากบาท (Cross X)
-                </button>
+                  <Lock className="w-4 h-4" /> {' '}{studio('watermark_451_0')}{' '}</button>
               </div>
             </div>
 
@@ -450,8 +449,7 @@ export default function WatermarkPanel() {
               <div className="space-y-2 bg-neutral-950/80 p-4 rounded-2xl border border-neutral-800">
                 <div className="flex justify-between items-center text-xs font-bold text-neutral-300">
                   <span className="flex items-center gap-1">
-                    <RotateCw className="w-3.5 h-3.5 text-blue-400" /> มุมหมุนภาพ (Rotation)
-                  </span>
+                    <RotateCw className="w-3.5 h-3.5 text-blue-400" /> {' '}{studio('watermark_463_0')}{' '}</span>
                   <span className="text-blue-400 font-mono font-bold">{wRotation}°</span>
                 </div>
                 <input
@@ -483,8 +481,7 @@ export default function WatermarkPanel() {
               <div className="space-y-2 bg-neutral-950/80 p-4 rounded-2xl border border-neutral-800">
                 <div className="flex justify-between items-center text-xs font-bold text-neutral-300">
                   <span className="flex items-center gap-1">
-                    <Sliders className="w-3.5 h-3.5 text-blue-400" /> ความโปร่งแสง (Opacity)
-                  </span>
+                    <Sliders className="w-3.5 h-3.5 text-blue-400" /> {' '}{studio('watermark_496_0')}{' '}</span>
                   <span className="text-blue-400 font-mono font-bold">{Math.round(wOpacity * 100)}%</span>
                 </div>
                 <input
@@ -497,9 +494,9 @@ export default function WatermarkPanel() {
                   className="w-full h-1.5 bg-neutral-800 rounded-lg appearance-none cursor-pointer accent-blue-500 focus:outline-none"
                 />
                 <div className="flex justify-between text-[10px] text-neutral-500">
-                  <span>บางจาง (5%)</span>
-                  <span className="text-emerald-400">แนะนำ (20%-35%)</span>
-                  <span>เข้มจัด (80%)</span>
+                  <span>{studio('watermark_510_0')}</span>
+                  <span className="text-emerald-400">{studio('watermark_511_0')}</span>
+                  <span>{studio('watermark_512_0')}</span>
                 </div>
               </div>
 
@@ -510,7 +507,7 @@ export default function WatermarkPanel() {
               
               {/* Density Options (If Tiled) */}
               <div className="space-y-1.5 bg-neutral-950/80 p-4 rounded-2xl border border-neutral-800">
-                <label className="text-xs font-bold text-neutral-300 block">ความหนาแน่นกะถี่ (Density)</label>
+                <label className="text-xs font-bold text-neutral-300 block">{studio('watermark_523_0')}</label>
                 <div className="grid grid-cols-3 gap-1.5">
                   {(['low', 'medium', 'high'] as const).map((d) => (
                     <button
@@ -523,7 +520,7 @@ export default function WatermarkPanel() {
                           : 'bg-neutral-900 border-neutral-800 text-neutral-400 hover:text-white'
                       }`}
                     >
-                      {d === 'low' ? 'ห่าง' : d === 'medium' ? 'ปานกลาง' : 'ถี่มาก'}
+                      {d === 'low' ? studio('watermark_536_1') : d === 'medium' ? studio('watermark_536_2') : studio('watermark_536_3')}
                     </button>
                   ))}
                 </div>
@@ -533,9 +530,8 @@ export default function WatermarkPanel() {
               <div className="bg-neutral-950/80 p-4 rounded-2xl border border-neutral-800 flex items-center justify-between gap-3">
                 <div>
                   <p className="text-xs font-bold text-neutral-200 flex items-center gap-1.5">
-                    <ShieldCheck className="w-4 h-4 text-emerald-400" /> ตาข่ายกัน AI ลบลายน้ำ
-                  </p>
-                  <p className="text-[10px] text-neutral-500">ซ้อนทับเส้นตาราง Mesh ป้องกัน AI Inpainting</p>
+                    <ShieldCheck className="w-4 h-4 text-emerald-400" /> {' '}{studio('watermark_546_0')}{' '}</p>
+                  <p className="text-[10px] text-neutral-500">{studio('watermark_548_0')}</p>
                 </div>
 
                 <label className="relative inline-flex items-center cursor-pointer">
@@ -554,18 +550,16 @@ export default function WatermarkPanel() {
             {/* Save Action Button */}
             <button
               type="submit"
-              disabled={saving}
+              disabled={saving || readOnly}
               className="w-full bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white font-black py-4 rounded-2xl transition-all cursor-pointer disabled:opacity-50 flex items-center justify-center gap-2 text-sm shadow-xl shadow-blue-600/20"
             >
               {saving ? (
                 <>
                   <Loader2 className="w-5 h-5 animate-spin" />
-                  กำลังบันทึกโครงสร้างลายน้ำ...
-                </>
+                  {' '}{studio('watermark_573_0')}{' '}</>
               ) : (
                 <>
-                  <Sparkles className="w-5 h-5" /> บันทึกการตั้งค่าลายน้ำ (Save Configuration)
-                </>
+                  <Sparkles className="w-5 h-5" /> {' '}{studio('watermark_577_0')}{' '}</>
               )}
             </button>
 
@@ -575,8 +569,7 @@ export default function WatermarkPanel() {
           <div className="lg:col-span-5 space-y-4 sticky top-6">
             <div className="flex items-center justify-between">
               <h3 className="text-xs font-extrabold text-neutral-400 uppercase tracking-widest flex items-center gap-1.5">
-                <Sparkles className="w-4 h-4 text-blue-400" /> ตัวอย่างผลลัพธ์แบบเรียลไทม์ (Live Studio Preview)
-              </h3>
+                <Sparkles className="w-4 h-4 text-blue-400" /> {' '}{studio('watermark_588_0')}{' '}</h3>
               <span className="text-[10px] text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-2 py-0.5 rounded-full font-mono">
                 Interactive Canvas
               </span>
@@ -598,8 +591,7 @@ export default function WatermarkPanel() {
                   </div>
                   <p className="text-xs font-bold text-neutral-200">SAMPLE ARTWORK PREVIEW</p>
                   <p className="text-[10px] text-neutral-400 max-w-[200px]">
-                    จำลองการวางซ้อนลายน้ำบนชิ้นงานศิลปะตามพารามิเตอร์จริง
-                  </p>
+                    {' '}{studio('watermark_611_0')}{' '}</p>
                 </div>
               </div>
 
@@ -671,12 +663,11 @@ export default function WatermarkPanel() {
             {/* Helper Info Card */}
             <div className="bg-neutral-900/60 border border-neutral-800 p-4 rounded-2xl space-y-2">
               <div className="flex items-center gap-1.5 text-xs font-bold text-blue-400">
-                <Info className="w-4 h-4" /> สรุปการทำงานของระบบลายน้ำ
-              </div>
+                <Info className="w-4 h-4" /> {' '}{studio('watermark_684_0')}{' '}</div>
               <ul className="text-[11px] text-neutral-400 space-y-1 list-disc list-inside font-medium">
-                <li>ไฟล์ประเภท <strong className="text-white">WIP Draft</strong> จะถูกประมวลผลใส่ลายน้ำนี้อัตโนมัติขณะอัปโหลด</li>
-                <li>ภาพส่งมอบงวดสุดท้ายที่ยังชำระเงินไม่ครบ จะซ้อนลายน้ำป้องกันเพิ่มเติม</li>
-                <li>เมื่อลูกค้าชำระเงินครบครบทุกงวด ระบบจะปลดล็อกไฟล์จริงที่สะอาดไม่มีลายน้ำทันที</li>
+                <li>{studio('watermark_687_1')}{' '}<strong className="text-white">WIP Draft</strong> {' '}{studio('watermark_687_2')}</li>
+                <li>{studio('watermark_688_0')}</li>
+                <li>{studio('watermark_689_0')}</li>
               </ul>
             </div>
 

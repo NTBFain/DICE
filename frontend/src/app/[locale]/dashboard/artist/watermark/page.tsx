@@ -1,2 +1,3 @@
-import WatermarkAdminModule from '../../admin/watermark/page';
-export default WatermarkAdminModule;
+'use client';
+import WatermarkPanel from '../../admin/WatermarkPanel';
+export default function ArtistWatermarkPage() { return <WatermarkPanel readOnly />; }

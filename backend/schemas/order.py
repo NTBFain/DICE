@@ -1,11 +1,12 @@
 from pydantic import BaseModel, Field
-from typing import Optional
+from typing import Optional, Any, Dict, List
 from datetime import datetime
 
 class OrderCreateRequest(BaseModel):
     title: str = Field(..., min_length=1, max_length=120)
     description: str = Field(..., min_length=1, max_length=3000)
     artist_id: int
+    client_email: Optional[str] = Field(None, min_length=3, max_length=254)
     revision_quota: Optional[int] = Field(3, ge=0, le=100)
     start_date: Optional[datetime] = None
     due_date: Optional[datetime] = None
@@ -17,6 +18,21 @@ class OrderUpdateRequest(BaseModel):
     start_date: Optional[datetime] = None
     due_date: Optional[datetime] = None
 
+class CommissionBriefResponse(BaseModel):
+    request_id: int
+    character_name: str
+    usage_type: str
+    brief: str
+    canvas_size: str
+    requested_deadline: Optional[datetime] = None
+    reference_links: Optional[str] = None
+    custom_responses: Dict[str, Any] = Field(default_factory=dict)
+    addons_snapshot: List[Dict[str, Any]] = Field(default_factory=list)
+    base_price_snapshot: float
+    total_price: float
+    tos_snapshot: str
+    tos_version: int
+
 class OrderResponse(BaseModel):
     id: int
     title: str
@@ -27,7 +43,9 @@ class OrderResponse(BaseModel):
     client_id: int
     client_name: Optional[str] = None
     artist_id: int
+    auction_id: Optional[int] = None
     artist_name: Optional[str] = None
+    commission_brief: Optional[CommissionBriefResponse] = None
     start_date: Optional[datetime] = None
     due_date: Optional[datetime] = None
     created_at: datetime

@@ -8,10 +8,11 @@ from fastapi import APIRouter, Depends, HTTPException, UploadFile, File as FormF
 from fastapi.responses import FileResponse as SecureFileResponse
 from sqlmodel import Session, select, func
 from sqlalchemy.orm import joinedload
+from sqlalchemy import update
 from typing import List, Optional
 
 from core.db import get_session
-from core.auth import get_current_user, get_admin_user, get_artist_user
+from core.auth import get_current_user, get_current_user_optional, get_admin_user, get_artist_user
 from core.watermark import apply_watermark
 from core.security_file import validate_and_save_upload
 from models import Order, OrderStatus, MilestoneInvoice, Revision, Message, File as DBFile, User, NotificationType, ArtistProfile
@@ -24,6 +25,7 @@ from schemas import (
 )
 from services.system_service import get_setting
 from services.order_service import is_order_fully_paid
+from services.commission_brief import get_commission_brief
 from services.notification_service import background_create_notification
 
 router = APIRouter(prefix="/api", tags=["orders"])
@@ -51,22 +53,32 @@ def create_order(
     session: Session = Depends(get_session), 
     current_user: User = Depends(get_current_user)
 ):
-    target_artist_user_id = request.artist_id
+    # Public/client requests identify an ArtistProfile, never an ambiguous user ID.
     artist_profile = session.get(ArtistProfile, request.artist_id)
-    if artist_profile and artist_profile.user_id:
-        target_artist_user_id = artist_profile.user_id
-    else:
-        artist_user = session.get(User, request.artist_id)
-        if not artist_user:
-            target_artist_user_id = 1
-            
+    if not artist_profile or not artist_profile.user_id:
+        raise HTTPException(status_code=404, detail="Artist profile not found")
+    artist_user = session.get(User, artist_profile.user_id)
+    if not artist_user or not artist_user.is_artist:
+        raise HTTPException(status_code=400, detail="Artist is unavailable")
+
+    target_client_id = current_user.id
+    if request.client_email is not None:
+        if not (current_user.is_admin or current_user.is_artist):
+            raise HTTPException(status_code=403, detail="Only artists or admins can create a manual client ticket")
+        if not current_user.is_admin and artist_profile.user_id != current_user.id:
+            raise HTTPException(status_code=403, detail="Artists can create manual tickets only for their own studio")
+        client = session.exec(select(User).where(User.email == request.client_email.strip().lower())).first()
+        if not client:
+            raise HTTPException(status_code=404, detail="No registered client has that email address")
+        target_client_id = client.id
+
     order = Order(
         title=request.title.strip(),
         description=request.description.strip(),
         status=OrderStatus.PENDING,
         revision_quota=request.revision_quota if request.revision_quota is not None else 3,
-        client_id=current_user.id,
-        artist_id=target_artist_user_id,
+        client_id=target_client_id,
+        artist_id=artist_profile.user_id,
         start_date=request.start_date,
         due_date=request.due_date
     )
@@ -76,12 +88,13 @@ def create_order(
     
     artist = session.get(User, order.artist_id)
     d = order.model_dump()
+    d['commission_brief'] = get_commission_brief(order, session)
     d['client_name'] = order.client.full_name if order.client else current_user.full_name
     d['artist_name'] = artist.full_name if artist else "Unknown"
     return d
 
 @router.get("/public/queue")
-def get_public_queue(session: Session = Depends(get_session)):
+def get_public_queue(session: Session = Depends(get_session), artist_id: Optional[int] = None, current_user: Optional[User] = Depends(get_current_user_optional)):
     """Public queue board showing active orders with masked customer names"""
     active_statuses = [OrderStatus.ACCEPTED, OrderStatus.SKETCHING, OrderStatus.COLORING]
     statement = (
@@ -90,20 +103,29 @@ def get_public_queue(session: Session = Depends(get_session)):
         .options(joinedload(Order.client))
         .order_by(Order.id.asc())
     )
+    if artist_id is not None:
+        profile = session.get(ArtistProfile, artist_id)
+        if not profile:
+            raise HTTPException(status_code=404, detail="Artist profile not found")
+        if profile.user_id is None:
+            return []
+        statement = statement.where(Order.artist_id == profile.user_id)
     orders = session.exec(statement).all()
     
     queue_items = []
     for idx, o in enumerate(orders, start=1):
         raw_name = o.client.full_name if o.client else "Client"
         masked_name = " ".join([f"{p[0]}***" if len(p) > 1 else "***" for p in raw_name.split()])
+        reveal = isinstance(current_user, User) and (current_user.is_admin or current_user.id == o.client_id)
         
         queue_items.append({
             "slot_number": idx,
             "order_id": o.id,
             "status": o.status.value,
             "stage": o.status.value,
-            "title": f"Commission Slot #{idx}",
-            "client_name": masked_name,
+            "title": o.title if reveal else f"Commission Slot #{idx}",
+            "client_id": o.client_id if reveal else None,
+            "client_name": raw_name if reveal else masked_name,
             "start_date": o.start_date.isoformat() if o.start_date else None,
             "due_date": o.due_date.isoformat() if o.due_date else None,
             "created_at": o.created_at.isoformat() if o.created_at else None
@@ -125,6 +147,7 @@ def get_orders(session: Session = Depends(get_session), current_user: User = Dep
     for o in orders:
         artist = session.get(User, o.artist_id)
         d = o.model_dump()
+        d['commission_brief'] = get_commission_brief(o, session)
         d['client_name'] = o.client.full_name if o.client else "Unknown"
         d['artist_name'] = artist.full_name if artist else "Unknown"
         responses.append(d)
@@ -141,6 +164,7 @@ def get_order_by_id(order_id: int, session: Session = Depends(get_session), curr
             
     artist = session.get(User, order.artist_id)
     d = order.model_dump()
+    d['commission_brief'] = get_commission_brief(order, session)
     d['client_name'] = order.client.full_name if order.client else "Unknown"
     d['artist_name'] = artist.full_name if artist else "Unknown"
     return d
@@ -239,6 +263,7 @@ def update_order(
     
     artist = session.get(User, order.artist_id)
     d = order.model_dump()
+    d['commission_brief'] = get_commission_brief(order, session)
     d['client_name'] = order.client.full_name if order.client else "Unknown"
     d['artist_name'] = artist.full_name if artist else "Unknown"
     return d
@@ -318,35 +343,45 @@ def pay_invoice(
     if not invoice:
         raise HTTPException(status_code=404, detail="Invoice not found")
         
-    if invoice.is_paid:
-        raise HTTPException(status_code=400, detail="Cannot upload slip: Invoice is already approved and paid.")
-        
     order = session.get(Order, invoice.order_id)
+    if not order:
+        raise HTTPException(status_code=404, detail="Order not found")
     if not current_user.is_admin and order.client_id != current_user.id:
         raise HTTPException(status_code=403, detail="Not authorized to pay this invoice")
+    if invoice.is_paid:
+        raise HTTPException(status_code=400, detail="Cannot upload slip: Invoice is already approved and paid.")
+    if order.status == OrderStatus.CANCELLED:
+        raise HTTPException(status_code=409, detail="Cannot upload payment proof for a cancelled order.")
         
     os.makedirs("uploads/slips", exist_ok=True)
     file_ext = os.path.splitext(slip.filename or "")[1].lower()
     if file_ext not in [".jpg", ".jpeg", ".png", ".webp", ".pdf"]:
         raise HTTPException(status_code=400, detail="Invalid slip file extension. Allowed: jpg, jpeg, png, webp, pdf")
         
-    # Clean up previous slips for this invoice before writing new slip
+    # Keep the current proof until its replacement has been validated and committed.
     old_matches = glob.glob(os.path.join("uploads/slips", f"slip_{invoice_id}_*"))
-    for old_file in old_matches:
-        try:
-            os.remove(old_file)
-        except OSError:
-            pass
             
     slip_filename = f"slip_{invoice_id}_{secrets.token_hex(4)}{file_ext}"
     slip_path = os.path.join("uploads/slips", slip_filename)
     
-    validate_and_save_upload(slip, slip_path, max_size=15 * 1024 * 1024, is_deliverable=True)
-        
-    invoice.slip_image_url = f"/api/invoices/{invoice_id}/slip"
-    session.add(invoice)
-    session.commit()
+    try:
+        validate_and_save_upload(slip, slip_path, max_size=15 * 1024 * 1024, is_deliverable=True)
+        invoice.slip_image_url = f"/api/invoices/{invoice_id}/slip"
+        session.add(invoice)
+        session.commit()
+    except Exception:
+        session.rollback()
+        if os.path.exists(slip_path):
+            os.remove(slip_path)
+        raise
     session.refresh(invoice)
+    for old_file in old_matches:
+        if old_file == slip_path:
+            continue
+        try:
+            os.remove(old_file)
+        except OSError:
+            pass
     
     recipients = {order.artist_id}
     admins = session.exec(select(User.id).where(User.is_admin == True)).all()
@@ -401,11 +436,18 @@ def approve_invoice_payment(
     if not artist_user.is_admin and order.artist_id != artist_user.id:
         raise HTTPException(status_code=403, detail="Not authorized to approve payments for this order")
         
-    invoice.is_paid = True
-    session.add(invoice)
+    # A conditional write makes both repeated and stale concurrent approvals idempotent.
+    changed = session.exec(
+        update(MilestoneInvoice)
+        .where(MilestoneInvoice.id == invoice_id, MilestoneInvoice.is_paid == False)
+        .values(is_paid=True)
+        .execution_options(synchronize_session=False)
+    ).rowcount
     session.commit()
     session.refresh(invoice)
-    
+    if not changed:
+        return invoice
+
     if order:
         background_tasks.add_task(
             background_create_notification,
@@ -437,6 +479,9 @@ def request_revision(
     if order.status not in [OrderStatus.SKETCHING, OrderStatus.COLORING]:
         raise HTTPException(status_code=400, detail="Revisions can only be requested during sketching or coloring phases")
         
+    if not request.client_feedback.strip():
+        raise HTTPException(status_code=400, detail="Revision feedback cannot be empty")
+
     # Atomic DB count check
     current_revisions_count = session.exec(
         select(func.count(Revision.id)).where(Revision.order_id == order_id)
@@ -478,7 +523,7 @@ def get_order_revisions(order_id: int, session: Session = Depends(get_session), 
     return order.revisions
 
 @router.post("/revisions/{revision_id}/resolve", response_model=RevisionResponse)
-def resolve_revision(revision_id: int, session: Session = Depends(get_session), artist_user: User = Depends(get_artist_user)):
+def resolve_revision(revision_id: int, background_tasks: BackgroundTasks, session: Session = Depends(get_session), artist_user: User = Depends(get_artist_user)):
     revision = session.get(Revision, revision_id)
     if not revision:
         raise HTTPException(status_code=404, detail="Revision not found")
@@ -490,6 +535,11 @@ def resolve_revision(revision_id: int, session: Session = Depends(get_session), 
     session.add(revision)
     session.commit()
     session.refresh(revision)
+    background_tasks.add_task(
+        background_create_notification, user_id=order.client_id,
+        title="Revision Resolved", message=f"Feedback for '{order.title}' has been addressed.",
+        link=f"/orders/{order.id}", type=NotificationType.ORDER
+    )
     return revision
 
 # --- Messages ---
@@ -535,6 +585,9 @@ async def create_order_message(
     if not _is_authorized_for_order(order, current_user):
         raise HTTPException(status_code=403, detail="Not authorized to send messages in this order")
         
+    if not request.content.strip():
+        raise HTTPException(status_code=400, detail="Message content cannot be empty")
+
     msg = Message(
         order_id=order_id,
         sender_id=current_user.id,
@@ -699,7 +752,17 @@ def get_order_files(order_id: int, session: Session = Depends(get_session), curr
         
     # Read-only query: no mutating watermark generation or commits in GET endpoint
     files = session.exec(select(DBFile).where(DBFile.order_id == order_id)).all()
-    return files
+    fully_paid = is_order_fully_paid(order_id, session)
+    result = []
+    for file in files:
+        item = file.model_dump()
+        if file.file_type == 'REFERENCE' and not os.path.splitext(file.filename)[1]:
+            item['filename'] = sanitize_filename(re.sub(r'^[0-9a-f]{32}_\d+_', '', os.path.basename(file.s3_key)))
+        # Describe the version served now; retain the stored preview for unpaid access.
+        if file.file_type == 'FINAL' and fully_paid:
+            item['is_watermarked'] = False
+        result.append(item)
+    return result
 
 @router.get("/orders/{order_id}/files/{file_id}/download")
 def download_order_file(order_id: int, file_id: int, session: Session = Depends(get_session), current_user: User = Depends(get_current_user)):
@@ -717,6 +780,15 @@ def download_order_file(order_id: int, file_id: int, session: Session = Depends(
     safe_filename = sanitize_filename(db_file.filename)
     original_path = os.path.join("uploads/originals", db_file.s3_key)
     watermarked_path = os.path.join("uploads/watermarked", db_file.s3_key)
+    if db_file.file_type == "REFERENCE" and not os.path.exists(original_path):
+        auction_prefix = "/api/auctions/images/"
+        stored_name = db_file.s3_key.removeprefix(auction_prefix)
+        if db_file.s3_key.startswith(auction_prefix) and stored_name == os.path.basename(stored_name) and stored_name not in ('', '.', '..'):
+            original_path = os.path.join("uploads/auctions", stored_name)
+        else:
+            original_path = os.path.join("uploads/references", os.path.basename(db_file.s3_key))
+        if not os.path.splitext(db_file.filename)[1]:
+            safe_filename = sanitize_filename(re.sub(r'^[0-9a-f]{32}_\d+_', '', os.path.basename(db_file.s3_key)))
     
     # Artists and Admins always receive the original file directly
     if current_user.is_admin or order.artist_id == current_user.id:

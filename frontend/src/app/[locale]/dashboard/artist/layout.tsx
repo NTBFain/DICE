@@ -1,5 +1,7 @@
 'use client';
 
+import { useTranslations } from 'next-intl';
+
 import { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useAuth } from '@/components/AuthContext';
@@ -32,6 +34,7 @@ const ARTIST_NAV_ITEMS = [
 ];
 
 export default function ArtistLayout({ children }: { children: React.ReactNode }) {
+  const t = useTranslations('StudioNavigation');
   const { user, loading: authLoading } = useAuth();
   const router = useRouter();
   const pathname = usePathname();
@@ -74,7 +77,7 @@ export default function ArtistLayout({ children }: { children: React.ReactNode }
       <div className="min-h-screen bg-neutral-950 flex flex-col items-center justify-center space-y-3">
         <Loader2 className="w-8 h-8 text-blue-500 animate-spin" />
         <p className="text-neutral-400 text-xs font-bold uppercase tracking-widest">
-          Loading Atelier Studio...
+          {t('loadingArtist')}
         </p>
       </div>
     );
@@ -90,13 +93,13 @@ export default function ArtistLayout({ children }: { children: React.ReactNode }
           </div>
           <div className="truncate">
             <div className="flex items-center gap-1.5 truncate">
-              <h1 className="text-xs sm:text-sm font-extrabold text-white truncate">Atelier Artist Studio</h1>
+              <h1 className="text-xs sm:text-sm font-extrabold text-white truncate">{t('artistTitle')}</h1>
               <span className="hidden sm:inline text-[9px] font-bold uppercase tracking-wider bg-blue-950 text-blue-300 px-2 py-0.5 rounded-full border border-blue-800/60">
-                🎨 Artist Panel
+                {t('artistPanel')}
               </span>
             </div>
             <p className="text-neutral-400 text-[10px] sm:text-xs truncate">
-              Artist: <strong className="text-white">{artistProfile?.display_name || user.full_name || user.email}</strong>
+              {t('artistLabel')} <strong className="text-white">{artistProfile?.display_name || user.full_name || user.email}</strong>
             </p>
           </div>
         </div>
@@ -107,7 +110,7 @@ export default function ArtistLayout({ children }: { children: React.ReactNode }
 
           <div className="flex items-center gap-1.5 sm:gap-2.5 bg-neutral-950 border border-neutral-800 px-2.5 sm:px-3 py-1 rounded-xl">
             <span className={`text-[10px] sm:text-xs font-extrabold truncate ${isCommissionOpen ? 'text-emerald-400' : 'text-rose-400'}`}>
-              {isCommissionOpen ? '● OPEN' : '● CLOSED'}
+              {isCommissionOpen ? t('openStatus') : t('closedStatus')}
             </span>
             <button
               onClick={() => toggleStatusMutation.mutate(!isCommissionOpen)}
@@ -118,7 +121,7 @@ export default function ArtistLayout({ children }: { children: React.ReactNode }
                   : 'bg-blue-600 text-white border-blue-500 hover:bg-blue-500'
               }`}
             >
-              {toggleStatusMutation.isPending ? <Loader2 className="w-3 h-3 animate-spin inline" /> : isCommissionOpen ? 'Close' : 'Open'}
+              {toggleStatusMutation.isPending ? <Loader2 className="w-3 h-3 animate-spin inline" /> : isCommissionOpen ? t('close') : t('open')}
             </button>
           </div>
 
@@ -135,7 +138,7 @@ export default function ArtistLayout({ children }: { children: React.ReactNode }
             href="/"
             className="hidden md:flex items-center gap-1.5 text-xs text-neutral-400 hover:text-white bg-neutral-950 border border-neutral-800 px-3 py-1.5 rounded-xl transition-colors"
           >
-            <ExternalLink className="w-3.5 h-3.5" /> Public Gallery
+            <ExternalLink className="w-3.5 h-3.5" /> {t('publicGallery')}
           </Link>
         </div>
       </header>
@@ -149,7 +152,7 @@ export default function ArtistLayout({ children }: { children: React.ReactNode }
       {mounted && createPortal(
         <div className="fixed bottom-3 sm:bottom-4 left-1/2 -translate-x-1/2 z-30 w-[calc(100%-1.5rem)] sm:w-auto max-w-fit pointer-events-auto">
           {/* Mobile Bar View (< sm) */}
-          <nav className="sm:hidden bg-neutral-900/95 backdrop-blur-xl border border-neutral-800 rounded-2xl px-2 py-1.5 flex items-center justify-around w-full shadow-2xl">
+          <nav className="sm:hidden bg-neutral-900/95 backdrop-blur-xl border border-neutral-800 rounded-2xl px-2 py-1.5 flex items-center justify-start gap-1 w-full max-w-full overflow-x-auto overscroll-x-contain shadow-2xl">
             {ARTIST_NAV_ITEMS.map((item) => {
               const Icon = item.icon;
               const isActive = pathname === item.href || (item.id === 'orders' && pathname === '/dashboard/artist');
@@ -158,14 +161,15 @@ export default function ArtistLayout({ children }: { children: React.ReactNode }
                 <Link
                   key={item.id}
                   href={item.href}
-                  className={`flex flex-col items-center justify-center py-1 px-1.5 rounded-xl text-[10px] font-bold transition-all cursor-pointer flex-1 ${
+                  aria-current={isActive ? 'page' : undefined}
+                  className={`flex flex-col items-center justify-center py-1 px-1.5 rounded-xl text-[10px] font-bold transition-all cursor-pointer flex-none min-w-[3.5rem] ${
                     isActive
                       ? 'text-white bg-blue-600/20 border border-blue-500/40'
                       : 'text-neutral-400 hover:text-white'
                   }`}
                 >
                   <Icon className={`w-3.5 h-3.5 mb-0.5 ${isActive ? 'text-blue-400' : 'text-neutral-400'}`} />
-                  <span className="text-[9px] tracking-tight truncate">{item.label}</span>
+                  <span className="text-[9px] tracking-tight truncate">{t('artist.' + item.id)}</span>
                 </Link>
               );
             })}
@@ -181,6 +185,7 @@ export default function ArtistLayout({ children }: { children: React.ReactNode }
                 <Link
                   key={item.id}
                   href={item.href}
+                  aria-current={isActive ? 'page' : undefined}
                   className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold transition-all cursor-pointer whitespace-nowrap ${
                     isActive
                       ? 'bg-blue-600 text-white border border-blue-500/50 shadow-sm'
@@ -188,10 +193,10 @@ export default function ArtistLayout({ children }: { children: React.ReactNode }
                   }`}
                 >
                   <Icon className={`w-3.5 h-3.5 ${isActive ? 'text-white' : 'text-neutral-400'}`} />
-                  <span>{item.label}</span>
+                  <span>{t('artist.' + item.id)}</span>
                   {isActive && (
                     <span className="text-[9px] font-mono bg-blue-900/80 text-blue-200 border border-blue-700/60 px-1.5 py-0.5 rounded-full hidden md:inline">
-                      {item.badge}
+                      {t('artistBadge.' + item.id)}
                     </span>
                   )}
                 </Link>

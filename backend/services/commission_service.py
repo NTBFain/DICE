@@ -1,4 +1,7 @@
 import logging
+import os
+import re
+from decimal import Decimal, ROUND_HALF_UP
 from typing import List, Tuple, Dict, Any, Optional
 from datetime import timedelta
 from fastapi import HTTPException
@@ -54,9 +57,9 @@ def compute_total_price(
     Calculates total commission price strictly on the server side to prevent price tampering.
     Formula: base_price + sum(fixed) + (base_price * sum(percentage) / 100) + custom_block_fees
     """
-    base = float(service.base_price)
-    fixed_sum = 0.0
-    percentage_sum = 0.0
+    base = Decimal(str(service.base_price))
+    fixed_sum = Decimal('0')
+    percentage_sum = Decimal('0')
     addons_snapshot = []
 
     for addon in addons:
@@ -69,13 +72,13 @@ def compute_total_price(
             "price_value": float(addon.price_value)
         })
         if addon.price_type == AddonPriceType.FIXED:
-            fixed_sum += float(addon.price_value)
+            fixed_sum += Decimal(str(addon.price_value))
         elif addon.price_type == AddonPriceType.PERCENTAGE:
-            percentage_sum += float(addon.price_value)
+            percentage_sum += Decimal(str(addon.price_value))
 
     # Process modular form blocks if present
-    custom_fixed_sum = 0.0
-    custom_percent_sum = 0.0
+    custom_fixed_sum = Decimal('0')
+    custom_percent_sum = Decimal('0')
 
     if custom_responses and getattr(service, "form_schema", None):
         blocks_by_type = {b.get("type"): b for b in (service.form_schema or []) if b.get("enabled")}
@@ -87,7 +90,7 @@ def compute_total_price(
                 if char_count > 1:
                     extra_chars = char_count - 1
                     cfg = blocks_by_type["CHARACTER_COUNT"].get("config", {})
-                    pct_per_char = float(cfg.get("extra_price_percent", 70))
+                    pct_per_char = Decimal(str(cfg.get("extra_price_percent", 70)))
                     custom_percent_sum += extra_chars * pct_per_char
             except (ValueError, TypeError):
                 pass
@@ -97,9 +100,9 @@ def compute_total_price(
             selected_bg = custom_responses["background_tier"]
             selected_label = selected_bg.get("label") if isinstance(selected_bg, dict) else str(selected_bg)
             cfg = blocks_by_type["BACKGROUND_TIER"].get("config", {})
-            for opt in cfg.get("options", []):
+            for opt in cfg.get("tiers", cfg.get("options", [])):
                 if opt.get("label") == selected_label:
-                    custom_fixed_sum += float(opt.get("price", 0))
+                    custom_fixed_sum += Decimal(str(opt.get("price", 0)))
                     break
 
         # 3. RUSH_MODE
@@ -110,17 +113,52 @@ def compute_total_price(
                 cfg = blocks_by_type["RUSH_MODE"].get("config", {})
                 for rate in cfg.get("rates", []):
                     if int(rate.get("days")) == int(selected_days):
-                        custom_percent_sum += float(rate.get("percent", 0))
+                        custom_percent_sum += Decimal(str(rate.get("percent", 0)))
                         break
 
         # 4. PRIVACY_NDA
         if "PRIVACY_NDA" in blocks_by_type and custom_responses.get("privacy_nda"):
             cfg = blocks_by_type["PRIVACY_NDA"].get("config", {})
-            custom_fixed_sum += float(cfg.get("price", 0))
+            custom_fixed_sum += Decimal(str(cfg.get("price", 0)))
 
-    percentage_amount = base * ((percentage_sum + custom_percent_sum) / 100.0)
-    total = round(base + fixed_sum + custom_fixed_sum + percentage_amount, 2)
+    percentage_amount = base * ((percentage_sum + custom_percent_sum) / 100)
+    total = float((base + fixed_sum + custom_fixed_sum + percentage_amount).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP))
     return total, addons_snapshot
+
+
+def validate_custom_responses(service: ArtistService, responses: Dict[str, Any]) -> None:
+    for block in service.form_schema or []:
+        if not block.get('enabled'):
+            continue
+        config = block.get('config') or {}
+        if block.get('type') == 'CUSTOM_QUESTIONS':
+            answers = responses.get('custom_answers') or {}
+            if not isinstance(answers, dict):
+                raise HTTPException(status_code=422, detail='Custom answers must be an object.')
+            for question in config.get('questions', []):
+                answer = answers.get(question.get('id'))
+                if question.get('required') and (not isinstance(answer, str) or not answer.strip()):
+                    raise HTTPException(status_code=422, detail=f"Required answer: {question.get('label', question.get('id'))}")
+        elif block.get('type') == 'SCOPE_EXCLUSIONS' and config.get('require_ack', True):
+            if responses.get('scope_exclusions_acknowledged') is not True:
+                raise HTTPException(status_code=422, detail='Please acknowledge the service scope exclusions.')
+
+def snapshot_custom_responses(service: ArtistService, responses: Dict[str, Any]) -> Dict[str, Any]:
+    """Freeze server-authored question labels beside the answers in the existing JSON snapshot."""
+    result = dict(responses)
+    answers = result.get('custom_answers')
+    labels = {}
+    if isinstance(answers, dict):
+        for block in service.form_schema or []:
+            if block.get('enabled') and block.get('type') == 'CUSTOM_QUESTIONS':
+                for question in (block.get('config') or {}).get('questions', []):
+                    key, label = question.get('id'), question.get('label')
+                    if key in answers and isinstance(key, str) and isinstance(label, str) and label.strip():
+                        labels[key] = label
+    # Client-supplied metadata is always replaced, including for an empty snapshot.
+    result['custom_question_labels'] = labels
+    return result
+
 
 def accept_commission_request(session: Session, request_id: int, artist_user_id: int) -> Order:
     """
@@ -160,7 +198,17 @@ def accept_commission_request(session: Session, request_id: int, artist_user_id:
     custom_desc = ""
     if request.custom_responses:
         lines = []
-        for k, v in request.custom_responses.items():
+        responses = request.custom_responses
+        labels = responses.get('custom_question_labels')
+        if not isinstance(labels, dict):
+            labels = {}  # Historical question wording cannot be recovered from an edited live form.
+        for k, v in responses.items():
+            if k == 'custom_question_labels':
+                continue
+            if k == 'custom_answers' and isinstance(v, dict):
+                for question_id, answer in v.items():
+                    lines.append(f"- {labels.get(question_id, 'Additional answer')}: {answer}")
+                continue
             if isinstance(v, dict):
                 v_str = ", ".join(f"{sub_k}: {sub_v}" for sub_k, sub_v in v.items())
             elif isinstance(v, list):
@@ -188,7 +236,8 @@ def accept_commission_request(session: Session, request_id: int, artist_user_id:
         client_id=request.client_id,
         artist_id=request.artist_user_id,
         service_id=service.id,
-        commission_request_id=request.id
+        commission_request_id=request.id,
+        due_date=request.requested_deadline
     )
     session.add(new_order)
     session.flush()
@@ -208,7 +257,7 @@ def accept_commission_request(session: Session, request_id: int, artist_user_id:
             order_id=new_order.id
         ))
     else:
-        deposit_amount = round(total_price * (deposit_pct / 100.0), 2)
+        deposit_amount = float((Decimal(str(total_price)) * Decimal(str(deposit_pct)) / 100).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP))
         final_amount = round(total_price - deposit_amount, 2)
         session.add(MilestoneInvoice(
             title=f"{deposit_pct}% Initial Deposit",
@@ -224,7 +273,7 @@ def accept_commission_request(session: Session, request_id: int, artist_user_id:
     # Transfer reference images to Order files
     for ref_path in request.reference_images:
         session.add(DBFile(
-            filename=f"ref_{request.character_name[:20]}",
+            filename=re.sub(r'^[0-9a-f]{32}_\d+_', '', os.path.basename(ref_path)),
             s3_key=ref_path,
             is_watermarked=False,
             file_type="REFERENCE",

@@ -1,16 +1,21 @@
 'use client';
 
+import { parseApiDate } from '@/lib/apiDate';
+
 import { useQuery } from '@tanstack/react-query';
+import { useTranslations } from 'next-intl';
 import { getPublicQueue, PublicQueueSlot } from '@/lib/api';
 import { useAuth } from './AuthContext';
 import { Calendar, Layers, Lock, Star, CheckCircle, Clock, Loader2, ShieldAlert } from 'lucide-react';
 
-export default function QueueRoadmap() {
+export default function QueueRoadmap({ artistId }: { artistId?: number }) {
   const { user } = useAuth();
+  const c = useTranslations('ClientWidgets');
+  const t = useTranslations('ClientDashboard');
 
   const { data: queueSlots, isLoading, isError } = useQuery({
-    queryKey: ['publicQueue'],
-    queryFn: getPublicQueue,
+    queryKey: ['publicQueue', artistId, user?.id],
+    queryFn: () => getPublicQueue(artistId),
   });
 
   return (
@@ -18,17 +23,17 @@ export default function QueueRoadmap() {
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 border-b border-neutral-800/80 pb-4 mb-4">
         <div>
           <div className="inline-flex items-center gap-1.5 bg-blue-600/10 text-blue-400 border border-blue-500/30 text-[11px] font-bold px-2.5 py-0.5 rounded-full mb-1.5">
-            <Calendar className="w-3.5 h-3.5" /> Public Production Calendar
+            <Calendar className="w-3.5 h-3.5" /> {c('calendar')}
           </div>
-          <h2 className="text-lg sm:text-xl font-black text-white">Live Artist Queue & Roadmap</h2>
+          <h2 className="text-lg sm:text-xl font-black text-white">{c('queue')}</h2>
           <p className="text-xs text-neutral-400 mt-0.5">
-            Real-time public schedule tracker. Ownership details are revealed strictly to the queue slot owner.
+            {c('queueDescription')}
           </p>
         </div>
 
         {user && !user.is_admin && (
           <div className="bg-neutral-950 border border-neutral-800 px-3.5 py-2 rounded-xl text-xs flex items-center gap-2 text-emerald-400 font-bold">
-            <Star className="w-4 h-4 fill-emerald-400" /> Logged in as: {user.full_name}
+            <Star className="w-4 h-4 fill-emerald-400" /> {c('loggedIn')} {user.full_name}
           </div>
         )}
       </div>
@@ -41,15 +46,15 @@ export default function QueueRoadmap() {
 
       {isError && (
         <div className="p-4 bg-red-500/10 border border-red-500/20 text-red-400 text-xs rounded-xl text-center">
-          Failed to load public queue status.
+          {c('queueError')}
         </div>
       )}
 
       {!isLoading && !isError && (!queueSlots || queueSlots.length === 0) && (
         <div className="text-center py-10 bg-neutral-950 border border-neutral-800 rounded-xl space-y-2">
           <Layers className="w-10 h-10 text-neutral-600 mx-auto opacity-50" />
-          <h3 className="text-sm font-bold text-white">All Queue Slots Available</h3>
-          <p className="text-xs text-neutral-400">The artist is currently accepting new commission requests!</p>
+          <h3 className="text-sm font-bold text-white">{c('emptyQueue')}</h3>
+          <p className="text-xs text-neutral-400">{c('emptyQueueDescription')}</p>
         </div>
       )}
 
@@ -73,16 +78,16 @@ export default function QueueRoadmap() {
               >
                 <div className="flex items-center justify-between mb-3">
                   <span className="text-[10px] font-mono font-bold uppercase tracking-widest text-neutral-400 flex items-center gap-1">
-                    <Clock className="w-3 h-3 text-blue-400" /> SLOT #{slot.slot_number.toString().padStart(2, '0')}
+                    <Clock className="w-3 h-3 text-blue-400" /> {c('slot')}{slot.slot_number.toString().padStart(2, '0')}
                   </span>
 
                   {isOwner ? (
                     <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 bg-emerald-500/20 text-emerald-300 rounded border border-emerald-500/40 animate-pulse">
-                      <Star className="w-3 h-3 fill-emerald-300" /> YOUR SLOT
+                      <Star className="w-3 h-3 fill-emerald-300" /> {c('yourSlot')}
                     </span>
                   ) : (
                     <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 bg-neutral-800 text-neutral-400 rounded border border-neutral-700">
-                      <Lock className="w-3 h-3 text-amber-400" /> OCCUPIED
+                      <Lock className="w-3 h-3 text-amber-400" /> {c('occupied')}
                     </span>
                   )}
                 </div>
@@ -90,13 +95,13 @@ export default function QueueRoadmap() {
                 {/* Slot Details: Anonymized unless logged in owner or admin */}
                 <div className="space-y-2">
                   <h4 className="font-extrabold text-sm text-white truncate">
-                    {isMySlot ? slot.title : `Commission Slot #${slot.slot_number}`}
+                    {isMySlot ? slot.title : c('genericSlot',{number:slot.slot_number})}
                   </h4>
 
                   <div className="flex items-center justify-between text-xs pt-1 border-t border-neutral-800/80">
-                    <span className="text-neutral-500 font-medium">Stage:</span>
+                    <span className="text-neutral-500 font-medium">{c('stage')}</span>
                     <span className="font-bold text-blue-400 uppercase tracking-wider text-[11px]">
-                      {slot.stage || 'In Queue'}
+                      {t.has(`statuses.${slot.stage || slot.status}`) ? t(`statuses.${slot.stage || slot.status}`) : slot.stage || slot.status}
                     </span>
                   </div>
 
@@ -104,17 +109,17 @@ export default function QueueRoadmap() {
                   {(slot.start_date || slot.due_date) && (
                     <div className="flex items-center justify-between text-[10px] text-neutral-400 pt-1 font-mono">
                       {slot.start_date && (
-                        <span>Start: <strong className="text-neutral-300">{new Date(slot.start_date).toLocaleDateString()}</strong></span>
+                        <span>{c('start')} <strong className="text-neutral-300">{parseApiDate(slot.start_date).toLocaleDateString()}</strong></span>
                       )}
                       {slot.due_date && (
-                        <span>Due: <strong className="text-amber-400">{new Date(slot.due_date).toLocaleDateString()}</strong></span>
+                        <span>{c('due')} <strong className="text-amber-400">{parseApiDate(slot.due_date).toLocaleDateString()}</strong></span>
                       )}
                     </div>
                   )}
 
                   {isAdmin && (
                     <div className="text-[10px] text-neutral-400 pt-1">
-                      Client: <span className="text-white font-bold">{slot.client_name}</span>
+                      {c('client')} <span className="text-white font-bold">{slot.client_name}</span>
                     </div>
                   )}
                 </div>
@@ -126,7 +131,7 @@ export default function QueueRoadmap() {
 
       <div className="mt-6 pt-4 border-t border-neutral-800/80 text-center text-[11px] text-neutral-400 flex items-center justify-center gap-2">
         <ShieldAlert className="w-3.5 h-3.5 text-blue-400" />
-        Privacy Note: Project titles and owner names are encrypted for public viewers and revealed only to verified slot owners upon login.
+        {c('privacy')}
       </div>
     </div>
   );

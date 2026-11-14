@@ -1,9 +1,10 @@
-from fastapi import APIRouter, Depends, HTTPException, UploadFile, File as FastAPIFile
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, UploadFile, File as FastAPIFile
 from sqlmodel import Session, select
+from sqlalchemy.exc import IntegrityError
 from core.db import get_session
 from core.auth import get_password_hash, verify_password, create_access_token, get_current_user, get_admin_user
 from core.security_file import validate_and_save_upload
-from models import User, Order, Auction, File, ArtistProfile
+from models import User, Order, Auction, File, ArtistProfile, ArtistService, ArtistReview, Artwork, Character
 from schemas import UserRegisterRequest, UserLoginRequest, TokenResponse, UserResponse, UserUpdateRequest
 from pydantic import BaseModel, Field
 from typing import List, Dict, Any, Optional
@@ -102,25 +103,32 @@ def get_my_collection(session: Session = Depends(get_session), current_user: Use
     
     collection = []
     for order in orders:
+        artist = session.get(User, order.artist_id)
         final_files = session.exec(select(File).where(File.order_id == order.id, File.file_type == "FINAL")).all()
         for f in final_files:
             collection.append({
                 "id": f"order_{order.id}_{f.id}",
                 "title": order.title,
-                "type": "Commission",
+                "type": "Auction" if order.auction_id is not None else "Commission",
                 "image_url": f"/api/orders/{order.id}/files/{f.id}/download",
-                "artist_name": order.artist.display_name if getattr(order, "artist", None) else "DICE Artist",
+                "order_id": order.id,
+                "filename": f.filename,
+                "artist_name": artist.full_name if artist else "DICE Artist",
                 "date": order.created_at
             })
             
     for auction in auctions:
         if auction.image_url:
+            profile = session.get(ArtistProfile, auction.artist_id) if auction.artist_id else None
+            linked_order = session.exec(select(Order).where(Order.auction_id == auction.id, Order.client_id == current_user.id)).first()
             collection.append({
                 "id": f"auction_{auction.id}",
                 "title": auction.title,
                 "type": "Auction/Adoptable",
                 "image_url": auction.image_url,
-                "artist_name": "DICE Artist",
+                "auction_id": auction.id,
+                "order_id": linked_order.id if linked_order else None,
+                "artist_name": profile.display_name if profile else "DICE Artist",
                 "date": auction.created_at
             })
             
@@ -153,6 +161,7 @@ def get_all_users(session: Session = Depends(get_session), admin_user: User = De
 def update_user_role(
     user_id: int,
     request: UserRoleUpdateRequest,
+    background_tasks: BackgroundTasks,
     session: Session = Depends(get_session),
     admin_user: User = Depends(get_admin_user)
 ):
@@ -160,6 +169,7 @@ def update_user_role(
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
     
+    previous_roles = (user.is_admin, user.is_artist)
     if request.is_admin is not None:
         user.is_admin = request.is_admin
     if request.is_artist is not None:
@@ -168,6 +178,13 @@ def update_user_role(
     session.add(user)
     session.commit()
     session.refresh(user)
+    if previous_roles != (user.is_admin, user.is_artist):
+        from core.websocket import manager
+        background_tasks.add_task(
+            manager.send_personal_message,
+            {"type": "user_roles_updated", "data": {"user_id": user.id}},
+            user.id,
+        )
     return {"message": "User role updated successfully", "user": {"id": user.id, "email": user.email, "is_admin": user.is_admin, "is_artist": user.is_artist}}
 
 @router.delete("/users/{user_id}")
@@ -181,6 +198,20 @@ def delete_user(
     user = session.get(User, user_id)
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
-    session.delete(user)
-    session.commit()
+    profile = session.exec(select(ArtistProfile).where(ArtistProfile.user_id == user.id)).first()
+    if session.exec(select(Order).where(Order.artist_id == user.id)).first():
+        raise HTTPException(status_code=409, detail="This artist has order history. Transfer or resolve associated records before deleting the account.")
+    if profile:
+        for model in (ArtistService, ArtistReview, Artwork, Character, Auction):
+            if session.exec(select(model).where(model.artist_id == profile.id)).first():
+                raise HTTPException(status_code=409, detail="This artist has studio content. Remove or transfer that content before deleting the account.")
+    try:
+        if profile:
+            session.delete(profile)
+            session.flush()
+        session.delete(user)
+        session.commit()
+    except IntegrityError as exc:
+        session.rollback()
+        raise HTTPException(status_code=409, detail="This account still has linked records and cannot be deleted yet.") from exc
     return {"message": "User deleted successfully"}

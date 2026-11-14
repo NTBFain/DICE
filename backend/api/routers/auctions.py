@@ -302,10 +302,15 @@ async def api_place_bid(
             auction.end_time = extended_end_time
             session.add(auction)
             
-    session.commit()
+    # An auto-buy bid and its complete winning result form one transaction.
+    if auction.auto_buy is not None and bid_amount >= auction.auto_buy:
+        if not await finalize_auto_buy(auction, current_user.id, bid_amount, session):
+            raise HTTPException(status_code=409, detail="Auction was finalized by another bidder")
+    else:
+        session.commit()
     session.refresh(new_bid)
     session.refresh(auction)
-        
+
     # Notify previous highest bidder
     if previous_highest and previous_highest.bidder_id != current_user.id:
         from services.notification_service import create_notification
@@ -321,11 +326,6 @@ async def api_place_bid(
         except Exception:
             pass
     
-    # Check Auto Buy
-    if auction.auto_buy is not None and bid_amount >= auction.auto_buy:
-        await finalize_auto_buy(auction, current_user.id, bid_amount, session)
-        session.refresh(auction)
-        
     sorted_bids = session.exec(
         select(Bid).where(Bid.auction_id == auction.id).order_by(Bid.amount.desc())
     ).all()

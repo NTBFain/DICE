@@ -1,4 +1,18 @@
 'use client';
+import CommissionBriefView from '@/components/commission/CommissionBriefView';
+import { usageText } from '@/lib/commissionBrief';
+import { getCommissionOptionText } from '@/lib/commissionBlockText';
+import { getErrorMessage } from '@/lib/errorMessage';
+
+
+import { StudioOverlay } from '@/components/StudioDialog';
+
+import { useLocale } from 'next-intl';
+import { getCommissionBlockText } from '@/lib/commissionBlockText';
+
+import { useTranslations } from 'next-intl';
+
+import StudioDialog, { StudioFormDialog } from '@/components/StudioDialog';
 
 import { useState, useEffect } from 'react';
 import { useSearchParams } from 'next/navigation';
@@ -49,11 +63,17 @@ import {
 } from 'lucide-react';
 import { Link } from '@/i18n/routing';
 import { ModularFormBuilderModal } from '@/components/commission/ModularFormBuilderModal';
+import SecureReference from '@/components/SecureReference';
 import { EditScaleModal } from '@/components/commission/EditScaleModal';
 
 export default function ArtistCommissionsDashboard() {
+  const locale = useLocale();
+  const requestStatus = useTranslations('ClientDashboard.statuses');
+  const studio = useTranslations('Studio');
   const { user } = useAuth();
   const queryClient = useQueryClient();
+  const [hubMessage, setHubMessage] = useState('');
+  const showHubMessage = (detail: unknown) => setHubMessage(getErrorMessage({response:{data:{detail}}}, locale === 'th' ? 'ดำเนินการไม่สำเร็จ โปรดลองอีกครั้ง' : 'The request could not be completed. Please try again.'));
   const [activeTab, setActiveTab] = useState<'inbox' | 'scales' | 'policy'>('inbox');
   const [inboxFilter, setInboxFilter] = useState<CommissionRequestStatus | 'ALL'>('ALL');
 
@@ -119,10 +139,10 @@ export default function ArtistCommissionsDashboard() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['artist-incoming-requests'] });
       queryClient.invalidateQueries({ queryKey: ['artist-commission-info'] });
-      alert('ยอมรับคำขอคอมมิชชันและสร้างออเดอร์ในคิวงานเรียบร้อยแล้ว!');
+      showHubMessage(studio('commissions_125_0'));
     },
     onError: (err: any) => {
-      alert(err.response?.data?.detail || 'เกิดข้อผิดพลาดในการยอมรับคำขอ');
+      showHubMessage(err.response?.data?.detail || studio('commissions_128_0'));
     },
   });
 
@@ -132,10 +152,10 @@ export default function ArtistCommissionsDashboard() {
       queryClient.invalidateQueries({ queryKey: ['artist-incoming-requests'] });
       setDeclineModalReq(null);
       setDeclineReason('');
-      alert('ปฏิเสธคำขอและส่งเหตุผลไปยังผู้จ้างแล้ว');
+      showHubMessage(studio('commissions_138_0'));
     },
     onError: (err: any) => {
-      alert(err.response?.data?.detail || 'เกิดข้อผิดพลาด');
+      showHubMessage(err.response?.data?.detail || studio('commissions_141_0'));
     },
   });
 
@@ -146,7 +166,7 @@ export default function ArtistCommissionsDashboard() {
       queryClient.invalidateQueries({ queryKey: ['artist-commission-info'] });
     },
     onError: (err: any) => {
-      alert(err.response?.data?.detail || 'เกิดข้อผิดพลาดในการสลับสถานะ');
+      showHubMessage(err.response?.data?.detail || studio('commissions_152_0'));
     },
   });
 
@@ -154,10 +174,10 @@ export default function ArtistCommissionsDashboard() {
     mutationFn: (data: Partial<CommissionPolicy>) => updateCommissionPolicy(data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['artist-commission-info'] });
-      alert('บันทึกเงื่อนไขสัญญา TOS และนโยบายเรียบร้อยแล้ว!');
+      showHubMessage(studio('commissions_160_0'));
     },
     onError: (err: any) => {
-      alert(err.response?.data?.detail || 'เกิดข้อผิดพลาดในการบันทึกนโยบาย');
+      showHubMessage(err.response?.data?.detail || studio('commissions_163_0'));
     },
   });
 
@@ -205,10 +225,10 @@ export default function ArtistCommissionsDashboard() {
       setNewScaleEstimatedDays(7);
       setNewScaleMaxSlots(3);
       setNewScaleIsOpen(true);
-      alert('สร้างสเกลงานใหม่เรียบร้อยแล้ว!');
+      showHubMessage(studio('commissions_211_0'));
     },
     onError: (err: any) => {
-      alert(err.response?.data?.detail || 'เกิดข้อผิดพลาดในการสร้างสเกลงาน');
+      showHubMessage(err.response?.data?.detail || studio('commissions_214_0'));
     },
   });
 
@@ -225,10 +245,10 @@ export default function ArtistCommissionsDashboard() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['artist-commission-info'] });
       setEditingFormSchemaService(null);
-      alert('บันทึกรูปแบบฟอร์มบรีฟสำหรับสเกลนี้เรียบร้อยแล้ว!');
+      showHubMessage(studio('commissions_231_0'));
     },
     onError: (err: any) => {
-      alert(err.response?.data?.detail || 'เกิดข้อผิดพลาดในการบันทึกฟอร์ม');
+      showHubMessage(err.response?.data?.detail || studio('commissions_234_0'));
     },
   });
 
@@ -238,10 +258,10 @@ export default function ArtistCommissionsDashboard() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['artist-commission-info'] });
       setEditingScaleService(null);
-      alert('บันทึกการแก้ไขสเกลงานเรียบร้อยแล้ว!');
+      showHubMessage(studio('commissions_244_0'));
     },
     onError: (err: any) => {
-      alert(err.response?.data?.detail || 'เกิดข้อผิดพลาดในการแก้ไขสเกลงาน');
+      showHubMessage(err.response?.data?.detail || studio('commissions_247_0'));
     },
   });
 
@@ -288,6 +308,10 @@ export default function ArtistCommissionsDashboard() {
 
   return (
     <div className="space-y-6">
+      {hubMessage && <div role="status" aria-live="polite" className="rounded-xl border border-blue-500/40 bg-blue-950 p-4 text-sm text-blue-100 flex items-start justify-between gap-3">
+        <p className="whitespace-pre-wrap break-words">{hubMessage}</p>
+        <button type="button" onClick={() => setHubMessage('')} aria-label={locale === 'th' ? 'ปิดข้อความ' : 'Dismiss message'} className="rounded px-2 focus-visible:outline focus-visible:outline-2">×</button>
+      </div>}
       {/* Top Banner */}
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 bg-neutral-900/60 border border-neutral-800 p-5 rounded-2xl">
         <div>
@@ -296,8 +320,7 @@ export default function ArtistCommissionsDashboard() {
             VGen-Style Commission Hub
           </h1>
           <p className="text-xs sm:text-sm text-neutral-400 mt-1">
-            จัดการระบบรับงานหลายสเกล, สัญญา TOS, ข้อจำกัด Do&apos;s &amp; Don&apos;ts, และกล่องคัดกรองคำขอ
-          </p>
+            {' '}{studio('commissions_302_0')}{' '}</p>
         </div>
 
         {profile && (
@@ -306,8 +329,7 @@ export default function ArtistCommissionsDashboard() {
             target="_blank"
             className="flex items-center gap-1.5 text-xs text-blue-400 bg-blue-500/10 border border-blue-500/30 px-3 py-1.5 rounded-xl hover:bg-blue-500/20 transition-colors"
           >
-            <ExternalLink className="w-3.5 h-3.5" /> ดูหน้าฟอร์มสาธารณะ
-          </Link>
+            <ExternalLink className="w-3.5 h-3.5" /> {' '}{studio('commissions_312_0')}{' '}</Link>
         )}
       </div>
 
@@ -322,8 +344,7 @@ export default function ArtistCommissionsDashboard() {
           }`}
         >
           <Inbox className="w-4 h-4 text-blue-400" />
-          คำขอที่ส่งเข้ามา (Inbox)
-          {requests.filter((r) => r.status === 'PENDING').length > 0 && (
+          {' '}{studio('commissions_328_0')}{' '}{requests.filter((r) => r.status === 'PENDING').length > 0 && (
             <span className="bg-blue-600 text-white text-[10px] px-1.5 py-0.5 rounded-full font-bold ml-1">
               {requests.filter((r) => r.status === 'PENDING').length}
             </span>
@@ -339,8 +360,7 @@ export default function ArtistCommissionsDashboard() {
           }`}
         >
           <Sliders className="w-4 h-4 text-emerald-400" />
-          สเกลงาน &amp; สล็อต (Scales &amp; Slots)
-        </button>
+          {' '}{studio('commissions_345_0')}{' '}</button>
 
         <button
           onClick={() => setActiveTab('policy')}
@@ -351,8 +371,7 @@ export default function ArtistCommissionsDashboard() {
           }`}
         >
           <FileText className="w-4 h-4 text-purple-400" />
-          สัญญา TOS &amp; Do&apos;s / Don&apos;ts
-        </button>
+          {' '}{studio('commissions_357_0')}{' '}</button>
       </div>
 
       {/* TAB 1: INBOX */}
@@ -370,7 +389,7 @@ export default function ArtistCommissionsDashboard() {
                     : 'bg-neutral-900 text-neutral-400 hover:text-white border border-neutral-800'
                 }`}
               >
-                {st === 'ALL' ? 'ทั้งหมด' : st}
+                {st === 'ALL' ? studio('commissions_376_0') : requestStatus(st)}
               </button>
             ))}
           </div>
@@ -378,12 +397,11 @@ export default function ArtistCommissionsDashboard() {
           {loadingRequests ? (
             <div className="p-12 text-center text-neutral-400">
               <Loader2 className="w-8 h-8 animate-spin mx-auto text-blue-500 mb-2" />
-              กำลังโหลดรายการคำขอ...
-            </div>
+              {' '}{studio('commissions_384_0')}{' '}</div>
           ) : requests.length === 0 ? (
             <div className="bg-neutral-900/40 border border-neutral-800 rounded-2xl p-12 text-center text-neutral-400">
               <Inbox className="w-12 h-12 mx-auto text-neutral-600 mb-2" />
-              <p className="text-sm font-bold">ไม่มีคำขอคอมมิชชันในหมวดหมู่นี้</p>
+              <p className="text-sm font-bold">{studio('commissions_389_0')}</p>
             </div>
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -402,7 +420,7 @@ export default function ArtistCommissionsDashboard() {
                           {req.character_name}
                         </h3>
                         <p className="text-xs text-neutral-400">
-                          ผู้จ้าง: {req.client_name || req.client_email || 'Client'}
+                          {' '}{studio('commissions_408_0')}{' '}{req.client_name || req.client_email || 'Client'}
                         </p>
                       </div>
 
@@ -415,7 +433,7 @@ export default function ArtistCommissionsDashboard() {
                             : 'bg-red-500/10 text-red-400 border border-red-500/30'
                         }`}
                       >
-                        {req.status}
+                        {requestStatus(req.status)}
                       </span>
                     </div>
 
@@ -425,18 +443,18 @@ export default function ArtistCommissionsDashboard() {
 
                     <div className="grid grid-cols-2 gap-2 text-xs text-neutral-400">
                       <div>
-                        <span className="text-neutral-500 block text-[10px]">การนำไปใช้:</span>
-                        <span className="font-semibold text-neutral-200">{req.usage_type}</span>
+                        <span className="text-neutral-500 block text-[10px]">{studio('commissions_431_0')}</span>
+                        <span className="font-semibold text-neutral-200">{usageText(req.usage_type, locale)}</span>
                       </div>
                       <div>
-                        <span className="text-neutral-500 block text-[10px]">ขนาดภาพ:</span>
-                        <span className="font-semibold text-neutral-200">{req.canvas_size}</span>
+                        <span className="text-neutral-500 block text-[10px]">{studio('commissions_435_0')}</span>
+                        <span className="font-semibold text-neutral-200">{getCommissionOptionText(req.canvas_size, locale)}</span>
                       </div>
                     </div>
 
                     {req.addons_snapshot && req.addons_snapshot.length > 0 && (
                       <div className="text-[11px] bg-neutral-950/60 p-2.5 rounded-xl border border-neutral-800/40">
-                        <span className="text-neutral-400 block font-bold mb-1">Add-ons ที่เลือก:</span>
+                        <span className="text-neutral-400 block font-bold mb-1">{studio('commissions_442_0')}</span>
                         <div className="flex flex-wrap gap-1.5">
                           {req.addons_snapshot.map((ad, idx) => (
                             <span
@@ -453,7 +471,7 @@ export default function ArtistCommissionsDashboard() {
 
                   <div className="pt-3 border-t border-neutral-800/80 space-y-3">
                     <div className="flex items-center justify-between">
-                      <span className="text-xs text-neutral-400">ราคารวมประเมิน:</span>
+                      <span className="text-xs text-neutral-400">{studio('commissions_459_0')}</span>
                       <span className="text-lg font-bold text-emerald-400">
                         ฿{req.total_price.toLocaleString()}
                       </span>
@@ -464,8 +482,7 @@ export default function ArtistCommissionsDashboard() {
                         onClick={() => setDetailModalReq(req)}
                         className="flex-1 flex items-center justify-center gap-1.5 bg-neutral-800 hover:bg-neutral-700 text-white text-xs font-bold py-2 rounded-xl transition-colors cursor-pointer"
                       >
-                        <Eye className="w-3.5 h-3.5" /> ดูบรีฟฉบับเต็ม
-                      </button>
+                        <Eye className="w-3.5 h-3.5" /> {' '}{studio('commissions_470_0')}{' '}</button>
 
                       {req.status === 'PENDING' && (
                         <>
@@ -474,13 +491,12 @@ export default function ArtistCommissionsDashboard() {
                             disabled={acceptMutation.isPending}
                             className="flex-1 flex items-center justify-center gap-1.5 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold py-2 rounded-xl transition-colors cursor-pointer disabled:opacity-50"
                           >
-                            <CheckCircle className="w-3.5 h-3.5" /> ยอมรับงาน
-                          </button>
+                            <CheckCircle className="w-3.5 h-3.5" /> {' '}{studio('commissions_480_0')}{' '}</button>
 
                           <button
                             onClick={() => setDeclineModalReq(req)}
                             className="flex items-center justify-center p-2 bg-red-600/20 hover:bg-red-600/30 text-red-400 rounded-xl transition-colors cursor-pointer"
-                            title="ปฏิเสธคำขอ"
+                            title={studio('commissions_486_0')}
                           >
                             <XCircle className="w-4 h-4" />
                           </button>
@@ -503,18 +519,15 @@ export default function ArtistCommissionsDashboard() {
             <div>
               <h2 className="text-base font-bold text-white flex items-center gap-2">
                 <Sliders className="w-4 h-4 text-emerald-400" />
-                สเกลงานและแบบฟอร์มเปิดรับงาน (Commission Scales &amp; Forms)
-              </h2>
+                {' '}{studio('commissions_509_0')}{' '}</h2>
               <p className="text-xs text-neutral-400 mt-0.5">
-                สร้างสเกลงานใหม่ กำหนดราคา สล็อตจำกัด และตัวเลือกเสริม (Add-ons) ของแต่ละสเกล
-              </p>
+                {' '}{studio('commissions_512_0')}{' '}</p>
             </div>
             <button
               onClick={() => setNewScaleModalOpen(true)}
               className="bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs px-4 py-2.5 rounded-xl flex items-center gap-1.5 transition-colors cursor-pointer shadow-md shadow-emerald-600/20"
             >
-              <Plus className="w-4 h-4" /> เพิ่มสเกลงานใหม่
-            </button>
+              <Plus className="w-4 h-4" /> {' '}{studio('commissions_519_0')}{' '}</button>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -532,7 +545,7 @@ export default function ArtistCommissionsDashboard() {
                       <button
                         onClick={() => setEditingScaleService(svc)}
                         className="text-neutral-400 hover:text-blue-400 p-1 rounded-lg hover:bg-neutral-800 transition-colors cursor-pointer"
-                        title="แก้ไขข้อมูลสเกลงานนี้"
+                        title={studio('commissions_538_0')}
                       >
                         <Edit3 className="w-3.5 h-3.5" />
                       </button>
@@ -543,7 +556,7 @@ export default function ArtistCommissionsDashboard() {
                           }
                         }}
                         className="text-neutral-500 hover:text-red-400 transition-colors cursor-pointer p-1 rounded-lg hover:bg-neutral-800"
-                        title="ลบสเกลงานนี้"
+                        title={studio('commissions_549_0')}
                       >
                         <Trash2 className="w-3.5 h-3.5" />
                       </button>
@@ -555,6 +568,10 @@ export default function ArtistCommissionsDashboard() {
                   {/* Toggle Form Open Switch */}
                   <div className="flex flex-col items-end gap-1">
                     <button
+                      type="button"
+                      aria-pressed={svc.is_form_open}
+                      aria-label={`${svc.is_form_open ? studio('commissions_578_2') : studio('commissions_578_1')}: ${svc.title}`}
+                      disabled={toggleAvailabilityMutation.isPending}
                       onClick={() =>
                         toggleAvailabilityMutation.mutate({
                           serviceId: svc.id,
@@ -572,46 +589,44 @@ export default function ArtistCommissionsDashboard() {
                       />
                     </button>
                     <span className="text-[10px] font-bold text-neutral-400">
-                      {svc.is_form_open ? 'เปิดรับฟอร์ม' : 'ปิดรับฟอร์ม'}
+                      {svc.is_form_open ? studio('commissions_578_1') : studio('commissions_578_2')}
                     </span>
                   </div>
                 </div>
 
                 <div className="grid grid-cols-3 gap-2 bg-neutral-950 p-3 rounded-xl border border-neutral-800/60 text-center">
                   <div>
-                    <span className="text-[10px] text-neutral-500 block">ราคาเริ่มต้น</span>
+                    <span className="text-[10px] text-neutral-500 block">{studio('commissions_585_0')}</span>
                     <span className="text-sm font-bold text-white">฿{svc.base_price.toLocaleString()}</span>
                   </div>
                   <div>
-                    <span className="text-[10px] text-neutral-500 block">ระยะเวลาเฉลี่ย</span>
-                    <span className="text-sm font-bold text-white">{svc.estimated_days} วัน</span>
+                    <span className="text-[10px] text-neutral-500 block">{studio('commissions_589_0')}</span>
+                    <span className="text-sm font-bold text-white">{svc.estimated_days} {' '}{studio('commissions_590_0')}</span>
                   </div>
                   <div>
-                    <span className="text-[10px] text-neutral-500 block">สล็อตที่รับอยู่</span>
+                    <span className="text-[10px] text-neutral-500 block">{studio('commissions_593_0')}</span>
                     <span
                       className={`text-sm font-bold ${
                         svc.used_slots >= svc.max_slots ? 'text-red-400' : 'text-emerald-400'
                       }`}
                     >
-                      {svc.used_slots} / {svc.max_slots} คิว
-                    </span>
+                      {svc.used_slots} / {svc.max_slots} {' '}{studio('commissions_599_0')}{' '}</span>
                   </div>
                 </div>
 
                 {/* Add-ons List */}
                 <div className="space-y-2 pt-2 border-t border-neutral-800/60">
                   <div className="flex items-center justify-between">
-                    <span className="text-xs font-bold text-neutral-300">ตัวเลือกเสริม (Add-ons):</span>
+                    <span className="text-xs font-bold text-neutral-300">{studio('commissions_607_0')}</span>
                     <button
                       onClick={() => setNewAddonServiceId(svc.id)}
                       className="text-[10px] text-blue-400 hover:text-blue-300 flex items-center gap-1 cursor-pointer font-bold"
                     >
-                      <Plus className="w-3 h-3" /> เพิ่ม Add-on
-                    </button>
+                      <Plus className="w-3 h-3" /> {' '}{studio('commissions_612_0')}{' '}</button>
                   </div>
 
                   {svc.addons.length === 0 ? (
-                    <p className="text-[11px] text-neutral-500 italic">ยังไม่มีตัวเลือกเสริมสำหรับสเกลนี้</p>
+                    <p className="text-[11px] text-neutral-500 italic">{studio('commissions_617_0')}</p>
                   ) : (
                     <div className="space-y-1.5">
                       {svc.addons.map((ad) => (
@@ -629,7 +644,7 @@ export default function ArtistCommissionsDashboard() {
                                 deleteAddonMutation.mutate({ serviceId: svc.id, addonId: ad.id })
                               }
                               className="text-neutral-500 hover:text-red-400 cursor-pointer"
-                              title="ลบตัวเลือกเสริม"
+                              title={studio('commissions_635_0')}
                             >
                               <Trash2 className="w-3 h-3" />
                             </button>
@@ -643,15 +658,13 @@ export default function ArtistCommissionsDashboard() {
                 {/* Modular Form Schema Status & Builder Button */}
                 <div className="pt-3 border-t border-neutral-800/60 space-y-2">
                   <div className="flex items-center justify-between">
-                    <span className="text-xs font-bold text-neutral-300">กล่องฟอร์มบรีฟ (Form Blocks):</span>
+                    <span className="text-xs font-bold text-neutral-300">{studio('commissions_649_0')}</span>
                     {svc.form_schema && svc.form_schema.filter((b) => b.enabled).length > 0 ? (
                       <span className="text-[10px] text-emerald-400 font-bold bg-emerald-950/40 border border-emerald-800/40 px-2 py-0.5 rounded-full">
-                        {svc.form_schema.filter((b) => b.enabled).length} บล็อกทำงาน
-                      </span>
+                        {svc.form_schema.filter((b) => b.enabled).length} {' '}{studio('commissions_652_0')}{' '}</span>
                     ) : (
                       <span className="text-[10px] text-neutral-500 bg-neutral-900 px-2 py-0.5 rounded-full border border-neutral-800">
-                        ฟอร์มมาตรฐาน
-                      </span>
+                        {' '}{studio('commissions_656_0')}{' '}</span>
                     )}
                   </div>
 
@@ -661,13 +674,13 @@ export default function ArtistCommissionsDashboard() {
                       {svc.form_schema
                         .filter((b) => b.enabled)
                         .map((b) => {
-                          let label = b.title || b.type;
-                          if (b.type === 'CHARACTER_COUNT') label = `👥 สูงสุด ${b.config.max_chars || 4} ตัว (+${b.config.extra_price_percent || 70}%)`;
-                          if (b.type === 'SCOPE_EXCLUSIONS') label = `🚫 ${(b.config.exclusions || []).length} ข้อห้าม`;
-                          if (b.type === 'BACKGROUND_TIER') label = `🌄 ฉาก ${(b.config.tiers || []).length} ระดับ`;
-                          if (b.type === 'RUSH_MODE') label = `⚡ งานด่วน`;
-                          if (b.type === 'PRIVACY_NDA') label = `👁️ NDA ฿${b.config.price || 500}`;
-                          if (b.type === 'CUSTOM_QUESTIONS') label = `❓ ${(b.config.questions || []).length} คำถามพิเศษ`;
+                          let label = getCommissionBlockText(b, locale);
+                          if (b.type === 'CHARACTER_COUNT') label = studio('characterSummary', { count: b.config.max_chars || 4, percent: b.config.extra_price_percent ?? 70 });
+                          if (b.type === 'SCOPE_EXCLUSIONS') label = studio('exclusionSummary', { count: (b.config.exclusions || []).length });
+                          if (b.type === 'BACKGROUND_TIER') label = studio('backgroundSummary', { count: (b.config.tiers || []).length });
+                          if (b.type === 'RUSH_MODE') label = studio('commissions_671_0');
+                          if (b.type === 'PRIVACY_NDA') label = `👁️ NDA ฿${b.config.price ?? 500}`;
+                          if (b.type === 'CUSTOM_QUESTIONS') label = studio('questionSummary', { count: (b.config.questions || []).length });
                           return (
                             <span
                               key={b.id || b.type}
@@ -687,16 +700,14 @@ export default function ArtistCommissionsDashboard() {
                       className="py-2.5 px-3 bg-neutral-900 hover:bg-neutral-800 border border-neutral-700/80 hover:border-amber-500/60 rounded-xl text-xs font-bold text-neutral-200 hover:text-white flex items-center justify-center gap-1.5 cursor-pointer transition shadow-sm"
                     >
                       <Edit3 className="w-3.5 h-3.5 text-amber-400" />
-                      ✏️ แก้ไขสเกล
-                    </button>
+                      {' '}{studio('commissions_693_0')}{' '}</button>
                     <button
                       type="button"
                       onClick={() => setEditingFormSchemaService(svc)}
                       className="py-2.5 px-3 bg-neutral-900 hover:bg-neutral-800 border border-neutral-700/80 hover:border-blue-500/60 rounded-xl text-xs font-bold text-neutral-200 hover:text-white flex items-center justify-center gap-1.5 cursor-pointer transition shadow-sm"
                     >
                       <Settings className="w-3.5 h-3.5 text-blue-400" />
-                      ⚙️ ปรับฟอร์มบรีฟ
-                    </button>
+                      {' '}{studio('commissions_701_0')}{' '}</button>
                   </div>
                 </div>
               </div>
@@ -709,38 +720,37 @@ export default function ArtistCommissionsDashboard() {
       {activeTab === 'policy' && policyForm && (
         <div className="bg-neutral-900/80 border border-neutral-800 rounded-2xl p-6 space-y-6 max-w-4xl">
           <div>
-            <h3 className="text-base font-bold text-white">ข้อตกลงและเงื่อนไขสัญญา (Terms of Service)</h3>
+            <h3 className="text-base font-bold text-white">{studio('commissions_715_0')}</h3>
             <p className="text-xs text-neutral-400 mt-1">
-              ข้อตกลงนี้จะถูกแสดงให้ผู้จ้างกดยอมรับก่อนส่งบรีฟ และระบบจะบันทึก Snapshot สัญญาฉบับนี้ไว้เป็นหลักฐาน
-            </p>
+              {' '}{studio('commissions_717_0')}{' '}</p>
             <textarea
               rows={4}
               value={policyForm.terms_of_service}
               onChange={(e) => setPolicyForm({ ...policyForm, terms_of_service: e.target.value })}
-              placeholder="ระบุข้อตกลงและลิขสิทธิ์ เช่น ไม่อนุญาตให้นำไปดัดแปลงเชิงพาณิชย์โดยไม่ได้รับอนุญาต..."
+              placeholder={studio('commissions_723_0')}
               className="w-full mt-2 bg-neutral-950 border border-neutral-800 rounded-xl p-3 text-xs text-white focus:outline-none focus:border-blue-500"
             />
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
-              <h4 className="text-xs font-bold text-neutral-300">นโยบายการคืนเงิน (Refund Policy)</h4>
+              <h4 className="text-xs font-bold text-neutral-300">{studio('commissions_730_0')}</h4>
               <textarea
                 rows={3}
                 value={policyForm.refund_policy}
                 onChange={(e) => setPolicyForm({ ...policyForm, refund_policy: e.target.value })}
-                placeholder="เช่น คืนเงินได้ 50% ในขั้นตอนร่างภาพ..."
+                placeholder={studio('commissions_735_0')}
                 className="w-full mt-1.5 bg-neutral-950 border border-neutral-800 rounded-xl p-3 text-xs text-white focus:outline-none focus:border-blue-500"
               />
             </div>
 
             <div>
-              <h4 className="text-xs font-bold text-neutral-300">นโยบายการใช้กับ AI (No-AI Policy)</h4>
+              <h4 className="text-xs font-bold text-neutral-300">{studio('commissions_741_0')}</h4>
               <textarea
                 rows={3}
                 value={policyForm.ai_policy}
                 onChange={(e) => setPolicyForm({ ...policyForm, ai_policy: e.target.value })}
-                placeholder="เช่น ห้ามนำผลงานไปป้อน Machine Learning หรือเทรนโมเดล AI เด็ดขาด..."
+                placeholder={studio('commissions_746_0')}
                 className="w-full mt-1.5 bg-neutral-950 border border-neutral-800 rounded-xl p-3 text-xs text-white focus:outline-none focus:border-blue-500"
               />
             </div>
@@ -751,15 +761,14 @@ export default function ArtistCommissionsDashboard() {
             {/* Will Draw */}
             <div className="space-y-2">
               <label className="text-xs font-bold text-emerald-400 flex items-center gap-1.5">
-                <CheckCircle className="w-3.5 h-3.5" /> สิ่งที่รับวาด (Will Draw):
-              </label>
+                <CheckCircle className="w-3.5 h-3.5" /> {' '}{studio('commissions_757_0')}{' '}</label>
               <div className="flex gap-2">
                 <input
                   type="text"
                   value={willDrawInput}
                   onChange={(e) => setWillDrawInput(e.target.value)}
                   onKeyDown={(e) => e.key === 'Enter' && (e.preventDefault(), handleAddWillDraw())}
-                  placeholder="เช่น OC, Fanart, Chibi..."
+                  placeholder={studio('commissions_765_0')}
                   className="flex-1 bg-neutral-950 border border-neutral-800 rounded-xl px-3 py-1.5 text-xs text-white focus:outline-none focus:border-emerald-500"
                 />
                 <button
@@ -767,8 +776,7 @@ export default function ArtistCommissionsDashboard() {
                   onClick={handleAddWillDraw}
                   className="bg-emerald-600/20 text-emerald-400 border border-emerald-500/30 px-3 py-1.5 rounded-xl text-xs font-bold hover:bg-emerald-600/30 cursor-pointer"
                 >
-                  เพิ่ม
-                </button>
+                  {' '}{studio('commissions_773_0')}{' '}</button>
               </div>
               <div className="flex flex-wrap gap-1.5 pt-1">
                 {policyForm.will_draw?.map((tag) => (
@@ -792,15 +800,14 @@ export default function ArtistCommissionsDashboard() {
             {/* Won't Draw */}
             <div className="space-y-2">
               <label className="text-xs font-bold text-red-400 flex items-center gap-1.5">
-                <ShieldAlert className="w-3.5 h-3.5" /> สิ่งที่ไม่รับวาด (Won&apos;t Draw):
-              </label>
+                <ShieldAlert className="w-3.5 h-3.5" /> {' '}{studio('commissions_798_0')}{' '}</label>
               <div className="flex gap-2">
                 <input
                   type="text"
                   value={wontDrawInput}
                   onChange={(e) => setWontDrawInput(e.target.value)}
                   onKeyDown={(e) => e.key === 'Enter' && (e.preventDefault(), handleAddWontDraw())}
-                  placeholder="เช่น NSFW 18+, Mecha, เลือดสาด..."
+                  placeholder={studio('commissions_806_0')}
                   className="flex-1 bg-neutral-950 border border-neutral-800 rounded-xl px-3 py-1.5 text-xs text-white focus:outline-none focus:border-red-500"
                 />
                 <button
@@ -808,8 +815,7 @@ export default function ArtistCommissionsDashboard() {
                   onClick={handleAddWontDraw}
                   className="bg-red-600/20 text-red-400 border border-red-500/30 px-3 py-1.5 rounded-xl text-xs font-bold hover:bg-red-600/30 cursor-pointer"
                 >
-                  เพิ่ม
-                </button>
+                  {' '}{studio('commissions_814_0')}{' '}</button>
               </div>
               <div className="flex flex-wrap gap-1.5 pt-1">
                 {policyForm.wont_draw?.map((tag) => (
@@ -835,8 +841,7 @@ export default function ArtistCommissionsDashboard() {
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-4 border-t border-neutral-800">
             <div>
               <label className="text-xs font-bold text-neutral-300 block mb-1">
-                สัดส่วนเงินมัดจำงวดแรก (% Deposit):
-              </label>
+                {' '}{studio('commissions_841_0')}{' '}</label>
               <select
                 value={policyForm.deposit_percent}
                 onChange={(e) =>
@@ -844,17 +849,16 @@ export default function ArtistCommissionsDashboard() {
                 }
                 className="w-full bg-neutral-950 border border-neutral-800 rounded-xl p-2.5 text-xs text-white focus:outline-none focus:border-blue-500"
               >
-                <option value={50}>50% มัดจำเริ่มต้น (แนะนำตามมาตรฐาน)</option>
-                <option value={100}>100% ชำระเต็มจำนวนล่วงหน้า</option>
-                <option value={30}>30% มัดจำงวดแรก</option>
-                <option value={0}>0% จ่ายเต็มเมื่องานเสร็จสิ้น</option>
+                <option value={50}>{studio('commissions_850_0')}</option>
+                <option value={100}>{studio('commissions_851_0')}</option>
+                <option value={30}>{studio('commissions_852_0')}</option>
+                <option value={0}>{studio('commissions_853_0')}</option>
               </select>
             </div>
 
             <div>
               <label className="text-xs font-bold text-neutral-300 block mb-1">
-                โควตาการแก้งานฟรี (Revision Quota):
-              </label>
+                {' '}{studio('commissions_859_0')}{' '}</label>
               <input
                 type="number"
                 min={0}
@@ -874,7 +878,7 @@ export default function ArtistCommissionsDashboard() {
               disabled={savePolicyMutation.isPending}
               className="bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs px-6 py-2.5 rounded-xl transition-colors cursor-pointer disabled:opacity-50"
             >
-              {savePolicyMutation.isPending ? 'กำลังบันทึก...' : 'บันทึกการตั้งค่าสัญญา TOS'}
+              {savePolicyMutation.isPending ? studio('commissions_880_1') : studio('commissions_880_2')}
             </button>
           </div>
         </div>
@@ -882,17 +886,16 @@ export default function ArtistCommissionsDashboard() {
 
       {/* Decline Reason Modal */}
       {declineModalReq && (
-        <div className="fixed inset-0 z-[100] bg-black/80 flex items-center justify-center p-4">
-          <div className="bg-neutral-900 border border-neutral-800 rounded-2xl max-w-md w-full p-6 space-y-4">
-            <h3 className="text-base font-bold text-white">ปฏิเสธคำขอคอมมิชชัน</h3>
+        <StudioOverlay className="fixed inset-0 z-[100] bg-black/80 flex items-center justify-center p-4">
+          <StudioDialog label="Decline commission" onClose={() => setDeclineModalReq(null)} className="bg-neutral-900 border border-neutral-800 rounded-2xl max-w-md w-full p-6 space-y-4">
+            <h3 className="text-base font-bold text-white">{studio('commissions_890_0')}</h3>
             <p className="text-xs text-neutral-400">
-              โปรดระบุเหตุผลที่ไม่สามารถรับงานนี้ได้ (เช่น คิวเต็ม, สเกลงานไม่ตรงแนวถนัด)
-            </p>
+              {' '}{studio('commissions_892_0')}{' '}</p>
             <textarea
               rows={3}
               value={declineReason}
               onChange={(e) => setDeclineReason(e.target.value)}
-              placeholder="ระบุเหตุผล..."
+              placeholder={studio('commissions_898_0')}
               className="w-full bg-neutral-950 border border-neutral-800 rounded-xl p-3 text-xs text-white focus:outline-none focus:border-red-500"
             />
             <div className="flex gap-2 justify-end">
@@ -900,53 +903,51 @@ export default function ArtistCommissionsDashboard() {
                 onClick={() => setDeclineModalReq(null)}
                 className="px-4 py-2 bg-neutral-800 text-neutral-300 text-xs font-bold rounded-xl cursor-pointer"
               >
-                ยกเลิก
-              </button>
+                {' '}{studio('commissions_906_0')}{' '}</button>
               <button
                 onClick={() => declineMutation.mutate()}
                 disabled={!declineReason.trim() || declineMutation.isPending}
                 className="px-4 py-2 bg-red-600 hover:bg-red-500 text-white text-xs font-bold rounded-xl cursor-pointer disabled:opacity-50"
               >
-                ยืนยันการปฏิเสธ
-              </button>
+                {' '}{studio('commissions_913_0')}{' '}</button>
             </div>
-          </div>
-        </div>
+          </StudioDialog>
+        </StudioOverlay>
       )}
 
       {/* Add New Addon Modal */}
       {newAddonServiceId && (
-        <div className="fixed inset-0 z-[100] bg-black/80 flex items-center justify-center p-4">
-          <div className="bg-neutral-900 border border-neutral-800 rounded-2xl max-w-sm w-full p-6 space-y-4">
-            <h3 className="text-base font-bold text-white">เพิ่มตัวเลือกเสริม (Add-on)</h3>
+        <StudioOverlay className="fixed inset-0 z-[100] bg-black/80 flex items-center justify-center p-4">
+          <StudioDialog label="Add service option" onClose={() => setNewAddonServiceId(null)} className="bg-neutral-900 border border-neutral-800 rounded-2xl max-w-sm w-full p-6 space-y-4">
+            <h3 className="text-base font-bold text-white">{studio('commissions_924_0')}</h3>
             <div className="space-y-3 text-xs">
               <div>
-                <label className="text-neutral-400 block mb-1">ชื่อตัวเลือกเสริม:</label>
+                <label className="text-neutral-400 block mb-1">{studio('commissions_927_0')}</label>
                 <input
                   type="text"
                   value={newAddonName}
                   onChange={(e) => setNewAddonName(e.target.value)}
-                  placeholder="เช่น ฉากหลังละเอียด, ไฟล์ PSD..."
+                  placeholder={studio('commissions_932_0')}
                   className="w-full bg-neutral-950 border border-neutral-800 rounded-xl p-2.5 text-white focus:outline-none focus:border-blue-500"
                 />
               </div>
 
               <div>
-                <label className="text-neutral-400 block mb-1">ประเภทการคิดราคา:</label>
+                <label className="text-neutral-400 block mb-1">{studio('commissions_938_0')}</label>
                 <select
                   value={newAddonType}
                   onChange={(e) => setNewAddonType(e.target.value as any)}
                   className="w-full bg-neutral-950 border border-neutral-800 rounded-xl p-2.5 text-white focus:outline-none focus:border-blue-500"
                 >
-                  <option value="FIXED">จำนวนเงินตายตัว (+฿)</option>
-                  <option value="PERCENTAGE">เปอร์เซ็นต์ของราคาฐาน (+%)</option>
+                  <option value="FIXED">{studio('commissions_944_0')}</option>
+                  <option value="PERCENTAGE">{studio('commissions_945_0')}</option>
                 </select>
               </div>
 
               <div>
-                <label className="text-neutral-400 block mb-1">มูลค่าราคา:</label>
+                <label className="text-neutral-400 block mb-1">{studio('commissions_950_0')}</label>
                 <input
-                  type="number"
+                  type="number" step="any"
                   min={0}
                   value={newAddonPrice}
                   onChange={(e) => setNewAddonPrice(Number(e.target.value))}
@@ -960,29 +961,27 @@ export default function ArtistCommissionsDashboard() {
                 onClick={() => setNewAddonServiceId(null)}
                 className="px-4 py-2 bg-neutral-800 text-neutral-300 text-xs font-bold rounded-xl cursor-pointer"
               >
-                ยกเลิก
-              </button>
+                {' '}{studio('commissions_966_0')}{' '}</button>
               <button
                 onClick={() => addAddonMutation.mutate()}
                 disabled={!newAddonName.trim() || addAddonMutation.isPending}
                 className="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold rounded-xl cursor-pointer disabled:opacity-50"
               >
-                เพิ่ม Add-on
-              </button>
+                {' '}{studio('commissions_973_0')}{' '}</button>
             </div>
-          </div>
-        </div>
+          </StudioDialog>
+        </StudioOverlay>
       )}
 
       {/* Full Detail Modal */}
       {detailModalReq && (
-        <div className="fixed inset-0 z-[100] bg-black/85 backdrop-blur-sm flex items-center justify-center p-3 sm:p-4">
-          <div className="bg-neutral-900 border border-neutral-800 rounded-2xl max-w-2xl w-full shadow-2xl max-h-[86vh] flex flex-col overflow-hidden">
+        <StudioOverlay className="fixed inset-0 z-[100] bg-black/85 backdrop-blur-sm flex items-center justify-center p-3 sm:p-4">
+          <StudioDialog label={locale === 'th' ? 'รายละเอียดงานคอมมิชชัน' : 'Commission brief'} onClose={() => setDetailModalReq(null)} className="bg-neutral-900 border border-neutral-800 rounded-2xl max-w-2xl w-full shadow-2xl max-h-[86vh] flex flex-col overflow-hidden">
             <div className="flex items-start justify-between px-5 py-3.5 border-b border-neutral-800 bg-neutral-900/95 shrink-0">
               <div>
                 <span className="text-xs text-blue-400 font-bold">{detailModalReq.service_title}</span>
                 <h3 className="text-base sm:text-lg font-bold text-white mt-0.5">
-                  รายละเอียดบรีฟ: {detailModalReq.character_name}
+                  {' '}{studio('commissions_988_0')}{' '}{detailModalReq.character_name}
                 </h3>
               </div>
               <button
@@ -994,108 +993,20 @@ export default function ArtistCommissionsDashboard() {
             </div>
 
             <div className="p-5 overflow-y-auto flex-1 space-y-3.5">
-              <div className="bg-neutral-950 p-4 rounded-xl border border-neutral-800 space-y-3 text-xs">
-                <div>
-                  <span className="text-neutral-500 font-bold block">คำอธิบายรายละเอียดบรีฟ:</span>
-                  <p className="text-neutral-200 mt-1 whitespace-pre-wrap leading-relaxed">
-                    {detailModalReq.brief}
-                  </p>
-                </div>
-
-                {detailModalReq.reference_links && (
-                  <div>
-                    <span className="text-neutral-500 font-bold block">ลิงก์ภาพอ้างอิงภายนอก:</span>
-                    <a
-                      href={detailModalReq.reference_links}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="text-blue-400 underline break-all hover:text-blue-300"
-                    >
-                      {detailModalReq.reference_links}
-                    </a>
-                  </div>
-                )}
-
-                {/* Custom Modular Form Responses */}
-                {detailModalReq.custom_responses && Object.keys(detailModalReq.custom_responses).length > 0 && (
-                  <div className="pt-2 border-t border-neutral-800 space-y-1.5">
-                    <span className="text-blue-400 font-bold block">รายละเอียดตามกล่องฟอร์มบรีฟ (Form Specs):</span>
-                    <div className="grid grid-cols-2 gap-2 text-[11px] bg-neutral-900/60 p-2.5 rounded-lg border border-neutral-800/60">
-                      {detailModalReq.custom_responses.character_count && (
-                        <div>
-                          <span className="text-neutral-500">จำนวนตัวละคร: </span>
-                          <span className="text-white font-bold">{detailModalReq.custom_responses.character_count} ตัว</span>
-                        </div>
-                      )}
-                      {detailModalReq.custom_responses.background_tier && (
-                        <div>
-                          <span className="text-neutral-500">ฉากหลัง: </span>
-                          <span className="text-emerald-400 font-bold">
-                            {typeof detailModalReq.custom_responses.background_tier === 'object'
-                              ? detailModalReq.custom_responses.background_tier.label
-                              : detailModalReq.custom_responses.background_tier}
-                          </span>
-                        </div>
-                      )}
-                      {detailModalReq.custom_responses.rush_order && (
-                        <div>
-                          <span className="text-neutral-500">งานเร่งด่วน: </span>
-                          <span className="text-yellow-400 font-bold">
-                            ภายใน {detailModalReq.custom_responses.rush_order.days} วัน (+{detailModalReq.custom_responses.rush_order.percent}%)
-                          </span>
-                        </div>
-                      )}
-                      {detailModalReq.custom_responses.privacy_nda && (
-                        <div>
-                          <span className="text-neutral-500">สัญญา NDA: </span>
-                          <span className="text-purple-400 font-bold">🔒 ขอปิดเป็นความลับก่อนเปิดตัว</span>
-                        </div>
-                      )}
-                      {detailModalReq.custom_responses.pose_expression && (
-                        <div className="col-span-2">
-                          <span className="text-neutral-500">ท่าทาง &amp; สีหน้า: </span>
-                          <span className="text-pink-300 font-medium">{detailModalReq.custom_responses.pose_expression}</span>
-                        </div>
-                      )}
-                      {detailModalReq.custom_responses.canvas_spec && (
-                        <div>
-                          <span className="text-neutral-500">สัดส่วนภาพ: </span>
-                          <span className="text-white font-bold">{detailModalReq.custom_responses.canvas_spec}</span>
-                        </div>
-                      )}
-                      {detailModalReq.custom_responses.custom_answers && Object.entries(detailModalReq.custom_responses.custom_answers).map(([k, v]) => (
-                        <div key={k} className="col-span-2">
-                          <span className="text-neutral-500">คำถามพิเศษ ({k}): </span>
-                          <span className="text-blue-300">{String(v)}</span>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
-              </div>
+              <CommissionBriefView brief={detailModalReq} />
 
               {/* Reference Images */}
               {detailModalReq.reference_images && detailModalReq.reference_images.length > 0 && (
                 <div className="space-y-2">
                   <span className="text-xs font-bold text-neutral-300">
-                    ภาพ Reference ที่แนบมา ({detailModalReq.reference_images.length} รูป):
-                  </span>
+                    {' '}{studio('commissions_1084_1')}{detailModalReq.reference_images.length} {' '}{studio('commissions_1084_2')}{' '}</span>
                   <div className="grid grid-cols-3 sm:grid-cols-4 gap-2">
                     {detailModalReq.reference_images.map((img, idx) => (
-                      <a
-                        key={idx}
-                        href={`/api/commissions/requests/${detailModalReq.id}/references/${img}`}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="block aspect-square bg-neutral-950 rounded-xl overflow-hidden border border-neutral-800 hover:border-blue-500 transition-colors group relative"
-                      >
-                        {/* eslint-disable-next-line @next/next/no-img-element */}
-                        <img
-                          src={`/api/commissions/requests/${detailModalReq.id}/references/${img}`}
-                          alt="Reference"
-                          className="w-full h-full object-cover group-hover:scale-105 transition-transform"
-                        />
-                      </a>
+                      <SecureReference
+                        key={img}
+                        src={`/api/commissions/requests/${detailModalReq.id}/references/${img}`}
+                        title={img.replace(/^[0-9a-f]{32}_\d+_/, '')}
+                      />
                     ))}
                   </div>
                 </div>
@@ -1107,21 +1018,20 @@ export default function ArtistCommissionsDashboard() {
                 onClick={() => setDetailModalReq(null)}
                 className="px-4 py-2 bg-neutral-800 hover:bg-neutral-700 text-neutral-300 text-xs font-bold rounded-xl cursor-pointer"
               >
-                ปิดหน้าต่าง
-              </button>
+                {' '}{studio('commissions_1104_0')}{' '}</button>
             </div>
-          </div>
-        </div>
+          </StudioDialog>
+        </StudioOverlay>
       )}
 
       {/* New Scale / Form Modal */}
       {newScaleModalOpen && (
-        <div className="fixed inset-0 z-[100] bg-black/85 backdrop-blur-sm flex items-center justify-center p-3 sm:p-4">
-          <form
+        <StudioOverlay className="fixed inset-0 z-[100] bg-black/85 backdrop-blur-sm flex items-center justify-center p-3 sm:p-4">
+          <StudioFormDialog label="Create commission service" onClose={() => setNewScaleModalOpen(false)}
             onSubmit={(e) => {
               e.preventDefault();
               if (!newScaleTitle.trim()) {
-                alert('กรุณากรอกชื่อสเกลงาน');
+                showHubMessage(studio('commissions_1118_0'));
                 return;
               }
               createScaleMutation.mutate();
@@ -1131,8 +1041,7 @@ export default function ArtistCommissionsDashboard() {
             <div className="flex items-center justify-between px-5 py-3.5 border-b border-neutral-800 bg-neutral-900/95 shrink-0">
               <h3 className="text-sm sm:text-base font-bold text-white flex items-center gap-2">
                 <Plus className="w-4 h-4 text-emerald-400" />
-                เพิ่มสเกลงาน / ฟอร์มคอมมิชชันใหม่
-              </h3>
+                {' '}{studio('commissions_1128_0')}{' '}</h3>
               <button
                 type="button"
                 onClick={() => setNewScaleModalOpen(false)}
@@ -1146,7 +1055,7 @@ export default function ArtistCommissionsDashboard() {
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                 <div className="sm:col-span-2">
                   <label className="text-neutral-300 font-bold block mb-1">
-                    ชื่อสเกลงาน (Scale Title) <span className="text-red-400">*</span>:
+                    {' '}{studio('commissions_1143_0')}{' '}<span className="text-red-400">*</span>:
                   </label>
                   <input
                     type="text"
@@ -1154,19 +1063,19 @@ export default function ArtistCommissionsDashboard() {
                     data-testid="input-new-scale-title"
                     value={newScaleTitle}
                     onChange={(e) => setNewScaleTitle(e.target.value)}
-                    placeholder="เช่น Full-body Character, Bust-up Avatar..."
+                    placeholder={studio('commissions_1151_0')}
                     className="w-full bg-neutral-950 border border-neutral-800 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-emerald-500 font-semibold"
                   />
                 </div>
 
                 <div>
-                  <label className="text-neutral-300 font-bold block mb-1">หมวดหมู่ (Category):</label>
+                  <label className="text-neutral-300 font-bold block mb-1">{studio('commissions_1157_0')}</label>
                   <input
                     type="text"
                     data-testid="input-new-scale-category"
                     value={newScaleCategory}
                     onChange={(e) => setNewScaleCategory(e.target.value)}
-                    placeholder="เช่น Illustration..."
+                    placeholder={studio('commissions_1163_0')}
                     className="w-full bg-neutral-950 border border-neutral-800 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-emerald-500"
                   />
                 </div>
@@ -1174,14 +1083,13 @@ export default function ArtistCommissionsDashboard() {
 
               <div>
                 <label className="text-neutral-300 font-bold block mb-1">
-                  รายละเอียดสเกลงาน (Description):
-                </label>
+                  {' '}{studio('commissions_1171_0')}{' '}</label>
                 <textarea
                   rows={2}
                   data-testid="input-new-scale-description"
                   value={newScaleDescription}
                   onChange={(e) => setNewScaleDescription(e.target.value)}
-                  placeholder="อธิบายขอบเขตของสเกลนี้ เช่น วาดเต็มตัว ลงสีละเอียด พร้อมฉากหลังธรรมดา..."
+                  placeholder={studio('commissions_1178_0')}
                   className="w-full bg-neutral-950 border border-neutral-800 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-emerald-500"
                 />
               </div>
@@ -1189,10 +1097,10 @@ export default function ArtistCommissionsDashboard() {
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                 <div>
                   <label className="text-neutral-300 font-bold block mb-1">
-                    ราคาเริ่มต้น (฿) <span className="text-red-400">*</span>:
+                    {' '}{studio('commissions_1186_0')}{' '}<span className="text-red-400">*</span>:
                   </label>
                   <input
-                    type="number"
+                    type="number" step="0.01"
                     min={1}
                     required
                     data-testid="input-new-scale-price"
@@ -1204,8 +1112,7 @@ export default function ArtistCommissionsDashboard() {
 
                 <div>
                   <label className="text-neutral-300 font-bold block mb-1">
-                    เวลาเฉลี่ย (วัน):
-                  </label>
+                    {' '}{studio('commissions_1201_0')}{' '}</label>
                   <input
                     type="number"
                     min={1}
@@ -1219,8 +1126,7 @@ export default function ArtistCommissionsDashboard() {
 
                 <div>
                   <label className="text-neutral-300 font-bold block mb-1">
-                    สล็อตสูงสุด:
-                  </label>
+                    {' '}{studio('commissions_1216_0')}{' '}</label>
                   <input
                     type="number"
                     min={1}
@@ -1234,15 +1140,14 @@ export default function ArtistCommissionsDashboard() {
 
                 <div>
                   <label className="text-neutral-300 font-bold block mb-1">
-                    สถานะฟอร์ม:
-                  </label>
+                    {' '}{studio('commissions_1231_0')}{' '}</label>
                   <select
                     value={newScaleIsOpen ? 'OPEN' : 'CLOSED'}
                     onChange={(e) => setNewScaleIsOpen(e.target.value === 'OPEN')}
                     className="w-full bg-neutral-950 border border-neutral-800 rounded-xl px-2.5 py-2 text-white focus:outline-none focus:border-emerald-500 font-bold"
                   >
-                    <option value="OPEN">🟢 เปิดรับ</option>
-                    <option value="CLOSED">⚫ ปิดรับ</option>
+                    <option value="OPEN">{studio('commissions_1238_0')}</option>
+                    <option value="CLOSED">{studio('commissions_1239_0')}</option>
                   </select>
                 </div>
               </div>
@@ -1254,8 +1159,7 @@ export default function ArtistCommissionsDashboard() {
                 onClick={() => setNewScaleModalOpen(false)}
                 className="px-4 py-2 bg-neutral-800 hover:bg-neutral-700 text-neutral-300 text-xs font-bold rounded-xl cursor-pointer"
               >
-                ยกเลิก
-              </button>
+                {' '}{studio('commissions_1251_0')}{' '}</button>
               <button
                 type="submit"
                 data-testid="btn-submit-new-scale"
@@ -1264,17 +1168,15 @@ export default function ArtistCommissionsDashboard() {
               >
                 {createScaleMutation.isPending ? (
                   <>
-                    <Loader2 className="w-3.5 h-3.5 animate-spin" /> กำลังสร้าง...
-                  </>
+                    <Loader2 className="w-3.5 h-3.5 animate-spin" /> {' '}{studio('commissions_1261_0')}{' '}</>
                 ) : (
                   <>
-                    <Plus className="w-3.5 h-3.5" /> สร้างสเกลงาน
-                  </>
+                    <Plus className="w-3.5 h-3.5" /> {' '}{studio('commissions_1265_0')}{' '}</>
                 )}
               </button>
             </div>
-          </form>
-        </div>
+          </StudioFormDialog>
+        </StudioOverlay>
       )}
 
       {/* Modular Form Builder Modal */}

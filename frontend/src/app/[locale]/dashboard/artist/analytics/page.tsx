@@ -1,5 +1,7 @@
 'use client';
 
+import { useTranslations } from 'next-intl';
+
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { getAnalytics } from '@/lib/api';
@@ -29,6 +31,7 @@ import {
 } from 'recharts';
 
 export default function ArtistAnalyticsPage() {
+  const studio = useTranslations('Studio');
   const [period, setPeriod] = useState<'week' | 'month' | 'quarter' | 'year'>('month');
 
   const { data: analytics, isLoading } = useQuery({
@@ -51,8 +54,8 @@ export default function ArtistAnalyticsPage() {
 
   const totalRevenue = analytics.revenue_data.reduce((sum, item) => sum + item.revenue, 0);
   const pieData = [
-    { name: 'คิวงานคอมมิชชัน (Commissions)', value: analytics.commission_revenue },
-    { name: 'การประมูล (Adoptables)', value: analytics.adoptable_revenue },
+    { name: studio('analytics_54_0'), value: analytics.commission_revenue },
+    { name: studio('analytics_55_0'), value: analytics.adoptable_revenue },
   ];
 
   const COLORS = ['#3b82f6', '#8b5cf6'];
@@ -69,10 +72,9 @@ export default function ArtistAnalyticsPage() {
                 Atelier Financial Analytics
               </span>
             </div>
-            <h1 className="text-2xl sm:text-3xl font-extrabold text-white">สรุปรายได้และสถิติสตูดิโอ (Earnings & Stats)</h1>
+            <h1 className="text-2xl sm:text-3xl font-extrabold text-white">{studio('analytics_72_0')}</h1>
             <p className="text-neutral-400 text-xs sm:text-sm mt-1">
-              ติดตามรายได้ ยอดขายคิวงานวาด การประมูลภาพ และอัตราการตอบรับลูกค้าของสตูดิโอคุณ
-            </p>
+              {' '}{studio('analytics_74_0')}{' '}</p>
           </div>
 
           {/* Time Filter Tabs */}
@@ -87,7 +89,7 @@ export default function ArtistAnalyticsPage() {
                     : 'text-neutral-400 hover:text-white'
                 }`}
               >
-                {p === 'week' ? 'สัปดาห์นี้' : p === 'month' ? 'เดือนนี้' : p === 'quarter' ? 'ไตรมาส' : 'ปีนี้'}
+                {p === 'week' ? studio('analytics_90_1') : p === 'month' ? studio('analytics_90_2') : p === 'quarter' ? studio('analytics_90_3') : studio('analytics_90_4')}
               </button>
             ))}
           </div>
@@ -102,7 +104,7 @@ export default function ArtistAnalyticsPage() {
             <DollarSign className="w-6 h-6 text-blue-400" />
           </div>
           <div>
-            <span className="text-[11px] text-neutral-400 font-bold uppercase tracking-wider block">รายได้รวมสะสม</span>
+            <span className="text-[11px] text-neutral-400 font-bold uppercase tracking-wider block">{studio('analytics_105_0')}</span>
             <span className="text-2xl font-black text-white">฿{totalRevenue.toLocaleString()}</span>
           </div>
         </div>
@@ -113,7 +115,7 @@ export default function ArtistAnalyticsPage() {
             <Briefcase className="w-6 h-6 text-indigo-400" />
           </div>
           <div>
-            <span className="text-[11px] text-neutral-400 font-bold uppercase tracking-wider block">งานวาดคอมมิชชัน</span>
+            <span className="text-[11px] text-neutral-400 font-bold uppercase tracking-wider block">{studio('analytics_116_0')}</span>
             <span className="text-2xl font-black text-white">฿{analytics.commission_revenue.toLocaleString()}</span>
           </div>
         </div>
@@ -124,7 +126,7 @@ export default function ArtistAnalyticsPage() {
             <Gavel className="w-6 h-6 text-purple-400" />
           </div>
           <div>
-            <span className="text-[11px] text-neutral-400 font-bold uppercase tracking-wider block">การปิดประมูล Adoptables</span>
+            <span className="text-[11px] text-neutral-400 font-bold uppercase tracking-wider block">{studio('analytics_127_0')}</span>
             <span className="text-2xl font-black text-white">฿{analytics.adoptable_revenue.toLocaleString()}</span>
           </div>
         </div>
@@ -135,9 +137,9 @@ export default function ArtistAnalyticsPage() {
             <CheckCircle2 className="w-6 h-6 text-emerald-400" />
           </div>
           <div>
-            <span className="text-[11px] text-neutral-400 font-bold uppercase tracking-wider block">งานวาดเสร็จสมบูรณ์</span>
+            <span className="text-[11px] text-neutral-400 font-bold uppercase tracking-wider block">{studio('analytics_138_0')}</span>
             <span className="text-2xl font-black text-white">
-              {analytics.completed_orders_count || 0} <span className="text-xs font-normal text-neutral-400">ออเดอร์</span>
+              {analytics.completed_orders_count || 0} <span className="text-xs font-normal text-neutral-400">{studio('analytics_140_0')}</span>
             </span>
           </div>
         </div>
@@ -150,9 +152,9 @@ export default function ArtistAnalyticsPage() {
           <div className="flex items-center justify-between mb-6">
             <div className="flex items-center gap-2">
               <BarChart2 className="w-5 h-5 text-blue-400" />
-              <h3 className="text-sm font-extrabold text-white uppercase tracking-wider">แนวโน้มรายได้ตามช่วงเวลา (Revenue Trend)</h3>
+              <h3 className="text-sm font-extrabold text-white uppercase tracking-wider">{studio('analytics_153_0')}</h3>
             </div>
-            <span className="text-xs text-neutral-400 font-mono">หน่วย: บาท (THB)</span>
+            <span className="text-xs text-neutral-400 font-mono">{studio('analytics_155_0')}</span>
           </div>
 
           <div className="h-72 w-full">
@@ -164,7 +166,7 @@ export default function ArtistAnalyticsPage() {
                 <Tooltip
                   cursor={{ fill: '#262626' }}
                   contentStyle={{ backgroundColor: '#09090b', border: '1px solid #27272a', borderRadius: '12px' }}
-                  formatter={(val) => [`฿${Number(val ?? 0).toLocaleString()}`, 'รายได้']}
+                  formatter={(val) => [`฿${Number(val ?? 0).toLocaleString()}`, studio('analytics_167_0')]}
                 />
                 <Bar dataKey="revenue" fill="#3b82f6" radius={[6, 6, 0, 0]} />
               </BarChart>
@@ -176,7 +178,7 @@ export default function ArtistAnalyticsPage() {
         <div className="bg-neutral-900/60 border border-neutral-800 p-6 rounded-2xl shadow-xl flex flex-col">
           <div className="flex items-center gap-2 mb-6">
             <PieIcon className="w-5 h-5 text-purple-400" />
-            <h3 className="text-sm font-extrabold text-white uppercase tracking-wider">สัดส่วนที่มาของรายได้ (Revenue Sources)</h3>
+            <h3 className="text-sm font-extrabold text-white uppercase tracking-wider">{studio('analytics_179_0')}</h3>
           </div>
 
           <div className="h-64 w-full flex flex-col items-center justify-center relative my-auto">
@@ -198,7 +200,7 @@ export default function ArtistAnalyticsPage() {
                 </Pie>
                 <Tooltip
                   contentStyle={{ backgroundColor: '#09090b', border: '1px solid #27272a', borderRadius: '12px' }}
-                  formatter={(val) => [`฿${Number(val ?? 0).toLocaleString()}`, 'รายได้']}
+                  formatter={(val) => [`฿${Number(val ?? 0).toLocaleString()}`, studio('analytics_201_0')]}
                 />
               </PieChart>
             </ResponsiveContainer>

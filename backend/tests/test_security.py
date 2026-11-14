@@ -1,14 +1,12 @@
 import os
 import unittest
-from fastapi.testclient import TestClient
-from main import app
-from core.db import engine
-from sqlmodel import SQLModel
+from isolated_app import isolated_client
 
 class TestSecurity(unittest.TestCase):
     def setUp(self):
-        self.client = TestClient(app)
-        SQLModel.metadata.create_all(engine)
+        self.context = isolated_client()
+        self.client, self.engine = self.context.__enter__()
+        self.addCleanup(self.context.__exit__, None, None, None)
 
     def test_directory_traversal_watermark_logo(self):
         # Endpoint: /api/commissions/watermark/logo?filename=...

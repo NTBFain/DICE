@@ -1,19 +1,18 @@
 'use client';
 
-import { useState, useEffect, Suspense } from 'react';
+import { useState, useEffect, useRef, Suspense } from 'react';
+import { useDialogFocus } from '@/components/useDialogFocus';
+import { createPortal } from 'react-dom';
 import { useSearchParams } from 'next/navigation';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useInfiniteQuery } from '@tanstack/react-query';
 import { getPortfolio, getArtists, Artwork } from '@/lib/api';
 import { Loader2, Eye, X, Image as ImageIcon, Sparkles, User, Search, Filter } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import { useRouter } from '@/i18n/routing';
 import { motion, AnimatePresence } from 'framer-motion';
+import { useTheme } from '@/components/ThemeContext';
 
-const WORK_TYPES = [
-  { id: 'COMMISSION', label: 'Commission Work' },
-  { id: 'FANART', label: 'Fanart & Original' },
-  { id: 'VTUBER_MODEL', label: 'VTuber 2D Asset' },
-];
+import { WORK_TYPES } from '@/lib/workTypes';
 
 const getImageUrl = (url?: string) => {
   if (!url) return '';
@@ -35,34 +34,55 @@ export default function PortfolioPage() {
 
 function PortfolioContent() {
   const [activeArtwork, setActiveArtwork] = useState<Artwork | null>(null);
-  const [selectedArtist, setSelectedArtist] = useState<number | 'all'>('all');
-  const [selectedWorkType, setSelectedWorkType] = useState<string>('all');
+  const dialogRef = useRef<HTMLDivElement>(null);
+  useDialogFocus(!!activeArtwork, dialogRef, () => setActiveArtwork(null));
   const [hoveredCard, setHoveredCard] = useState<number | null>(null);
   const t = useTranslations('Portfolio');
   const router = useRouter();
   const searchParams = useSearchParams();
   const characterParam = searchParams?.get('character');
-
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') {
-        setActiveArtwork(null);
-      }
-    };
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, []);
+  const { layoutMode } = useTheme();
 
   const PAGE_SIZE = 32;
-  const [displayLimit, setDisplayLimit] = useState(PAGE_SIZE);
+  const artistParam = Number(searchParams.get('artist'));
+  const selectedArtist = Number.isSafeInteger(artistParam) && artistParam > 0 ? artistParam : 'all';
+  const selectedWorkType = WORK_TYPES.find(type => type === searchParams.get('type')) || 'all';
+  const shownParam = Number(searchParams.get('shown'));
+  const displayLimit = Number.isSafeInteger(shownParam) && shownParam >= PAGE_SIZE ? shownParam : PAGE_SIZE;
+  const updateView = (params: URLSearchParams) => {
+    const query = params.toString();
+    const url = `${window.location.pathname}${query ? `?${query}` : ''}${window.location.hash}`;
+    if (url !== `${window.location.pathname}${window.location.search}${window.location.hash}`) window.history.pushState(null, '', url);
+  };
+  const updateFilter = (key: string, value: string) => {
+    const params = new URLSearchParams(window.location.search);
+    if (value === 'all') params.delete(key); else params.set(key, value);
+    params.delete('shown');
+    updateView(params);
+  };
+  const setSelectedArtist = (artist: number | 'all') => updateFilter('artist', String(artist));
+  const setSelectedWorkType = (type: string) => updateFilter('type', type);
+  const loadMore = () => {
+    const params = new URLSearchParams(window.location.search);
+    params.set('shown', String(displayLimit + PAGE_SIZE));
+    updateView(params);
+  };
 
-  useEffect(() => {
-    setDisplayLimit(PAGE_SIZE);
-  }, [selectedArtist, selectedWorkType, characterParam]);
-
-  const { data: artworks, isLoading: isLoadingArtworks, isError: isErrorArtworks } = useQuery({
-    queryKey: ['portfolio'],
-    queryFn: () => getPortfolio({ limit: 500 }),
+  const {
+    data: portfolioPages, isLoading: isLoadingArtworks, isError: isErrorArtworks,
+    hasNextPage, isFetchingNextPage, isFetchNextPageError, isFetching: fetchingArtworks,
+    fetchNextPage, refetch: refetchPortfolio,
+  } = useInfiniteQuery({
+    queryKey: ['portfolio', selectedArtist, selectedWorkType, characterParam],
+    initialPageParam: 0,
+    queryFn: ({ pageParam }) => getPortfolio({
+      limit: PAGE_SIZE, offset: pageParam,
+      artist_id: selectedArtist === 'all' ? undefined : selectedArtist,
+      work_type: selectedWorkType === 'all' ? undefined : selectedWorkType,
+      character_id: characterParam ? Number(characterParam) : undefined,
+    }),
+    getNextPageParam: (lastPage: Artwork[], pages) => lastPage.length === PAGE_SIZE ? pages.length * PAGE_SIZE : undefined,
+    retry: false,
   });
 
   const { data: artists, isLoading: isLoadingArtists } = useQuery({
@@ -70,17 +90,18 @@ function PortfolioContent() {
     queryFn: () => getArtists(),
   });
 
-  const filteredArtworks = artworks?.filter(artwork => {
-    const matchArtist = selectedArtist === 'all' || artwork.artist?.id === selectedArtist;
-    const matchWorkType = selectedWorkType === 'all' || artwork.work_type === selectedWorkType;
-    const matchCharacter = !characterParam || artwork.character_id === Number(characterParam) || artwork.character?.id === Number(characterParam);
-    return matchArtist && matchWorkType && matchCharacter;
-  }) || [];
+  const filteredArtworks = Array.from(new Map<number, Artwork>(
+    (portfolioPages?.pages.flat() || []).map(artwork => [artwork.id, artwork] as const)
+  ).values());
+
+  useEffect(() => {
+    if (filteredArtworks.length < displayLimit && hasNextPage && !isFetchingNextPage && !isErrorArtworks) void fetchNextPage();
+  }, [filteredArtworks.length, displayLimit, hasNextPage, isFetchingNextPage, isErrorArtworks, fetchNextPage]);
 
   const displayedArtworks = filteredArtworks.slice(0, displayLimit);
 
   return (
-    <div className="min-h-screen bg-[var(--bg-primary,#09090b)] text-[var(--text-primary,#f4f4f5)] pb-20">
+    <div data-page-surface className="min-h-screen bg-[var(--bg-primary,#09090b)] text-[var(--text-primary,#f4f4f5)] pb-20">
       {/* 🖼️ HERO & FILTER STICKY HEADER */}
       <div className="sticky top-14 z-30 bg-[var(--bg-surface,#121215)]/85 backdrop-blur-2xl border-b border-[var(--border-subtle,#27272a)] shadow-sm transition-all">
         <div className="container mx-auto px-4 sm:px-8 py-4 max-w-7xl">
@@ -106,25 +127,27 @@ function PortfolioContent() {
             >
               <button
                 onClick={() => setSelectedWorkType('all')}
+                aria-pressed={selectedWorkType === 'all'}
                 className={`px-4 py-2 rounded-full text-xs font-bold transition-all whitespace-nowrap border shadow-sm ${
                   selectedWorkType === 'all'
                     ? 'bg-[var(--accent-primary,#3b82f6)] text-[var(--accent-contrast,#ffffff)] border-[var(--accent-primary,#3b82f6)] ring-2 ring-[var(--accent-primary,#3b82f6)]/20 shadow-md'
                     : 'bg-[var(--bg-surface,#121215)] text-[var(--text-muted,#a1a1aa)] border-[var(--border-subtle,#27272a)] hover:bg-[var(--bg-surface-hover,#1c1c21)] hover:text-[var(--text-primary,#f4f4f5)] hover:border-[var(--border-hover,#3f3f46)]'
                 }`}
               >
-                All Categories
+                {t('allCategories')}
               </button>
               {WORK_TYPES.map((wt) => (
                 <button
-                  key={wt.id}
-                  onClick={() => setSelectedWorkType(wt.id)}
+                  key={wt}
+                  aria-pressed={selectedWorkType === wt}
+                  onClick={() => setSelectedWorkType(wt)}
                   className={`px-4 py-2 rounded-full text-xs font-bold transition-all whitespace-nowrap border shadow-sm ${
-                    selectedWorkType === wt.id
+                    selectedWorkType === wt
                       ? 'bg-[var(--accent-primary,#3b82f6)] text-[var(--accent-contrast,#ffffff)] border-[var(--accent-primary,#3b82f6)] ring-2 ring-[var(--accent-primary,#3b82f6)]/20 shadow-md'
                       : 'bg-[var(--bg-surface,#121215)] text-[var(--text-muted,#a1a1aa)] border-[var(--border-subtle,#27272a)] hover:bg-[var(--bg-surface-hover,#1c1c21)] hover:text-[var(--text-primary,#f4f4f5)] hover:border-[var(--border-hover,#3f3f46)]'
                   }`}
                 >
-                  {wt.label}
+                  {t(`workTypes.${wt}`)}
                 </button>
               ))}
             </motion.div>
@@ -138,18 +161,19 @@ function PortfolioContent() {
             className="flex items-center gap-3 overflow-x-auto no-scrollbar snap-x snap-mandatory mt-6 pt-6 border-t border-[var(--border-subtle,#27272a)] pb-2 md:pb-0"
           >
             <div className="text-[10px] font-black text-[var(--text-muted,#a1a1aa)] uppercase tracking-widest shrink-0 flex items-center gap-1.5 mr-2 snap-center">
-              <User className="w-3.5 h-3.5" /> Artists
+              <User className="w-3.5 h-3.5" /> {t('artists')}
             </div>
 
             <button
               onClick={() => setSelectedArtist('all')}
+              aria-pressed={selectedArtist === 'all'}
               className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all whitespace-nowrap shrink-0 snap-center border ${
                 selectedArtist === 'all'
                   ? 'bg-[var(--accent-primary,#3b82f6)] text-[var(--accent-contrast,#ffffff)] border-[var(--accent-primary,#3b82f6)] shadow-md'
                   : 'bg-[var(--bg-surface,#121215)] text-[var(--text-muted,#a1a1aa)] border-[var(--border-subtle,#27272a)] hover:bg-[var(--bg-surface-hover,#1c1c21)] hover:text-[var(--text-primary,#f4f4f5)] hover:border-[var(--border-hover,#3f3f46)]'
               }`}
             >
-              <Sparkles className="w-3.5 h-3.5" /> All Artists
+              <Sparkles className="w-3.5 h-3.5" /> {t('allArtists')}
             </button>
 
             {!isLoadingArtists && artists?.map((artist) => {
@@ -157,6 +181,7 @@ function PortfolioContent() {
               return (
                 <button
                   key={artist.id}
+                  aria-pressed={isSelected}
                   onClick={() => setSelectedArtist(artist.id)}
                   className={`flex items-center gap-2 px-3 py-1.5 rounded-xl text-xs font-bold transition-all whitespace-nowrap shrink-0 snap-center border ${
                     isSelected
@@ -190,14 +215,15 @@ function PortfolioContent() {
         {isLoadingArtworks && (
           <div className="flex flex-col items-center justify-center py-32">
             <Loader2 className="w-12 h-12 text-blue-500 animate-spin mb-4" />
-            <p className="text-neutral-500 text-sm font-bold animate-pulse">Curating Exhibition...</p>
+            <p className="text-neutral-500 text-sm font-bold animate-pulse">{t('curating')}</p>
           </div>
         )}
 
         {isErrorArtworks && (
-          <div className="bg-red-500/10 border border-red-500/20 text-red-500 p-8 rounded-3xl text-center max-w-lg mx-auto font-bold flex flex-col items-center">
+          <div role="alert" className="bg-red-500/10 border border-red-500/20 text-red-500 p-8 rounded-3xl text-center max-w-lg mx-auto font-bold flex flex-col items-center">
             <X className="w-12 h-12 mb-2 opacity-50" />
             {t('error')}
+            <button disabled={fetchingArtworks} onClick={() => { void (isFetchNextPageError ? fetchNextPage() : refetchPortfolio()); }} className="mt-4 rounded-xl border px-4 py-2 disabled:opacity-50">{t('retry')}</button>
           </div>
         )}
 
@@ -208,8 +234,8 @@ function PortfolioContent() {
             className="text-center py-32 bg-[var(--bg-surface,#121215)]/60 backdrop-blur-xl border border-[var(--border-subtle,#27272a)] rounded-3xl shadow-sm"
           >
             <Search className="w-16 h-16 text-[var(--text-muted,#a1a1aa)] mx-auto mb-4" />
-            <h3 className="text-xl font-black text-[var(--text-primary,#f4f4f5)]">No Artworks Found</h3>
-            <p className="text-sm text-[var(--text-muted,#a1a1aa)] mt-2">Try selecting a different artist or category.</p>
+            <h3 className="text-xl font-black text-[var(--text-primary,#f4f4f5)]">{t('noArtworks')}</h3>
+            <p className="text-sm text-[var(--text-muted,#a1a1aa)] mt-2">{t('differentFilters')}</p>
           </motion.div>
         )}
 
@@ -217,7 +243,8 @@ function PortfolioContent() {
         {!isLoadingArtworks && filteredArtworks.length > 0 && (
           <motion.div 
             layout
-            className="columns-1 sm:columns-2 lg:columns-3 xl:columns-4 gap-6 space-y-6"
+            data-layout={layoutMode}
+            className={layoutMode === 'masonry' ? 'columns-1 sm:columns-2 lg:columns-3 xl:columns-4 gap-6 space-y-6' : layoutMode === 'compact' ? 'flex flex-col gap-3' : 'grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6'}
           >
             <AnimatePresence>
               {displayedArtworks.map((artwork) => (
@@ -229,28 +256,33 @@ function PortfolioContent() {
                   transition={{ duration: 0.4, ease: "easeOut" }}
                   key={artwork.id}
                   onClick={() => setActiveArtwork(artwork)}
+                  role="button"
+                  tabIndex={0}
+                  aria-label={artwork.title}
+                  onKeyDown={event => { if (event.target === event.currentTarget && (event.key === 'Enter' || event.key === ' ')) { event.preventDefault(); setActiveArtwork(artwork); } }}
+                  onFocus={() => setHoveredCard(artwork.id!)}
                   onHoverStart={() => setHoveredCard(artwork.id!)}
                   onHoverEnd={() => setHoveredCard(null)}
-                  className="break-inside-avoid relative group rounded-3xl overflow-hidden bg-[var(--bg-surface,#121215)] border border-[var(--border-subtle,#27272a)] hover:border-[var(--accent-primary,#3b82f6)] cursor-pointer shadow-lg hover:shadow-2xl transition-all"
+                  className={`break-inside-avoid relative group rounded-3xl overflow-hidden bg-[var(--bg-surface,#121215)] border border-[var(--border-subtle,#27272a)] hover:border-[var(--accent-primary,#3b82f6)] focus-visible:outline-2 focus-visible:outline-blue-500 cursor-pointer shadow-lg hover:shadow-2xl transition-all ${layoutMode === 'compact' ? 'flex' : ''}`}
                 >
                   <motion.div
                     animate={{ scale: hoveredCard === artwork.id ? 1.05 : 1 }}
                     transition={{ duration: 0.6, ease: "easeOut" }}
-                    className="w-full h-full"
+                    className={layoutMode === 'compact' ? 'w-32 shrink-0' : layoutMode === 'grid' ? 'aspect-[4/3] w-full' : 'w-full h-full'}
                   >
                     <img
                       src={getImageUrl(artwork.image_url)}
                       alt={artwork.title}
-                      className="w-full h-auto object-cover"
+                      className={layoutMode === 'masonry' ? 'w-full h-auto object-cover' : 'w-full h-full object-cover'}
                       loading="lazy"
                     />
                   </motion.div>
                   
                   {/* Glassmorphic Overlay */}
-                  <div className={`absolute inset-0 bg-gradient-to-t from-black/90 via-black/30 to-transparent transition-opacity duration-300 flex flex-col justify-end p-5 ${hoveredCard === artwork.id ? 'opacity-100' : 'opacity-0'}`}>
+                  <div className={`${layoutMode === 'compact' ? 'relative flex-1' : 'absolute inset-0'} bg-gradient-to-t from-black/90 via-black/30 to-transparent transition-opacity duration-300 flex flex-col justify-end p-5 ${layoutMode === 'compact' || hoveredCard === artwork.id ? 'opacity-100' : 'opacity-0'}`}>
                     <motion.div 
                       initial={{ y: 10, opacity: 0 }}
-                      animate={{ y: hoveredCard === artwork.id ? 0 : 10, opacity: hoveredCard === artwork.id ? 1 : 0 }}
+                      animate={{ y: layoutMode === 'compact' || hoveredCard === artwork.id ? 0 : 10, opacity: layoutMode === 'compact' || hoveredCard === artwork.id ? 1 : 0 }}
                       transition={{ duration: 0.3 }}
                     >
                       <h3 className="text-lg font-black text-white mb-2">{artwork.title}</h3>
@@ -283,9 +315,9 @@ function PortfolioContent() {
 
                       <div className="flex items-center justify-between border-t border-white/10 pt-3">
                         <div className="flex items-center gap-1.5 text-xs text-white/80 font-bold bg-black/40 backdrop-blur-md px-3 py-1.5 rounded-full">
-                          <Eye className="w-3.5 h-3.5 text-blue-400" /> Inspect
+                          <Eye className="w-3.5 h-3.5 text-blue-400" /> {t('inspect')}
                         </div>
-                        <span className="text-[10px] font-mono text-white/50 uppercase">{artwork.work_type}</span>
+                        <span className="text-[10px] font-mono text-white/50 uppercase">{t.has(`workTypes.${artwork.work_type}`) ? t(`workTypes.${artwork.work_type}`) : artwork.work_type}</span>
                       </div>
                     </motion.div>
                   </div>
@@ -296,39 +328,43 @@ function PortfolioContent() {
         )}
 
         {/* Load More Button */}
-        {!isLoadingArtworks && displayLimit < filteredArtworks.length && (
+        {!isLoadingArtworks && filteredArtworks.length > 0 && (
           <div className="flex flex-col items-center justify-center mt-12 gap-2">
-            <button
-              onClick={() => setDisplayLimit((prev) => prev + PAGE_SIZE)}
+            {(hasNextPage || displayLimit < filteredArtworks.length) && <button
+              disabled={fetchingArtworks}
+              onClick={() => { if (isFetchNextPageError) void fetchNextPage(); else loadMore(); }}
               className="px-8 py-3.5 bg-[var(--accent-primary,#3b82f6)] hover:bg-[var(--accent-hover,#2563eb)] active:scale-95 text-[var(--accent-contrast,#ffffff)] font-bold rounded-2xl shadow-lg hover:shadow-xl transition-all flex items-center gap-2 text-sm"
             >
-              Load More Artworks ({filteredArtworks.length - displayLimit} remaining)
-            </button>
+              {isFetchingNextPage ? t('loading') : isFetchNextPageError ? t('retry') : t('loadMorePaged')}
+            </button>}
             <span className="text-xs text-[var(--text-muted,#a1a1aa)]">
-              Showing {displayedArtworks.length} of {filteredArtworks.length} items
+              {t('showingLoaded',{shown:displayedArtworks.length})}
             </span>
           </div>
         )}
       </div>
 
       {/* 🔍 CINEMATIC FULLSCREEN LIGHTBOX */}
-      <AnimatePresence>
+      {typeof document !== 'undefined' && createPortal(<AnimatePresence>
         {activeArtwork && (
           <motion.div 
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             role="dialog"
+            ref={dialogRef}
+            tabIndex={-1}
             aria-modal="true"
             aria-label={activeArtwork.title}
-            className="fixed inset-0 z-50 bg-black/95 backdrop-blur-3xl flex items-center justify-center p-4 sm:p-8"
+            onClick={event => { if (event.target === event.currentTarget) setActiveArtwork(null); }}
+            className="fixed inset-0 z-[200] bg-black/95 backdrop-blur-3xl flex items-center justify-center p-4 sm:p-8"
           >
             <motion.button
               initial={{ opacity: 0, scale: 0.5 }}
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.5 }}
               onClick={() => setActiveArtwork(null)}
-              aria-label="Close artwork inspector"
+              aria-label={t('closePreview')}
               className="absolute top-6 right-6 z-10 p-3 bg-white/10 hover:bg-white/20 text-white rounded-full backdrop-blur-md border border-white/20 transition-all cursor-pointer shadow-2xl"
             >
               <X className="w-6 h-6" />
@@ -355,7 +391,7 @@ function PortfolioContent() {
                 <div className="space-y-6">
                   <div>
                     <span className="text-[10px] font-black text-[var(--accent-primary,#3b82f6)] uppercase tracking-widest bg-[var(--accent-primary,#3b82f6)]/10 px-3 py-1 rounded-full border border-[var(--accent-primary,#3b82f6)]/20 inline-block mb-3">
-                      {activeArtwork.work_type}
+                      {t.has(`workTypes.${activeArtwork.work_type}`) ? t(`workTypes.${activeArtwork.work_type}`) : activeArtwork.work_type}
                     </span>
                     <h2 className="text-3xl font-black text-[var(--text-primary,#f4f4f5)] leading-tight">{activeArtwork.title}</h2>
                   </div>
@@ -363,12 +399,12 @@ function PortfolioContent() {
                   <div className="h-px w-full bg-gradient-to-r from-[var(--border-subtle,#27272a)] to-transparent"></div>
 
                   <p className="text-sm text-[var(--text-muted,#a1a1aa)] leading-relaxed whitespace-pre-line">
-                    {activeArtwork.description || 'No additional artwork description provided.'}
+                    {activeArtwork.description || t('noDescription')}
                   </p>
 
                   {activeArtwork.character && (
                     <div className="bg-[var(--bg-primary,#09090b)] p-4 rounded-2xl border border-[var(--border-subtle,#27272a)] space-y-2">
-                      <span className="text-[10px] font-black text-[var(--text-muted,#a1a1aa)] uppercase tracking-widest block">Featured Character</span>
+                      <span className="text-[10px] font-black text-[var(--text-muted,#a1a1aa)] uppercase tracking-widest block">{t('featuredCharacter')}</span>
                       <div className="flex items-center gap-3">
                         <div className="w-8 h-8 rounded-full bg-[var(--accent-primary,#3b82f6)]/20 flex items-center justify-center border border-[var(--accent-primary,#3b82f6)]/50">
                           <Sparkles className="w-4 h-4 text-[var(--accent-primary,#3b82f6)]" />
@@ -382,7 +418,7 @@ function PortfolioContent() {
 
                   {activeArtwork.artist && (
                     <div className="bg-[var(--bg-primary,#09090b)] p-4 rounded-2xl border border-[var(--border-subtle,#27272a)] space-y-2">
-                      <span className="text-[10px] font-black text-[var(--text-muted,#a1a1aa)] uppercase tracking-widest block">Created By</span>
+                      <span className="text-[10px] font-black text-[var(--text-muted,#a1a1aa)] uppercase tracking-widest block">{t('createdBy')}</span>
                       <button 
                         onClick={() => router.push(`/artists/${activeArtwork.artist!.handle}`)}
                         className="flex items-center gap-3 hover:bg-[var(--bg-surface-hover,#1c1c21)] p-2 -ml-2 rounded-xl transition-all cursor-pointer w-full text-left group"
@@ -408,14 +444,14 @@ function PortfolioContent() {
                     onClick={() => setActiveArtwork(null)}
                     className="w-full py-3.5 bg-[var(--accent-primary,#3b82f6)] hover:bg-[var(--accent-hover,#2563eb)] text-[var(--accent-contrast,#ffffff)] font-black rounded-xl text-xs uppercase tracking-widest transition-all shadow-md"
                   >
-                    Close Inspector
+                    {t('closeInspector')}
                   </button>
                 </div>
               </div>
             </motion.div>
           </motion.div>
         )}
-      </AnimatePresence>
+      </AnimatePresence>, document.body)}
     </div>
   );
 }

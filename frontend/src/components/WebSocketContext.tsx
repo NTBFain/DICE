@@ -19,14 +19,15 @@ export const useWebSocket = () => {
 };
 
 export const WebSocketProvider = ({ children }: { children: React.ReactNode }) => {
-  const { user } = useAuth();
+  const { user, fetchUser } = useAuth();
+  const userId = user?.id;
   const [isConnected, setIsConnected] = useState(false);
   const socketRef = useRef<WebSocket | null>(null);
   const queryClient = useQueryClient();
   const reconnectTimeoutRef = useRef<any>(null);
 
   useEffect(() => {
-    if (typeof window === 'undefined' || !user) {
+    if (typeof window === 'undefined' || !userId) {
       return;
     }
 
@@ -38,13 +39,14 @@ export const WebSocketProvider = ({ children }: { children: React.ReactNode }) =
       const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
       const host = isLocal ? `${window.location.hostname}:8000` : window.location.host;
       const wsUrl = `${protocol}//${host}/ws?token=${token}`;
-      console.log('Connecting to WebSocket:', wsUrl);
       const ws = new WebSocket(wsUrl);
       socketRef.current = ws;
 
       ws.onopen = () => {
         console.log('WebSocket connected');
         setIsConnected(true);
+        void fetchUser();
+        reconcileOrders();
       };
 
       ws.onmessage = (event) => {
@@ -53,7 +55,9 @@ export const WebSocketProvider = ({ children }: { children: React.ReactNode }) =
           console.log('WebSocket message received:', payload);
           const { type, data } = payload;
 
-          if (type === 'chat_message') {
+          if (type === 'user_roles_updated' && data?.user_id === userId) {
+            void fetchUser();
+          } else if (type === 'chat_message') {
             // Update order messages list cached by React Query
             queryClient.setQueryData(['order-messages', data.order_id], (old: any) => {
               if (!old) return [data];
@@ -75,6 +79,7 @@ export const WebSocketProvider = ({ children }: { children: React.ReactNode }) =
             });
             queryClient.invalidateQueries({ queryKey: ['auction-messages', payload.auction_id] });
           } else if (type === 'auction_ended') {
+            reconcileOrders();
             const auctionId = data?.auction_id;
             if (auctionId) {
               queryClient.invalidateQueries({ queryKey: ['auction', auctionId] });
@@ -93,6 +98,7 @@ export const WebSocketProvider = ({ children }: { children: React.ReactNode }) =
             }
           } else if (type === 'notification') {
             queryClient.invalidateQueries({ queryKey: ['notifications'] });
+            if (['ORDER', 'COMMISSION'].includes(data?.type) || /\/orders\/\d+/.test(data?.link || '')) reconcileOrders();
           }
         } catch (err) {
           console.error('Failed to parse WebSocket message', err);
@@ -120,6 +126,13 @@ export const WebSocketProvider = ({ children }: { children: React.ReactNode }) =
       };
     };
 
+    const reconcileOrders = () => {
+      // Only mounted queries refetch; no polling or extra browser sessions.
+      for (const key of ['orders', 'client-orders', 'client-collection', 'client-commission-requests', 'artist-commission-info', 'publicQueue', 'order', 'order-invoices', 'invoices', 'order-revisions', 'revisions', 'order-files', 'files']) {
+        queryClient.invalidateQueries({ queryKey: [key] });
+      }
+    };
+
     connect();
 
     return () => {
@@ -131,7 +144,7 @@ export const WebSocketProvider = ({ children }: { children: React.ReactNode }) =
         clearTimeout(reconnectTimeoutRef.current);
       }
     };
-  }, [user, queryClient]);
+  }, [userId, queryClient, fetchUser]);
 
   return (
     <WebSocketContext.Provider value={{ isConnected }}>

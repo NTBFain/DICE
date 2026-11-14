@@ -1,5 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException, Form, UploadFile, File
-from sqlmodel import Session, select
+from sqlmodel import Session, select, func
 from typing import List, Optional
 import os
 import uuid
@@ -7,11 +7,11 @@ import re
 import math
 
 from core.db import get_session
-from core.auth import get_current_user, get_artist_user, get_admin_user
+from core.auth import get_current_user, get_current_user_optional, get_artist_user, get_admin_user
 from core.security_file import validate_and_save_upload
 from models import (
     ArtistProfile, ArtistService, ArtistReview, Order, OrderStatus, User,
-    Artwork, Auction, AuctionStatus,
+    Artwork, Auction, AuctionStatus, Character, VisibilityStatus,
     ArtistCommissionPolicy, ServiceAddon, CommissionSlotSubscription
 )
 from schemas import (
@@ -38,12 +38,26 @@ RESERVED_HANDLES = {
 HANDLE_REGEX = re.compile(r"^[a-z0-9_]{3,30}$")
 ALLOWED_IMAGE_EXTENSIONS = {".jpg", ".jpeg", ".png", ".webp"}
 
+def _completed_order_counts(session: Session, user_ids: List[Optional[int]]) -> dict:
+    owners = {user_id for user_id in user_ids if user_id is not None}
+    if not owners:
+        return {}
+    return dict(session.exec(
+        select(Order.artist_id, func.count(Order.id))
+        .where(Order.artist_id.in_(owners), Order.status == OrderStatus.COMPLETED)
+        .group_by(Order.artist_id)
+    ).all())
+
+
 def _build_profile_res(a: ArtistProfile, session: Session) -> ArtistProfileResponse:
     services = session.exec(select(ArtistService).where(ArtistService.artist_id == a.id)).all()
     reviews = session.exec(select(ArtistReview).where(ArtistReview.artist_id == a.id)).all()
     
-    portfolio_count = len(session.exec(select(Artwork).where(Artwork.artist_id == a.id)).all())
-    active_auctions_count = len(session.exec(select(Auction).where(Auction.artist_id == a.id, Auction.status == AuctionStatus.ACTIVE)).all())
+    artworks = session.exec(select(Artwork).where(Artwork.artist_id == a.id, Artwork.visibility_status == VisibilityStatus.PUBLIC)).all()
+    auctions = session.exec(select(Auction).where(Auction.artist_id == a.id, Auction.status == AuctionStatus.ACTIVE)).all()
+    characters = session.exec(select(Character).where(Character.artist_id == a.id)).all()
+    portfolio_count = len(artworks)
+    active_auctions_count = len(auctions)
     
     queue_orders = session.exec(
         select(Order).where(Order.artist_id == (a.user_id or a.id), Order.status.in_([OrderStatus.ACCEPTED, OrderStatus.SKETCHING, OrderStatus.COLORING]))
@@ -77,7 +91,7 @@ def _build_profile_res(a: ArtistProfile, session: Session) -> ArtistProfileRespo
         styles=[s.strip() for s in a.styles.split(",")] if a.styles else [],
         commission_status=a.commission_status,
         rating=a.rating,
-        total_completed_orders=a.total_completed_orders,
+        total_completed_orders=_completed_order_counts(session, [a.user_id]).get(a.user_id, 0),
         starting_price=a.starting_price,
         social_twitter=a.social_twitter,
         social_pixiv=a.social_pixiv,
@@ -108,7 +122,10 @@ def _build_profile_res(a: ArtistProfile, session: Session) -> ArtistProfileRespo
         ],
         active_auctions_count=active_auctions_count,
         portfolio_count=portfolio_count,
-        public_queue=queue_res
+        public_queue=queue_res,
+        artworks=[art.model_dump() for art in artworks],
+        characters=[character.model_dump() for character in characters],
+        auctions=[{**auction.model_dump(), 'current_price': max((bid.amount for bid in auction.bids), default=auction.starting_bid)} for auction in auctions],
     )
 
 @router.get("/me", response_model=ArtistProfileResponse)
@@ -273,6 +290,7 @@ def get_artists(
 
     artist_ids = [a.id for a in filtered_artists]
     user_ids = [a.user_id for a in filtered_artists if a.user_id]
+    completed_counts = _completed_order_counts(session, user_ids)
 
     # 1. Services in batch
     services_map = defaultdict(list)
@@ -336,7 +354,7 @@ def get_artists(
             tagline=a.tagline, bio=a.bio, avatar_url=a.avatar_url, banner_url=a.banner_url,
             styles=[s.strip() for s in a.styles.split(",")] if a.styles else [],
             commission_status=a.commission_status, rating=a.rating,
-            total_completed_orders=a.total_completed_orders, starting_price=a.starting_price,
+            total_completed_orders=completed_counts.get(a.user_id, 0), starting_price=a.starting_price,
             social_twitter=a.social_twitter, social_pixiv=a.social_pixiv, social_discord=a.social_discord,
             is_verified=a.is_verified, is_featured=a.is_featured,
             services=services_map.get(a.id, []),
@@ -518,7 +536,7 @@ def add_artist_review(
 def get_artist_commission_info(
     handle: str,
     session: Session = Depends(get_session),
-    current_user: Optional[User] = Depends(get_current_user)
+    current_user: Optional[User] = Depends(get_current_user_optional)
 ):
     """Public endpoint to fetch an artist's full commission catalog, policy, and availability"""
     artist = session.exec(select(ArtistProfile).where(ArtistProfile.handle == handle.lower())).first()
@@ -707,7 +725,7 @@ def update_service_form_schema(
     return {"message": "Form schema updated successfully", "form_schema": service.form_schema}
 
 @router.patch("/me/services/{service_id}", response_model=ArtistServiceResponse)
-def update_service_scale(
+async def update_service_scale(
     service_id: int,
     req: ServiceScaleUpdateRequest,
     session: Session = Depends(get_session),
@@ -721,6 +739,8 @@ def update_service_scale(
     if not service or service.artist_id != profile.id:
         raise HTTPException(status_code=404, detail="Service not found or unauthorized")
 
+    was_closed = not service.is_form_open
+    if req.is_form_open is not None: service.is_form_open = req.is_form_open
     if req.title is not None: service.title = req.title.strip()
     if req.category is not None: service.category = req.category.strip()
     if req.description is not None: service.description = req.description.strip()
@@ -734,6 +754,8 @@ def update_service_scale(
     session.add(service)
     session.commit()
     session.refresh(service)
+    if was_closed and service.is_form_open:
+        await dispatch_slot_opening_alert(session, service, profile)
     return service
 
 @router.post("/me/services/{service_id}/addons", response_model=ServiceAddonResponse)
