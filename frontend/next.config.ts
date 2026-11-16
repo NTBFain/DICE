@@ -3,6 +3,8 @@ import createNextIntlPlugin from 'next-intl/plugin';
  
 const withNextIntl = createNextIntlPlugin();
 
+const backendTarget = (process.env.DICE_API_PROXY_TARGET || 'http://127.0.0.1:8000').replace(/\/$/, '');
+
 const nextConfig: NextConfig = {
   allowedDevOrigins: ['10.182.65.4', 'localhost', '127.0.0.1', '*.trycloudflare.com'],
   images: {
@@ -25,15 +27,15 @@ const nextConfig: NextConfig = {
     return [
       {
         source: '/api/:path*',
-        destination: 'http://127.0.0.1:8000/api/:path*',
+        destination: `${backendTarget}/api/:path*`,
       },
       {
         source: '/uploads/:path*',
-        destination: 'http://127.0.0.1:8000/uploads/:path*',
+        destination: `${backendTarget}/uploads/:path*`,
       },
       {
         source: '/ws',
-        destination: 'http://127.0.0.1:8000/ws',
+        destination: `${backendTarget}/ws`,
       },
     ];
   },

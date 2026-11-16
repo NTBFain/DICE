@@ -34,6 +34,7 @@ class CommissionBriefResponse(BaseModel):
     tos_version: int
 
 class OrderResponse(BaseModel):
+    platform_fee_bps_snapshot: int = 0
     id: int
     title: str
     description: str
@@ -61,6 +62,8 @@ class MilestoneInvoiceResponse(BaseModel):
     amount: float
     is_paid: bool
     slip_image_url: Optional[str] = None
+    approved_by: Optional[int] = None
+    approved_at: Optional[datetime] = None
     created_at: datetime
 
 class RevisionCreateRequest(BaseModel):

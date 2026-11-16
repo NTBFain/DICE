@@ -38,8 +38,9 @@ export const WebSocketProvider = ({ children }: { children: React.ReactNode }) =
       const isLocal = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
       const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
       const host = isLocal ? `${window.location.hostname}:8000` : window.location.host;
-      const wsUrl = `${protocol}//${host}/ws?token=${token}`;
-      const ws = new WebSocket(wsUrl);
+      const wsUrl = new URL(process.env.NEXT_PUBLIC_WS_URL || `${protocol}//${host}/ws`, window.location.href);
+      wsUrl.searchParams.set('token', token);
+      const ws = new WebSocket(wsUrl.toString());
       socketRef.current = ws;
 
       ws.onopen = () => {

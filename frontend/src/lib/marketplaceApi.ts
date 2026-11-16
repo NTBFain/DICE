@@ -302,8 +302,8 @@ export const SAMPLE_ARTISTS_LIST: ArtistProfile[] = [
 ];
 
 const getBaseApiUrl = () => {
-  if (typeof window !== 'undefined') return '/api';
-  return 'http://127.0.0.1:8000/api';
+  if (typeof window !== 'undefined') return process.env.NEXT_PUBLIC_API_URL?.replace(/\/$/, '') || '/api';
+  return `${(process.env.DICE_API_PROXY_TARGET || 'http://127.0.0.1:8000').replace(/\/$/, '')}/api`;
 };
 
 export const getMarketplaceArtists = async (filters?: {

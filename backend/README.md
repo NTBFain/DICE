@@ -1,14 +1,9 @@
-# Backend API
+# ฝั่งหลัง DICE
 
-## Setting up and Running
+อ่าน [การติดตั้งและตั้งค่าพร้อมเพย์](../docs/PROMPTPAY_SETUP.md) ก่อนเริ่มระบบ
 
-1. Make sure you have `uv` installed.
-2. Run the server using:
-   ```bash
-   uv run uvicorn main:app --reload
-   ```
+ติดตั้งตาม `pyproject.toml` และ `uv.lock` ด้วย `uv sync --locked` จากโฟลเดอร์ `backend` สร้างความลับก่อนเริ่มผ่าน `python scripts/setup_local.py --demo` จากโฟลเดอร์ราก แล้วเริ่ม `uv run uvicorn main:app --host 127.0.0.1 --port 8000` จาก `backend`
 
-## Default Accounts
-When the database is initialized, two mock accounts are created:
-- Admin: `admin@example.com` / Password: `password123`
-- Client: `client@example.com` / Password: `password123`
+บัญชีตัวอย่างสามบทบาทถูกสร้างเฉพาะเมื่อเปิด `DEMO_MODE` อย่างชัดเจน ระบบไม่ใช้ความลับฝังสำรอง สำหรับงานไม่ใช้บัญชีตัวอย่าง ให้ใช้ `--no-demo` และขั้นตอนสร้างผู้ดูแลคนแรก ไม่แก้สิทธิ์ในฐานข้อมูลโดยตรง
+
+ไฟล์ผู้ใช้และฐานข้อมูลอิงตำแหน่งทำงาน ให้แยกจากข้อมูลทดสอบ สัญญาเส้นทางจริงดู `/docs` ของ FastAPI การอนุมัติพร้อมเพย์เป็นการตรวจด้วยตนเอง ไม่ใช่ผลตรวจของธนาคาร และการบันทึกจ่ายไม่สั่งโอนเงินจริง

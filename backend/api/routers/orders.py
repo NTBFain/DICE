@@ -1,3 +1,4 @@
+from services.payment_service import new_order_fee_bps
 import os
 import shutil
 import secrets
@@ -24,6 +25,11 @@ from schemas import (
     FileResponse
 )
 from services.system_service import get_setting
+from services.payment_service import lock_order, assert_unsettled
+from models.payment import PaymentInstruction, CollectionReceipt
+from core.time import utcnow
+from services.promptpay import to_satang
+from services.payment_proof import save_payment_proof
 from services.order_service import is_order_fully_paid
 from services.commission_brief import get_commission_brief
 from services.notification_service import background_create_notification
@@ -73,6 +79,7 @@ def create_order(
         target_client_id = client.id
 
     order = Order(
+        platform_fee_bps_snapshot=new_order_fee_bps(session),
         title=request.title.strip(),
         description=request.description.strip(),
         status=OrderStatus.PENDING,
@@ -184,6 +191,10 @@ def update_order(
     if not _is_authorized_for_order(order, current_user):
         raise HTTPException(status_code=403, detail="Not authorized to update this order")
         
+    order = lock_order(session, order_id)
+    if request.status is not None or request.agreed_price is not None:
+        assert_unsettled(session, order_id)
+
     # 1. State Machine Transitions
     if request.status is not None:
         if not (current_user.is_admin or (current_user.is_artist and order.artist_id == current_user.id)):
@@ -286,6 +297,8 @@ def create_invoice(
         raise HTTPException(status_code=404, detail="Order not found")
     if not artist_user.is_admin and order.artist_id != artist_user.id:
         raise HTTPException(status_code=403, detail="Not authorized to create invoices for this order")
+    order = lock_order(session, order_id)
+    assert_unsettled(session, order_id)
     if order.status in [OrderStatus.COMPLETED, OrderStatus.CANCELLED]:
         raise HTTPException(status_code=400, detail=f"Cannot issue invoices for {order.status.value} orders")
         
@@ -348,6 +361,9 @@ def pay_invoice(
         raise HTTPException(status_code=404, detail="Order not found")
     if not current_user.is_admin and order.client_id != current_user.id:
         raise HTTPException(status_code=403, detail="Not authorized to pay this invoice")
+    order = lock_order(session, order.id)
+    session.refresh(invoice)
+    assert_unsettled(session, order.id)
     if invoice.is_paid:
         raise HTTPException(status_code=400, detail="Cannot upload slip: Invoice is already approved and paid.")
     if order.status == OrderStatus.CANCELLED:
@@ -365,7 +381,7 @@ def pay_invoice(
     slip_path = os.path.join("uploads/slips", slip_filename)
     
     try:
-        validate_and_save_upload(slip, slip_path, max_size=15 * 1024 * 1024, is_deliverable=True)
+        save_payment_proof(slip, slip_path)
         invoice.slip_image_url = f"/api/invoices/{invoice_id}/slip"
         session.add(invoice)
         session.commit()
@@ -436,15 +452,36 @@ def approve_invoice_payment(
     if not artist_user.is_admin and order.artist_id != artist_user.id:
         raise HTTPException(status_code=403, detail="Not authorized to approve payments for this order")
         
-    # A conditional write makes both repeated and stale concurrent approvals idempotent.
-    changed = session.exec(
-        update(MilestoneInvoice)
-        .where(MilestoneInvoice.id == invoice_id, MilestoneInvoice.is_paid == False)
-        .values(is_paid=True)
-        .execution_options(synchronize_session=False)
-    ).rowcount
-    session.commit()
+    order = lock_order(session, order.id)
     session.refresh(invoice)
+    if invoice.is_paid:
+        return invoice
+    if order.status == OrderStatus.CANCELLED:
+        raise HTTPException(409, 'Cannot approve payment for a cancelled order')
+    assert_unsettled(session, order.id)
+    instruction = session.exec(select(PaymentInstruction).where(PaymentInstruction.invoice_id == invoice_id)).first()
+    if instruction:
+        if not invoice.slip_image_url or not glob.glob(os.path.join('uploads/slips', f'slip_{invoice_id}_*')):
+            raise HTTPException(409, 'PromptPay approval requires submitted payment proof')
+        if instruction.amount_satang != to_satang(invoice.amount):
+            raise HTTPException(409, 'Invoice amount differs from its frozen payment instruction')
+    try:
+        approved_at = utcnow()
+        changed = session.exec(
+            update(MilestoneInvoice)
+            .where(MilestoneInvoice.id == invoice_id, MilestoneInvoice.is_paid == False)
+            .values(is_paid=True, approved_by=artist_user.id, approved_at=approved_at)
+            .execution_options(synchronize_session=False)
+        ).rowcount
+        if changed and instruction:
+            session.add(CollectionReceipt(invoice_id=invoice_id, instruction_id=instruction.id,
+                order_id=order.id, amount_satang=instruction.amount_satang,
+                approved_by=artist_user.id, approved_at=approved_at))
+        session.commit()
+        session.refresh(invoice)
+    except Exception:
+        session.rollback()
+        raise
     if not changed:
         return invoice
 

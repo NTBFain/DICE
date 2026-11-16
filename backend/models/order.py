@@ -14,6 +14,7 @@ class OrderBase(SQLModel):
     description: str
     status: OrderStatus = Field(default=OrderStatus.PENDING)
     agreed_price: Optional[float] = None
+    platform_fee_bps_snapshot: int = Field(default=0)
     revision_quota: int = Field(default=3)
     start_date: Optional[datetime] = None
     due_date: Optional[datetime] = None
@@ -54,6 +55,8 @@ class MilestoneInvoiceBase(SQLModel):
     amount: float
     is_paid: bool = Field(default=False)
     slip_image_url: Optional[str] = None
+    approved_by: Optional[int] = Field(default=None, foreign_key="user.id", ondelete="RESTRICT")
+    approved_at: Optional[datetime] = None
 
 class MilestoneInvoice(MilestoneInvoiceBase, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
