@@ -1,3 +1,4 @@
+from services.payment_service import new_order_fee_bps
 from sqlmodel import Session, select
 from sqlalchemy import update
 from models import Auction, AuctionStatus, Bid, AuctionType, Order, OrderStatus, MilestoneInvoice, File as DBFile, User, Notification, NotificationType, ArtistProfile
@@ -60,6 +61,7 @@ async def check_and_close_auction(auction: Auction, session: Session) -> bool:
             )
 
             new_order = Order(
+        platform_fee_bps_snapshot=new_order_fee_bps(session),
                 title=order_title,
                 description=f"Won from auction '{auction.title}' with bid ฿{highest_bid.amount:.2f}.",
                 status=OrderStatus.ACCEPTED,
@@ -173,6 +175,7 @@ async def finalize_auto_buy(auction: Auction, bidder_id: int, amount: float, ses
         )
 
         new_order = Order(
+        platform_fee_bps_snapshot=new_order_fee_bps(session),
             title=order_title,
             description=f"Purchased via Auto-Buy from auction '{auction.title}' for ฿{amount:.2f}.",
             status=OrderStatus.ACCEPTED,

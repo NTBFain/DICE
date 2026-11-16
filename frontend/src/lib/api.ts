@@ -2,9 +2,9 @@ import type { CommissionBrief } from './commissionBrief';
 import axios from 'axios';
 
 const hostname = typeof window !== 'undefined' ? window.location.hostname : '127.0.0.1';
-const API_URL = (hostname === 'localhost' || hostname === '127.0.0.1')
+const API_URL = process.env.NEXT_PUBLIC_API_URL?.replace(/\/$/, '') || ((hostname === 'localhost' || hostname === '127.0.0.1')
   ? `http://${hostname}:8000/api`
-  : '/api';
+  : '/api');
 
 export const apiClient = axios.create({
   baseURL: API_URL,

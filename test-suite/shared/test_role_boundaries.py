@@ -3,6 +3,7 @@ import io,json,sys,unittest
 from pathlib import Path
 from datetime import timedelta
 from PIL import Image
+from pypdf import PdfWriter
 from sqlmodel import Session,select
 sys.path.insert(0,str(Path(__file__).resolve().parents[2]/'backend/tests'))
 from isolated_app import isolated_client
@@ -62,7 +63,7 @@ class RoleBoundaryTests(unittest.TestCase):
             self.assertEqual(session.exec(select(Artwork)).all(),[]);self.assertEqual(session.exec(select(Character)).all(),[])
         self.assertEqual([p for p in Path('uploads').rglob('*') if p.is_file()],[])
     def test_pdf_payment_proof_download_retains_bytes_and_requires_order_access(self):
-        content=b'%PDF-1.4\n1 0 obj<</Type/Catalog>>endobj\n%%EOF'
+        buffer=io.BytesIO();writer=PdfWriter();writer.add_blank_page(width=72,height=72);writer.write(buffer);content=buffer.getvalue()
         response=self.send('POST',f'/api/invoices/{self.invoice}/pay',files={'slip':('proof.pdf',content,'application/pdf')})
         self.assertEqual(response.status_code,200)
         proof=self.send('GET',f'/api/invoices/{self.invoice}/slip','artist')

@@ -22,6 +22,7 @@ import {
   User, Image as ImageIcon, Briefcase, Camera, Save
 } from 'lucide-react';
 import SecureImage from '@/components/SecureImage';
+import PromptPayButton from '@/components/payments/PromptPayButton';
 import CommissionBriefView from '@/components/commission/CommissionBriefView';
 import ChatBox from '@/components/ChatBox';
 import { getDownloadErrorMessage } from '@/lib/errorMessage';
@@ -504,6 +505,7 @@ function ClientDashboardContent() {
                               </label>
                             </div>
                           )}
+                          {!inv.is_paid && selectedOrder.status !== 'CANCELLED' && <PromptPayButton key={inv.id} invoiceId={inv.id} onUploaded={() => {void queryClient.invalidateQueries({queryKey: ['order-invoices', selectedOrderId]});}} />}
                           {!inv.is_paid && selectedOrder.status !== 'CANCELLED' && inv.slip_image_url && (
                             <label className="mt-3 flex cursor-pointer items-center justify-center rounded-xl border p-2 text-sm">
                               {t('replaceSlip')}

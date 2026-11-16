@@ -24,6 +24,7 @@ import {
 import ThemeSwitcher from '@/components/ThemeSwitcher';
 
 const ADMIN_NAV_ITEMS = [
+  { id: 'payments', href: '/dashboard/admin/payments', label: 'Payments', icon: BarChart3, badge: 'Settlement' },
   { id: 'users', href: '/dashboard/admin/users', label: 'User Control', icon: Shield, badge: 'Security' },
   { id: 'analytics', href: '/dashboard/admin/analytics', label: 'Platform Stats', icon: BarChart3, badge: 'Revenue' },
   { id: 'orders', href: '/dashboard/admin/orders', label: 'All Queues', icon: Briefcase, badge: 'Orders' },

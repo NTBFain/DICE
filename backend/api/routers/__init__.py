@@ -11,7 +11,10 @@ from .notifications import router as notifications_router
 from .artists import router as artists_router
 from .commissions import router as commissions_router
 
+from .payments import router as payments_router
+
 api_router = APIRouter()
+api_router.include_router(payments_router)
 
 api_router.include_router(auth_router)
 api_router.include_router(system_router)

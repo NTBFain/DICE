@@ -13,9 +13,14 @@ ADDED_COLUMNS = {
         "form_schema": "JSON",
     },
     "order": {
+        "platform_fee_bps_snapshot": "INTEGER NOT NULL DEFAULT 0",
         "service_id": "INTEGER",
         "commission_request_id": "INTEGER",
         "auction_id": "INTEGER",
+    },
+    "milestoneinvoice": {
+        "approved_by": "INTEGER",
+        "approved_at": "DATETIME",
     },
     "commissionrequest": {
         "custom_responses": "JSON",

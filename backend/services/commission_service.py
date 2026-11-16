@@ -1,3 +1,4 @@
+from services.payment_service import new_order_fee_bps
 import logging
 import os
 import re
@@ -228,6 +229,7 @@ def accept_commission_request(session: Session, request_id: int, artist_user_id:
     )
 
     new_order = Order(
+        platform_fee_bps_snapshot=new_order_fee_bps(session),
         title=f"[{service.title}] {request.character_name}",
         description=order_desc,
         status=OrderStatus.ACCEPTED,

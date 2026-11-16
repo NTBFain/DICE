@@ -16,7 +16,7 @@ The runner creates a temporary working directory, memory database and private pe
 
 For a targeted Python check, supply a disposable DATABASE_URL and SECRET_KEY and run only the relevant unittest module. Avoid ad-hoc older scripts against configured databases. Legacy HTTP checks now use tests/isolated_app.py with its own database and uploads.
 
-Current final automated result:45 client Python+57 shared Python+18 legacy Python+43 Node=163 passed,0 failed. No test retries hide failures. Browser/capability counts are separate:61 verified demonstration groups; extended limitations1 blocked/3 not run. No empty passing artist/admin placeholder suites were added; supporting cross-role checks live in shared.
+Payment-branch automated result (2026-11-16): 45 client Python + 102 shared Python + 18 legacy Python + 43 Node = 208 passed, 0 failed. This includes the previous 163 checks, 43 PromptPay/payment/payout regressions and 2 administrator-bootstrap checks. The frontend TypeScript check also passed after locked dependency installation. No test retries hide failures. Browser/capability counts are separate:61 verified demonstration groups; extended limitations1 blocked/3 not run. No empty passing artist/admin placeholder suites were added; supporting cross-role checks live in shared.
 
 ## Local preview and files
 
@@ -28,4 +28,4 @@ Use docs/DEMONSTRATION_SETUP.md and docs/DEMONSTRATION_SCRIPT.md. The reviewed p
 - fixtures/: local disposable media; no real payments or personal files.
 - reports/: generated logs/screenshots/results, excluded from Git. Original failures remain here.
 
-No production load, multi-worker deployment, Firefox or WebKit certification is claimed. No commit/merge/push is performed by the review; the user handles publication.
+No production load, multi-worker deployment, Firefox or WebKit certification is claimed. Publication of feature/promptpay-payouts is separately authorized; main is unchanged. See [PromptPay setup](../docs/PROMPTPAY_SETUP.md).

@@ -5,6 +5,7 @@ import { useTranslations } from 'next-intl';
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { getAnalytics } from '@/lib/api';
+import LedgerPanel from '@/components/payments/LedgerPanel';
 import {
   DollarSign,
   TrendingUp,
@@ -62,6 +63,7 @@ export default function ArtistAnalyticsPage() {
 
   return (
     <div className="space-y-8">
+      <LedgerPanel />
       {/* Header Banner */}
       <div className="bg-gradient-to-r from-blue-900/40 via-neutral-900 to-indigo-900/40 border border-blue-800/40 p-6 rounded-2xl relative overflow-hidden shadow-xl">
         <div className="relative z-10 flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
