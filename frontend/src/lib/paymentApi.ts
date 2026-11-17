@@ -4,7 +4,7 @@ export type PaymentSettings = {enabled: boolean; recipient_name: string; mobile_
 export type PaymentInstruction = {id: number; invoice_id: number; recipient_name: string; mobile_number: string; amount_satang: number; settings_version: number; qr_url: string; approval_method: 'MANUAL'};
 export type SettlementRow = {order_id: number; artist_id: number; artist_name: string; title: string; status: string; gross_satang: number; fee_bps: number; fee_satang: number; net_satang: number; fingerprint: string};
 export type Payout = {id: number; artist_id: number; recorded_by: number; transfer_reference: string; gross_satang: number; fee_satang: number; net_satang: number; proof_url: string; created_at: string; items: SettlementRow[]};
-export type Ledger = {orders: SettlementRow[]; payouts: Payout[]; approved_invoice_gross_satang: number; platform_collections_satang: number; eligible_net_satang: number; recorded_payout_net_satang: number};
+export type Ledger = {orders: SettlementRow[]; payouts: Payout[]; approved_invoice_gross_satang: number; platform_collections_satang: number; eligible_net_satang: number; requested_net_satang: number; recorded_payout_net_satang: number};
 export type PayoutQuote = {artist_id: number; items: SettlementRow[]; gross_satang: number; fee_satang: number; net_satang: number; quote_digest: string};
 
 export const getPaymentSettings = async () => (await apiClient.get<PaymentSettings>('/payments/settings')).data;

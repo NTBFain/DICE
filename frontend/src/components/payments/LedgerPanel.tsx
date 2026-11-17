@@ -8,6 +8,7 @@ import { getErrorMessage } from '@/lib/errorMessage';
 import { parseApiDate } from '@/lib/apiDate';
 import SecureReference from '@/components/SecureReference';
 import StudioDialog, { StudioOverlay } from '@/components/StudioDialog';
+import PayoutRequestsPanel from './PayoutRequestsPanel';
 
 export default function LedgerPanel({admin = false}: {admin?: boolean}) {
   const t = useTranslations('Payments'); const locale = useLocale();
@@ -42,8 +43,9 @@ export default function LedgerPanel({admin = false}: {admin?: boolean}) {
     <div className="flex flex-wrap items-center justify-between gap-3"><h2 className="text-2xl font-bold">{admin ? t('payoutsTitle') : t('artistLedgerTitle')}</h2><button type="button" disabled={busy} onClick={() => query.refetch()} className="rounded-xl border px-4 py-2">{t('refresh')}</button></div>
     <p className="text-sm">{t('ledgerExplanation')}</p>
     <dl className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-      {([['historicalGross',data.approved_invoice_gross_satang], ['platformCollections',data.platform_collections_satang], ['eligibleNet',data.eligible_net_satang], ['recordedPayouts',data.recorded_payout_net_satang]] as const).map(([label,value]) => <div key={label} className="rounded-xl border border-neutral-600 p-4"><dt className="text-sm">{t(label)}</dt><dd className="mt-2 text-xl font-bold">{money(value)}</dd></div>)}
+      {([['historicalGross',data.approved_invoice_gross_satang], ['platformCollections',data.platform_collections_satang], ['eligibleNet',data.eligible_net_satang], ['requestedNet',data.requested_net_satang], ['recordedPayouts',data.recorded_payout_net_satang]] as const).map(([label,value]) => <div key={label} className="rounded-xl border border-neutral-600 p-4"><dt className="text-sm">{t(label)}</dt><dd className="mt-2 text-xl font-bold">{money(value)}</dd></div>)}
     </dl>
+    <PayoutRequestsPanel admin={admin} ledger={data} />
     {notice && <p role="status" className="rounded-xl border border-emerald-500 p-3">{notice}</p>}
     {error && !quote && <p role="alert" className="rounded-xl border border-red-500 p-3">{error}</p>}
     {admin && <div className="flex flex-wrap items-end gap-3"><label className="block space-y-2"><span>{t('selectArtist')}</span><select value={artistId} disabled={busy} onChange={event => {setArtistId(event.target.value); setSelected([]);}} className="block max-w-full rounded-xl border border-neutral-500 bg-neutral-900 p-3 text-white"><option value="">{t('allArtists')}</option>{artists.map(([id,name]) => <option key={id} value={id}>{name} (#{id})</option>)}</select></label><button type="button" disabled={busy || !artistId || !selected.length} onClick={review} className="rounded-xl bg-blue-700 px-5 py-3 font-bold text-white disabled:opacity-40">{t('reviewPayout')} ({selected.length})</button></div>}

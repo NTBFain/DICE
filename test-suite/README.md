@@ -2,6 +2,10 @@
 
 Current authority: [readiness report](READINESS_REPORT_2026-11-14.md), [role results](ROLE_CAPABILITIES.json) and [current page/control/API inventory](INVENTORY_CURRENT.json). Historical checkpoints and failure evidence remain preserved; do not add their counts to the current run.
 
+Soft-theme overhaul (2026-11-17): [theme verification and limitations](SOFT_THEME_REVIEW_2026-11-17.md). Combined result: **250 passed, 0 failed, 0 skipped**, including 18 new palette checks and all earlier payment/request checks; frontend TypeScript passed. All 15 built-in themes were reviewed on representative client, artist and admin screens, with targeted mobile, contrast, keyboard, custom-color and persistence checks. Browser text enlargement remains unverified. Changes remain local on `feature/artist-payout-requests`.
+
+Artist payout request extension (2026-11-17): [verification and known limitations](PAYOUT_REQUEST_READINESS_2026-11-17.md). Current combined result: **232 passed, 0 failed, 0 skipped** (the existing 208 checks plus 24 request regressions); frontend TypeScript passed. Both mandatory commission/auction payout journeys passed in built-in Chromium with English desktop and Thai mobile checks. One unrelated existing mobile admin role-label defect remains documented. Changes are local on `feature/artist-payout-requests` and are not committed, merged or pushed.
+
 Workflow: checklist → built-in browser confirmation → report → authorized code repair → targeted regression. Client, artist and admin are all reviewed. Primary browser actions and supporting real API/WebSocket actions are identified in the report. The original full Playwright/multi-browser suite plan was superseded by the user’s sequential, low-CPU workflow.
 
 ## Run checks

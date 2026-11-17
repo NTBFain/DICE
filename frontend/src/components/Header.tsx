@@ -44,7 +44,7 @@ export default function Header() {
   };
 
   return (
-    <header className="border-b border-[var(--border-subtle,#27272a)] bg-[var(--bg-surface,#121215)]/90 text-[var(--text-primary,#f4f4f5)] backdrop-blur-md sticky top-0 z-50 transition-colors duration-200">
+    <header className="studio-header border-b border-[var(--border-subtle,#27272a)] bg-[var(--bg-surface,#121215)]/90 text-[var(--text-primary,#f4f4f5)] backdrop-blur-md sticky top-0 z-50 transition-colors duration-200">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-14 flex items-center justify-between">
         <Link href="/" className="font-bold text-xl tracking-tight text-[var(--text-primary,#f4f4f5)] flex items-center hover:opacity-90 transition-all group">
           <span className="group-hover:scale-105 transition-transform duration-300">DI<span className="text-[var(--accent-primary,#3b82f6)] inline-block group-hover:rotate-12 transition-transform duration-300">CE</span></span>
@@ -132,7 +132,7 @@ export default function Header() {
           ) : (
             <Link
               href="/login"
-              className="text-sm font-medium bg-[var(--accent-primary,#3b82f6)] hover:opacity-90 text-white px-4 py-2 rounded-xl transition-all shadow-md flex items-center gap-1.5 hover-lift btn-press"
+              className="studio-primary text-sm font-medium bg-[var(--accent-primary,#3b82f6)] hover:opacity-90 text-white px-4 py-2 rounded-xl transition-all shadow-md flex items-center gap-1.5 hover-lift btn-press"
             >
               <UserCircle className="w-4 h-4" /> {t('login')}
             </Link>
@@ -173,7 +173,7 @@ export default function Header() {
 
       {/* Mobile Navigation Drawer */}
       {mobileMenuOpen && (
-        <nav id={mobileMenuId} aria-label={t('toggleNavigation')} className="md:hidden bg-[var(--bg-surface,#121215)]/95 border-b border-[var(--border-subtle,#27272a)] px-4 py-4 space-y-3 backdrop-blur-xl transition-all animate-in slide-in-from-top-2">
+        <nav id={mobileMenuId} aria-label={t('toggleNavigation')} className="studio-menu md:hidden bg-[var(--bg-surface,#121215)]/95 border-b border-[var(--border-subtle,#27272a)] px-4 py-4 space-y-3 backdrop-blur-xl transition-all animate-in slide-in-from-top-2">
           {user && (
             <div className="p-3 bg-[var(--bg-primary,#09090b)] rounded-xl border border-[var(--border-subtle,#27272a)] flex items-center justify-between">
               <div>
