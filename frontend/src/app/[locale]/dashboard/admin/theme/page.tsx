@@ -4,6 +4,7 @@ import { useTranslations, useLocale } from 'next-intl';
 
 import { useState, useEffect } from 'react';
 import { validateCustomTheme } from '@/lib/customThemeValidation';
+import { themeVariables, contrastRatio } from '@/lib/themePalettes';
 import { useTheme, THEMES, ThemeOption } from '@/components/ThemeContext';
 import { 
   Palette, 
@@ -133,6 +134,14 @@ export default function ThemeStudioPage() {
   };
 
   const allThemes = [...THEMES, ...customThemes];
+  const validHex = (value: string, fallback: string) => /^#[0-9a-f]{6}$/i.test(value) ? value : fallback;
+  const previewVars = themeVariables({id: 'preview', name: '', nameTh: '', isCustom: true,
+    previewBg: bgPrimary, previewAccent: accentPrimary,
+    bgPrimary: validHex(bgPrimary, '#14283b'), bgSurface: validHex(bgSurface, '#22394b'),
+    accentPrimary: validHex(accentPrimary, '#82b0cc'), accentHover: validHex(accentHover, '#6f9fbb'),
+    textPrimary: validHex(textPrimary, '#e8eef4'), textMuted: validHex(textMuted, '#afbbca'),
+    borderSubtle: validHex(borderSubtle, '#3e5062'), borderHover: validHex(borderHover, '#75889c')});
+  const swatchText = (color?: string) => color && contrastRatio(color, '#17202b') > contrastRatio(color, '#f6f8fb') ? '#17202b' : '#f6f8fb';
 
   return (
     <div className="w-full text-neutral-100 space-y-8">
@@ -216,10 +225,10 @@ export default function ThemeStudioPage() {
 
                       {/* Color Palette Strip */}
                       <div className="grid grid-cols-4 gap-1.5 p-2 rounded-xl bg-neutral-950 border border-neutral-800">
-                        <div className="h-6 rounded flex items-center justify-center text-[9px] font-mono text-white" style={{ backgroundColor: t.bgPrimary }}>BG</div>
-                        <div className="h-6 rounded flex items-center justify-center text-[9px] font-mono text-white" style={{ backgroundColor: t.bgSurface }}>Card</div>
-                        <div className="h-6 rounded flex items-center justify-center text-[9px] font-mono text-white" style={{ backgroundColor: t.accentPrimary }}>Btn</div>
-                        <div className="h-6 rounded flex items-center justify-center text-[9px] font-mono text-white" style={{ backgroundColor: t.textMuted }}>Muted</div>
+                        <div className="h-6 rounded flex items-center justify-center text-[9px] font-mono" style={{ backgroundColor: t.bgPrimary, color: swatchText(t.bgPrimary) }}>BG</div>
+                        <div className="h-6 rounded flex items-center justify-center text-[9px] font-mono" style={{ backgroundColor: t.bgSurface, color: swatchText(t.bgSurface) }}>Card</div>
+                        <div className="h-6 rounded flex items-center justify-center text-[9px] font-mono" style={{ backgroundColor: t.accentPrimary, color: swatchText(t.accentPrimary) }}>Btn</div>
+                        <div className="h-6 rounded flex items-center justify-center text-[9px] font-mono" style={{ backgroundColor: t.textMuted, color: swatchText(t.textMuted) }}>Muted</div>
                       </div>
 
                       <div className="flex items-center gap-2 pt-1">
@@ -503,57 +512,58 @@ export default function ThemeStudioPage() {
             <div 
               className="rounded-3xl p-6 border shadow-2xl space-y-6 transition-colors duration-300 overflow-hidden relative"
               style={{
-                backgroundColor: bgPrimary,
-                borderColor: borderSubtle,
-                color: textPrimary
+                ...previewVars,
+                backgroundColor: previewVars['--bg-primary'],
+                borderColor: previewVars['--border-subtle'],
+                color: previewVars['--text-primary']
               }}
             >
               
               {/* Mock Header */}
-              <div className="flex items-center justify-between border-b pb-4" style={{ borderColor: borderSubtle }}>
+              <div className="flex items-center justify-between border-b pb-4" style={{ borderColor: previewVars['--border-subtle'] }}>
                 <div className="flex items-center gap-2.5">
-                  <div className="w-8 h-8 rounded-xl flex items-center justify-center font-black text-white shadow" style={{ backgroundColor: accentPrimary }}>
+                  <div className="w-8 h-8 rounded-xl flex items-center justify-center font-black shadow" style={{ backgroundColor: previewVars['--accent-solid'], color: previewVars['--accent-contrast'] }}>
                     <Palette className="w-4 h-4" />
                   </div>
                   <div>
-                    <h4 className="text-xs font-extrabold" style={{ color: textPrimary }}>DICE Studio Atelier</h4>
-                    <p className="text-[10px]" style={{ color: textMuted }}>{(locale === 'th' ? customNameTh : customName) || 'Sample Preview'}</p>
+                    <h4 className="text-xs font-extrabold" style={{ color: previewVars['--text-primary'] }}>DICE Studio Atelier</h4>
+                    <p className="text-[10px]" style={{ color: previewVars['--text-muted'] }}>{(locale === 'th' ? customNameTh : customName) || 'Sample Preview'}</p>
                   </div>
                 </div>
 
                 {/* Mock Capsule Nav */}
-                <div className="flex items-center gap-1 p-1 rounded-full border text-[10px] font-bold" style={{ backgroundColor: bgSurface, borderColor: borderSubtle }}>
-                  <span className="px-2.5 py-1 rounded-full text-white" style={{ backgroundColor: accentPrimary }}>Queue</span>
-                  <span className="px-2.5 py-1 rounded-full" style={{ color: textMuted }}>Gallery</span>
+                <div className="flex items-center gap-1 p-1 rounded-full border text-[10px] font-bold" style={{ backgroundColor: previewVars['--bg-surface'], borderColor: previewVars['--border-subtle'] }}>
+                  <span className="px-2.5 py-1 rounded-full" style={{ backgroundColor: previewVars['--accent-soft'], color: previewVars['--accent-primary'] }}>Queue</span>
+                  <span className="px-2.5 py-1 rounded-full" style={{ color: previewVars['--text-muted'] }}>Gallery</span>
                 </div>
               </div>
 
               {/* Mock Card Surface */}
-              <div className="p-4 rounded-2xl border space-y-3 shadow-md" style={{ backgroundColor: bgSurface, borderColor: borderSubtle }}>
+              <div className="p-4 rounded-2xl border space-y-3 shadow-md" style={{ backgroundColor: previewVars['--bg-surface'], borderColor: previewVars['--border-subtle'] }}>
                 <div className="flex items-center justify-between">
-                  <span className="text-xs font-bold" style={{ color: textPrimary }}>VTuber Character Sheet #1024</span>
-                  <span className="text-[9px] font-mono font-bold px-2 py-0.5 rounded-full text-white" style={{ backgroundColor: accentPrimary }}>
+                  <span className="text-xs font-bold" style={{ color: previewVars['--text-primary'] }}>VTuber Character Sheet #1024</span>
+                  <span className="text-[9px] font-mono font-bold px-2 py-0.5 rounded-full" style={{ backgroundColor: previewVars['--accent-solid'], color: previewVars['--accent-contrast'] }}>
                     Active Order
                   </span>
                 </div>
-                <p className="text-xs" style={{ color: textMuted }}>
+                <p className="text-xs" style={{ color: previewVars['--text-muted'] }}>
                   {' '}{studio('theme_532_0')}{' '}</p>
 
                 {/* Mock Action Buttons */}
                 <div className="flex gap-2 pt-2">
-                  <button type="button" className="flex-1 py-2 px-3 rounded-xl text-xs font-bold text-white transition-opacity shadow" style={{ backgroundColor: accentPrimary }}>
+                  <button type="button" className="flex-1 py-2 px-3 rounded-xl text-xs font-bold transition-opacity shadow" style={{ backgroundColor: previewVars['--accent-solid'], color: previewVars['--accent-contrast'] }}>
                     {' '}{studio('theme_538_0')}{' '}</button>
-                  <button type="button" className="py-2 px-3 rounded-xl text-xs font-bold border transition-colors" style={{ borderColor: borderSubtle, color: textPrimary }}>
+                  <button type="button" className="py-2 px-3 rounded-xl text-xs font-bold border transition-colors" style={{ borderColor: previewVars['--border-subtle'], color: previewVars['--text-primary'] }}>
                     {' '}{studio('theme_541_0')}{' '}</button>
                 </div>
               </div>
 
               {/* Mock Form Input */}
               <div className="space-y-1.5">
-                <label className="text-[10px] font-bold uppercase" style={{ color: textMuted }}>{studio('theme_548_0')}</label>
-                <div className="p-2.5 rounded-xl border text-xs flex justify-between items-center" style={{ backgroundColor: bgSurface, borderColor: borderSubtle, color: textPrimary }}>
+                <label className="text-[10px] font-bold uppercase" style={{ color: previewVars['--text-muted'] }}>{studio('theme_548_0')}</label>
+                <div className="p-2.5 rounded-xl border text-xs flex justify-between items-center" style={{ backgroundColor: previewVars['--bg-surface'], borderColor: previewVars['--border-subtle'], color: previewVars['--text-primary'] }}>
                   <span>user@example.com</span>
-                  <span className="text-[10px] font-mono" style={{ color: accentPrimary }}>Focused</span>
+                  <span className="text-[10px] font-mono" style={{ color: previewVars['--accent-primary'] }}>Focused</span>
                 </div>
               </div>
 

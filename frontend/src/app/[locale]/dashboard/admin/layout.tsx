@@ -76,7 +76,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   return (
     <div className="min-h-screen bg-neutral-950 text-white flex flex-col font-sans pb-28 sm:pb-32">
       {/* 👑 SYSTEM ADMIN TOP HEADER */}
-      <header className="bg-neutral-900/90 backdrop-blur-md border-b border-purple-900/30 px-4 sm:px-6 py-3 flex items-center justify-between sticky top-16 z-40">
+      <header className="studio-header bg-neutral-900/90 backdrop-blur-md border-b border-purple-900/30 px-4 sm:px-6 py-3 flex items-center justify-between sticky top-16 z-40">
         <div className="flex items-center gap-2.5 sm:gap-3 truncate">
           <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-xl bg-purple-600 border border-amber-500/40 flex items-center justify-center text-white font-black shrink-0 shadow-lg shadow-purple-900/30">
             <Crown className="w-4 h-4 sm:w-5 sm:h-5 text-amber-300" />
@@ -123,7 +123,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
       {mounted && createPortal(
         <div className="fixed bottom-3 sm:bottom-6 left-1/2 -translate-x-1/2 z-30 w-[calc(100%-1.5rem)] sm:w-auto max-w-fit pointer-events-auto">
           {/* Mobile Bar View (< sm) */}
-          <nav className="sm:hidden bg-neutral-900/95 backdrop-blur-xl border border-purple-900/40 rounded-2xl px-2 py-2 flex items-center justify-start gap-1 w-full max-w-full overflow-x-auto overscroll-x-contain shadow-2xl">
+          <nav className="studio-nav sm:hidden bg-neutral-900/95 backdrop-blur-xl border border-purple-900/40 rounded-2xl px-2 py-2 flex items-center justify-start gap-1 w-full max-w-full overflow-x-auto overscroll-x-contain shadow-2xl">
             {ADMIN_NAV_ITEMS.map((item) => {
               const Icon = item.icon;
               const isActive = pathname === item.href || (item.id === 'users' && pathname === '/dashboard/admin');
@@ -147,7 +147,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
           </nav>
 
           {/* Desktop / Tablet Capsule View (>= sm) */}
-          <nav className="hidden sm:flex bg-neutral-900/95 backdrop-blur-xl border border-purple-900/40 shadow-2xl rounded-full px-3.5 py-2 items-center gap-1.5">
+          <nav className="studio-nav hidden sm:flex bg-neutral-900/95 backdrop-blur-xl border border-purple-900/40 shadow-2xl rounded-full px-3.5 py-2 items-center gap-1.5">
             {ADMIN_NAV_ITEMS.map((item) => {
               const Icon = item.icon;
               const isActive = pathname === item.href || (item.id === 'users' && pathname === '/dashboard/admin');

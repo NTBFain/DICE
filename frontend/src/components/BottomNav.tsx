@@ -41,7 +41,7 @@ export default function BottomNav() {
 
   return (
     <div className="md:hidden fixed bottom-0 left-0 right-0 z-50 px-3 pt-1 pointer-events-none pb-[max(0.75rem,env(safe-area-inset-bottom))]">
-      <nav className="pointer-events-auto bg-[var(--bg-surface,#121215)]/95 text-[var(--text-primary,#f4f4f5)] backdrop-blur-xl border border-[var(--border-subtle,#27272a)] rounded-2xl shadow-2xl flex items-center justify-around p-1.5 max-w-md mx-auto transition-colors duration-300">
+      <nav className="studio-nav pointer-events-auto bg-[var(--bg-surface,#121215)]/95 text-[var(--text-primary,#f4f4f5)] backdrop-blur-xl border border-[var(--border-subtle,#27272a)] rounded-2xl shadow-2xl flex items-center justify-around p-1.5 max-w-md mx-auto transition-colors duration-300">
         {navItems.map((item) => {
           const Icon = item.icon;
           const active = isItemActive(item.href, item.exact);

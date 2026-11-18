@@ -2,10 +2,6 @@ import hashlib
 import json
 import os
 import secrets
-import io
-import warnings
-from PIL import Image, UnidentifiedImageError
-import zxingcpp
 from pathlib import Path
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form
 from fastapi.responses import Response, FileResponse
@@ -14,14 +10,14 @@ from sqlalchemy.exc import IntegrityError
 from sqlmodel import Session, select
 from core.auth import get_current_user, get_admin_user, get_artist_user
 from core.db import get_session
-from core.security_file import validate_and_save_upload
 from models import User, SystemSetting, OrderStatus
 from models.payment import PaymentInstruction, CollectionReceipt, ArtistPayout, PayoutItem
 from schemas.payment import PaymentSettingsRequest, PayoutSelection
 from services.payment_service import (SETTINGS_KEY, payment_settings, create_instruction, invoice_and_order)
-from services.promptpay import qr_png, mobile_from_payload
+from services.promptpay import qr_png
 from services.payment_proof import save_payment_proof
-from services.payout_service import ledger_summary, payout_quote, payout_response
+from services.payout_service import ledger_summary, payout_quote, payout_response, persist_payout
+from services.promptpay_import import decode_recipient_qr
 
 router = APIRouter(prefix='/api/payments', tags=['payments'])
 PRIVATE = {'Cache-Control': 'private, no-store', 'X-Content-Type-Options': 'nosniff'}
@@ -29,24 +25,7 @@ PRIVATE = {'Cache-Control': 'private, no-store', 'X-Content-Type-Options': 'nosn
 
 @router.post('/settings/import-qr')
 def import_recipient_qr(qr: UploadFile = File(...), admin: User = Depends(get_admin_user)):
-    """Decode locally and return a candidate number; never save settings or images."""
-    content = qr.file.read(5*1024*1024+1)
-    if len(content) > 5*1024*1024:
-        raise HTTPException(413, 'QR image must be at most 5MB')
-    try:
-        with warnings.catch_warnings():
-            warnings.simplefilter('error', Image.DecompressionBombWarning)
-            with Image.open(io.BytesIO(content)) as image:
-                if image.format not in {'PNG','JPEG','WEBP'} or image.width*image.height > 10_000_000:
-                    raise ValueError('Use a PNG, JPG or WebP image up to 10 megapixels')
-                image.load()
-                results = zxingcpp.read_barcodes(image.convert('RGB'), formats=zxingcpp.BarcodeFormat.QRCode)
-                if len(results) != 1:
-                    raise ValueError('Upload an image containing exactly one readable PromptPay QR')
-                mobile = mobile_from_payload(results[0].text)
-        return {'mobile_number': mobile, 'saved': False}
-    except (ValueError, OSError, UnidentifiedImageError, Image.DecompressionBombWarning, Image.DecompressionBombError) as exc:
-        raise HTTPException(422, str(exc)) from exc
+    return decode_recipient_qr(qr)
 
 
 @router.get('/settings')
@@ -166,13 +145,7 @@ def record_payout(selection: str = Form(...), quote_digest: str = Form(...), tra
         # Another request may have completed while this one waited for the order lock.
         if quote['quote_digest'] != quote_digest:
             raise HTTPException(409, 'Payout totals changed. Review a fresh quote before recording the transfer.')
-        payout = ArtistPayout(artist_id=chosen.artist_id, recorded_by=admin.id, idempotency_key=idempotency_key,
-            request_digest=digest, transfer_reference=reference, proof_path=str(path), proof_sha256=proof_hash,
-            gross_satang=quote['gross_satang'], fee_satang=quote['fee_satang'], net_satang=quote['net_satang'])
-        session.add(payout)
-        session.flush()
-        for row in quote['items']:
-            session.add(PayoutItem(payout_id=payout.id, **{k: row[k] for k in ('order_id','gross_satang','fee_bps','fee_satang','net_satang')}))
+        payout = persist_payout(session, quote, admin.id, idempotency_key, digest, reference, path, proof_hash)
         session.commit()
         committed = True
         session.refresh(payout)
@@ -186,3 +159,8 @@ def record_payout(selection: str = Form(...), quote_digest: str = Form(...), tra
     finally:
         if not committed and path.exists():
             path.unlink()
+
+
+# Kept under the payments router so isolated payment test applications include it.
+from .payout_requests import router as payout_requests_router
+router.include_router(payout_requests_router)

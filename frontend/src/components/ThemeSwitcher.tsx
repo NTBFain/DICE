@@ -61,7 +61,7 @@ export default function ThemeSwitcher() {
         aria-expanded={open}
         aria-controls={panelId}
         onClick={() => setOpen(!open)}
-        className="p-2 text-neutral-300 hover:text-white bg-neutral-900 hover:bg-neutral-800 rounded-xl border border-neutral-800 cursor-pointer transition-colors flex items-center gap-1.5 text-xs font-semibold shadow-xs"
+        className="studio-theme-trigger p-2 text-neutral-300 hover:text-white bg-neutral-900 hover:bg-neutral-800 rounded-xl border border-neutral-800 cursor-pointer transition-colors flex items-center gap-1.5 text-xs font-semibold shadow-xs"
         title={c('title')}
         aria-label={c('title')}
       >
@@ -70,7 +70,7 @@ export default function ThemeSwitcher() {
       </button>
 
       {open && (
-        <div id={panelId} role="region" aria-label={c('title')} className="fixed left-3 right-3 top-16 max-w-sm mx-auto sm:max-w-none sm:absolute sm:left-auto sm:right-0 sm:top-full sm:mt-2 sm:w-80 bg-neutral-900 border border-neutral-800 rounded-2xl p-3.5 shadow-2xl z-50 animate-in fade-in zoom-in-95 duration-200 text-xs">
+        <div id={panelId} role="region" aria-label={c('title')} className="studio-menu fixed left-3 right-3 top-16 max-w-sm mx-auto sm:max-w-none sm:absolute sm:left-auto sm:right-0 sm:top-full sm:mt-2 sm:w-80 bg-neutral-900 border border-neutral-800 rounded-2xl p-3.5 shadow-2xl z-50 animate-in fade-in zoom-in-95 duration-200 text-xs">
           {/* Header & Tabs */}
           <div className="flex items-center justify-between border-b border-neutral-800 pb-2 mb-3">
             <div className="flex items-center gap-1 bg-neutral-950 p-1 rounded-xl border border-neutral-800">
@@ -124,7 +124,7 @@ export default function ThemeSwitcher() {
                     onClick={() => setTheme(t.id)}
                     className={`w-full flex items-center justify-between p-2 rounded-xl text-left font-medium transition-all cursor-pointer ${
                       isSelected
-                        ? 'bg-blue-600 text-white font-bold'
+                        ? 'studio-selected text-white font-bold'
                         : 'text-neutral-300 hover:bg-neutral-800 hover:text-white'
                     }`}
                   >
@@ -174,7 +174,7 @@ export default function ThemeSwitcher() {
                     onClick={() => setLayoutMode(mode.id as LayoutMode)}
                     className={`w-full text-left p-3 rounded-xl border transition-all cursor-pointer ${
                       layoutMode === mode.id
-                        ? 'bg-blue-600 text-white font-bold border-blue-500'
+                        ? 'studio-selected text-white font-bold border-blue-500'
                         : 'bg-neutral-950 border-neutral-800 text-neutral-400 hover:text-white'
                     }`}
                   >
@@ -207,7 +207,7 @@ export default function ThemeSwitcher() {
                       onClick={() => setCustomBgUrl(preset.url)}
                       className={`p-2 rounded-lg text-left text-[11px] border transition-all cursor-pointer flex items-center justify-between ${
                         customBgUrl === preset.url
-                          ? 'bg-blue-600 text-white font-bold border-blue-500'
+                          ? 'studio-selected text-white font-bold border-blue-500'
                           : 'bg-neutral-950 border-neutral-800 text-neutral-300'
                       }`}
                     >

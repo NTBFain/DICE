@@ -4,6 +4,7 @@ from sqlalchemy import update
 from sqlmodel import Session, select
 from models import Order, MilestoneInvoice, SystemSetting, OrderStatus
 from models.payment import PaymentInstruction, PayoutItem
+from models.payout_request import PayoutReservation
 from services.promptpay import build_payload, to_satang
 
 SETTINGS_KEY = 'platform_payment_settings_v1'
@@ -32,6 +33,8 @@ def lock_order(session: Session, order_id: int) -> Order:
 
 
 def assert_unsettled(session: Session, order_id: int):
+    if session.get(PayoutReservation, order_id):
+        raise HTTPException(409, 'This order is reserved by an active payout request. Resolve the request before changing finances or status.')
     if session.exec(select(PayoutItem.id).where(PayoutItem.order_id == order_id)).first() is not None:
         raise HTTPException(409, 'This order has a recorded payout. Financial and status changes require a future adjustment workflow.')
 

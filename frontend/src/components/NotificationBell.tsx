@@ -100,17 +100,17 @@ export default function NotificationBell() {
         className="relative p-2 text-neutral-400 hover:text-white transition-colors rounded-full hover:bg-neutral-800 btn-press cursor-pointer"
         aria-label={t('title')}
       >
-        <Bell className={`w-5 h-5 ${unreadCount > 0 ? 'text-blue-400 animate-wiggle-repeat' : ''}`} />
+        <Bell className={`w-5 h-5 ${unreadCount > 0 ? 'text-blue-400' : ''}`} />
         {unreadCount > 0 && (
           <span className="absolute top-1 right-1 flex h-4 w-4 items-center justify-center rounded-full bg-red-500 text-[10px] font-bold text-white border-2 border-neutral-900 shadow-xs">
-            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
+
             <span className="relative">{unreadCount > 9 ? '9+' : unreadCount}</span>
           </span>
         )}
       </button>
 
       {isOpen && (
-        <div id={panelId} role="region" aria-label={t('title')} className="absolute right-0 mt-2 w-80 max-w-[calc(100vw-1rem)] bg-neutral-900 border border-neutral-800 rounded-2xl shadow-xl overflow-hidden z-50 animate-fade-in-scale">
+        <div id={panelId} role="region" aria-label={t('title')} className="studio-menu absolute right-0 mt-2 w-80 max-w-[calc(100vw-1rem)] bg-neutral-900 border border-neutral-800 rounded-2xl shadow-xl overflow-hidden z-50 animate-fade-in-scale">
           <div className="flex items-center justify-between p-3 border-b border-neutral-800 bg-neutral-800/50">
             <h3 className="font-semibold text-white">{t('title')}</h3>
             {unreadCount > 0 && (
@@ -136,7 +136,7 @@ export default function NotificationBell() {
                   return (
                   <div
                     key={notif.id}
-                    className={`p-3 border-b border-neutral-800/50 transition-colors ${notif.is_read ? 'bg-neutral-900 opacity-70' : 'bg-neutral-800/30'}`}
+                    className={`p-3 border-b border-neutral-800/50 transition-colors ${notif.is_read ? 'bg-neutral-900' : 'bg-neutral-800/30'}`}
                   >
                     <div className="flex justify-between items-start gap-2">
                       <div className="flex-1">
@@ -154,7 +154,7 @@ export default function NotificationBell() {
                         <div className="w-2 h-2 rounded-full bg-blue-500 mt-1 flex-shrink-0"></div>
                       )}
                     </div>
-                    
+
                     <div className="mt-2 flex items-center gap-2">
                       {notif.link && (
                         <Link

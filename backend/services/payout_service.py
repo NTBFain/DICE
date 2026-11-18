@@ -4,11 +4,12 @@ from fastapi import HTTPException
 from sqlmodel import Session, select
 from models import Order, OrderStatus, MilestoneInvoice, User
 from models.payment import CollectionReceipt, PayoutItem, ArtistPayout
+from models.payout_request import PayoutReservation, PayoutRequest
 from services.promptpay import to_satang, order_fee
 from services.payment_service import lock_order
 
 
-def settlement_row(session: Session, order: Order) -> dict:
+def settlement_row(session: Session, order: Order, *, request_id=None) -> dict:
     receipts = session.exec(select(CollectionReceipt).where(CollectionReceipt.order_id == order.id)
                             .order_by(CollectionReceipt.id)).all()
     invoices = session.exec(select(MilestoneInvoice).where(MilestoneInvoice.order_id == order.id)
@@ -18,8 +19,12 @@ def settlement_row(session: Session, order: Order) -> dict:
     paid_total = sum(to_satang(i.amount) for i in invoices if i.is_paid)
     fully_paid = bool(invoices) and all(i.is_paid for i in invoices) and order.agreed_price is not None and paid_total >= to_satang(order.agreed_price)
     settled = session.exec(select(PayoutItem.id).where(PayoutItem.order_id == order.id)).first() is not None
+    reservation = session.get(PayoutReservation, order.id)
     if settled:
         state = 'SETTLED'
+    elif reservation and reservation.request_id != request_id:
+        request = session.get(PayoutRequest, reservation.request_id)
+        state = 'PAYOUT_PROCESSING' if request.status == 'PROCESSING' else 'PAYOUT_REQUESTED'
     elif order.status == OrderStatus.CANCELLED:
         state = 'CANCELLED_MANUAL_RESOLUTION' if gross else 'CANCELLED'
     elif not gross:
@@ -40,7 +45,7 @@ def settlement_row(session: Session, order: Order) -> dict:
                 fee_satang=fee, net_satang=gross-fee, fingerprint=fingerprint)
 
 
-def payout_quote(session: Session, artist_id: int, order_ids: list[int], *, lock=False):
+def payout_quote(session: Session, artist_id: int, order_ids: list[int], *, lock=False, request_id=None):
     if not order_ids or len(set(order_ids)) != len(order_ids):
         raise HTTPException(422, 'Select at least one distinct order')
     rows = []
@@ -50,7 +55,7 @@ def payout_quote(session: Session, artist_id: int, order_ids: list[int], *, lock
             raise HTTPException(404, 'Order not found')
         if order.artist_id != artist_id:
             raise HTTPException(409, 'Every selected order must belong to the selected artist')
-        row = settlement_row(session, order)
+        row = settlement_row(session, order, request_id=request_id)
         if row['status'] != 'ELIGIBLE':
             raise HTTPException(409, f"Order {order_id} is not payout eligible: {row['status']}")
         rows.append(row)
@@ -59,6 +64,19 @@ def payout_quote(session: Session, artist_id: int, order_ids: list[int], *, lock
                 gross_satang=sum(r['gross_satang'] for r in rows),
                 fee_satang=sum(r['fee_satang'] for r in rows),
                 net_satang=sum(r['net_satang'] for r in rows))
+
+
+def persist_payout(session, quote, admin_id, key, digest, reference, proof_path, proof_hash):
+    """Shared settlement write; callers own locks, replay checks and the transaction."""
+    payout = ArtistPayout(artist_id=quote['artist_id'], recorded_by=admin_id,
+        idempotency_key=key, request_digest=digest, transfer_reference=reference,
+        proof_path=str(proof_path), proof_sha256=proof_hash,
+        gross_satang=quote['gross_satang'], fee_satang=quote['fee_satang'], net_satang=quote['net_satang'])
+    session.add(payout)
+    session.flush()
+    for row in quote['items']:
+        session.add(PayoutItem(payout_id=payout.id, **{k: row[k] for k in ('order_id','gross_satang','fee_bps','fee_satang','net_satang')}))
+    return payout
 
 
 def payout_response(session: Session, payout: ArtistPayout):
@@ -90,4 +108,5 @@ def ledger_summary(session: Session, user):
         approved_invoice_gross_satang=historical_satang,
         platform_collections_satang=sum(r['gross_satang'] for r in rows),
         eligible_net_satang=sum(r['net_satang'] for r in rows if r['status'] == 'ELIGIBLE'),
+        requested_net_satang=sum(r['net_satang'] for r in rows if r['status'] in ('PAYOUT_REQUESTED','PAYOUT_PROCESSING')),
         recorded_payout_net_satang=sum(p.net_satang for p in payouts))

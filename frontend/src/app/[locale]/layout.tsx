@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { THEMES, themeVariables } from "@/lib/themePalettes";
 import "../globals.css";
 import Providers from "@/components/Providers";
 import Header from "@/components/Header";
@@ -31,7 +32,7 @@ export default async function RootLayout({
   const messages = await getMessages();
 
   return (
-    <html lang={locale} suppressHydrationWarning>
+    <html lang={locale} data-theme="obsidian" style={{...themeVariables(THEMES[0]), colorScheme: "dark"}} suppressHydrationWarning>
       <body
         suppressHydrationWarning
         className={`font-sans antialiased min-h-screen bg-[var(--bg-primary,#09090b)] text-[var(--text-primary,#f4f4f5)] flex flex-col pb-20 md:pb-0 transition-colors duration-200`}
