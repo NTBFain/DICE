@@ -9,6 +9,7 @@ export type PayoutRequest = {
   status: 'REQUESTED' | 'PROCESSING' | 'TRANSFER_RECORDED' | 'CANCELLED' | 'REJECTED';
   receipt_status: 'PENDING' | 'CONFIRMED' | 'ISSUE_REPORTED'; version: number; claimed_by: number | null;
   payout_id: number | null; created_at: string; updated_at: string;
+  refund_hold: boolean;
   items?: {order_id: number; title: string; gross_satang: number; fee_bps: number; fee_satang: number; net_satang: number}[];
   events?: {id: number; actor_id: number; action: string; note: string; version: number; created_at: string}[];
   payout?: Payout | null;

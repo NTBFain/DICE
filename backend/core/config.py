@@ -7,6 +7,11 @@ class Settings(BaseSettings):
     REDIS_URL: str = "redis://localhost:6379/0"
     SECRET_KEY: str
     DEMO_MODE: bool = False
+    STRIPE_CHECKOUT_ENABLED: bool = False
+    STRIPE_LIVE_CHECKOUT_ENABLED: bool = False
+    STRIPE_SECRET_KEY: str = ""
+    STRIPE_WEBHOOK_SECRET: str = ""
+    STRIPE_RETURN_ORIGIN: str = ""
 
     @field_validator('SECRET_KEY')
     @classmethod

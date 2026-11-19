@@ -61,6 +61,7 @@ class MilestoneInvoiceResponse(BaseModel):
     title: str
     amount: float
     is_paid: bool
+    payment_mode: str = "manual"
     slip_image_url: Optional[str] = None
     approved_by: Optional[int] = None
     approved_at: Optional[datetime] = None

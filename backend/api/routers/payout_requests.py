@@ -123,6 +123,8 @@ def transfer_qr(request_id: int, session: Session = Depends(get_session), admin:
     request = load_request(session, request_id, admin)
     if request.status != 'PROCESSING' or request.claimed_by != admin.id:
         raise HTTPException(409, 'Claim the request before displaying transfer instructions')
+    payout_quote(session, request.artist_id, [item.order_id for item in request_items(session, request.id)],
+                 request_id=request.id)
     return Response(qr_png(build_payload(request.mobile_number, request.net_satang)), media_type='image/png',
         headers={**PRIVATE, 'Content-Disposition': f'attachment; filename="DICE-payout-request-{request_id}.png"'})
 

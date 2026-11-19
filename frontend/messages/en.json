@@ -250,6 +250,7 @@
     "financialMilestones": "Financial Milestones",
     "noMilestones": "No milestones created yet.",
     "paymentConfirmed": "Payment manually approved",
+    "stripePaymentConfirmed": "Payment confirmed by Stripe",
     "slipUnderReview": "Slip Under Review",
     "deliverables": "Deliverables & Drafts",
     "noUploadedFiles": "No files uploaded yet.",
@@ -1262,6 +1263,7 @@
     "issue": "Issue Invoice",
     "invoicesHeading": "Issued Invoices",
     "paid": "Manually approved",
+    "stripePaid": "Confirmed by Stripe",
     "unpaid": "UNPAID",
     "approve": "Approve Payment",
     "dialogLabel": "Create manual brief ticket",
@@ -1344,6 +1346,8 @@
     "gallery": "Explore Gallery"
   },
   "Payments": {
+    "awaitingFinalArtwork": "Payment confirmed. Awaiting final artwork.",
+    "automaticConfirmation": "Pay in your banking app. This invoice updates when Stripe confirms the payment.",
     "payWithPromptPay": "Pay with PromptPay",
     "close": "Close",
     "working": "Working…",
@@ -1410,6 +1414,8 @@
       "NO_PLATFORM_COLLECTION": "No recorded platform collection",
       "NOT_ELIGIBLE": "Waiting for completion and full payment",
       "NO_PAYOUT_DUE": "No payout due",
+      "REFUND_HOLD": "Payout on hold — Stripe refund",
+      "REFUND_PAYOUT_REVIEW": "Recorded payout requires review — Stripe refund",
       "PAYOUT_REQUESTED": "Request submitted",
       "PAYOUT_PROCESSING": "Processing — claimed by administrator"
     },
@@ -1444,6 +1450,8 @@
     "frozenDetails": "Snapshot at submission. Profile edits do not change this destination or these totals.",
     "claimant": "Claimed by administrator #{id}",
     "showQr": "Show / hide transfer QR",
+    "refundHold": "A Stripe refund has put this request on hold. Do not send money.",
+    "refundReview": "A Stripe refund affects this recorded payout. An administrator must review it.",
     "transferQr": "Artist transfer PromptPay QR",
     "qrWarning": "Check the receiving name and amount in your bank app before transferring. Displaying or downloading this QR does not transfer money. Previously downloaded QR codes cannot be revoked by DICE.",
     "downloadQr": "Download transfer QR",

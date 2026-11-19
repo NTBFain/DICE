@@ -1,4 +1,6 @@
 import json
+from core.config import settings
+from models.checkout import PromptPayCheckout
 from fastapi import HTTPException
 from sqlalchemy import update
 from sqlmodel import Session, select
@@ -58,10 +60,20 @@ def invoice_and_order(session: Session, invoice_id: int, user, *, lock=False):
     return invoice, order
 
 
+def uses_provider_checkout(session: Session, invoice: MilestoneInvoice) -> bool:
+    if session.exec(select(PromptPayCheckout.id).where(PromptPayCheckout.invoice_id == invoice.id)).first():
+        return True
+    if not settings.STRIPE_CHECKOUT_ENABLED or invoice.slip_image_url or invoice.is_paid:
+        return False
+    return session.exec(select(PaymentInstruction.id).where(PaymentInstruction.invoice_id == invoice.id)).first() is None
+
+
 def create_instruction(session: Session, invoice_id: int, user):
     invoice, order = invoice_and_order(session, invoice_id, user, lock=True)
     if invoice.is_paid or order.status == OrderStatus.CANCELLED:
         raise HTTPException(409, 'Payment instructions are unavailable for paid or cancelled invoices')
+    if uses_provider_checkout(session, invoice):
+        raise HTTPException(409, "Use provider checkout for this invoice")
     found = session.exec(select(PaymentInstruction).where(PaymentInstruction.invoice_id == invoice_id)).first()
     if found:
         return found

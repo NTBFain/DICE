@@ -22,6 +22,7 @@ import {
   User, Image as ImageIcon, Briefcase, Camera, Save
 } from 'lucide-react';
 import SecureImage from '@/components/SecureImage';
+import ProviderPromptPayButton from '@/components/payments/ProviderPromptPayButton';
 import PromptPayButton from '@/components/payments/PromptPayButton';
 import CommissionBriefView from '@/components/commission/CommissionBriefView';
 import ChatBox from '@/components/ChatBox';
@@ -31,6 +32,7 @@ function ClientDashboardContent() {
   const { user, loading: authLoading, fetchUser } = useAuth();
   const router = useRouter();
   const searchParams = useSearchParams();
+  const tPayments = useTranslations('Payments');
   const t = useTranslations('ClientDashboard');
   const queryClient = useQueryClient();
   const locale = useLocale();
@@ -96,6 +98,7 @@ function ClientDashboardContent() {
     queryKey: ['order-invoices', selectedOrderId],
     queryFn: () => getInvoices(selectedOrderId!),
     enabled: !!selectedOrderId,
+    refetchInterval: query => query.state.data?.some(invoice => invoice.payment_mode === 'provider' && !invoice.is_paid) ? 5000 : false,
   });
   const paymentVersion = invoices.map(invoice => `${invoice.id}:${invoice.is_paid}`).join('|');
 
@@ -109,7 +112,14 @@ function ClientDashboardContent() {
     queryKey: ['order-files', selectedOrderId],
     queryFn: () => getFiles(selectedOrderId!),
     enabled: !!selectedOrderId,
+    refetchInterval: invoices.some(invoice => invoice.payment_mode === 'provider') ? 5000 : false,
   });
+
+  useEffect(() => {
+    if (selectedOrderId && paymentVersion) {
+      void queryClient.invalidateQueries({ queryKey: ['order-files', selectedOrderId] });
+    }
+  }, [paymentVersion, queryClient, selectedOrderId]);
 
   // Mutations
   const submitRevisionMutation = useMutation({
@@ -488,10 +498,12 @@ function ClientDashboardContent() {
                         <div className="pt-4 border-t border-neutral-100 dark:border-neutral-800">
                           {inv.is_paid ? (
                             <span className="flex items-center justify-center gap-1.5 text-xs text-emerald-600 dark:text-emerald-400 font-black bg-emerald-50 dark:bg-emerald-500/10 px-4 py-2.5 rounded-xl border border-emerald-200 dark:border-emerald-500/20 w-full">
-                              <CheckCircle className="w-4 h-4" /> {t('paymentConfirmed')}
+                              <CheckCircle className="w-4 h-4" /> {t(inv.payment_mode === 'provider' ? 'stripePaymentConfirmed' : 'paymentConfirmed')}
                             </span>
                           ) : selectedOrder.status === 'CANCELLED' ? (
                             <p className="text-sm text-neutral-500">{t('cancelledPaymentUnavailable')}</p>
+                          ) : inv.payment_mode === 'provider' ? (
+                            <ProviderPromptPayButton invoiceId={inv.id} />
                           ) : inv.slip_image_url ? (
                             <span className="flex items-center justify-center gap-1.5 text-xs text-amber-600 dark:text-amber-400 font-black bg-amber-50 dark:bg-amber-500/10 px-4 py-2.5 rounded-xl border border-amber-200 dark:border-amber-500/20 w-full">
                               <FileCheck className="w-4 h-4" /> {t('slipUnderReview')}
@@ -505,8 +517,8 @@ function ClientDashboardContent() {
                               </label>
                             </div>
                           )}
-                          {!inv.is_paid && selectedOrder.status !== 'CANCELLED' && <PromptPayButton key={inv.id} invoiceId={inv.id} onUploaded={() => {void queryClient.invalidateQueries({queryKey: ['order-invoices', selectedOrderId]});}} />}
-                          {!inv.is_paid && selectedOrder.status !== 'CANCELLED' && inv.slip_image_url && (
+                          {inv.payment_mode !== 'provider' && !inv.is_paid && selectedOrder.status !== 'CANCELLED' && <PromptPayButton key={inv.id} invoiceId={inv.id} onUploaded={() => {void queryClient.invalidateQueries({queryKey: ['order-invoices', selectedOrderId]});}} />}
+                          {inv.payment_mode !== 'provider' && !inv.is_paid && selectedOrder.status !== 'CANCELLED' && inv.slip_image_url && (
                             <label className="mt-3 flex cursor-pointer items-center justify-center rounded-xl border p-2 text-sm">
                               {t('replaceSlip')}
                               <input type="file" aria-label={t('replaceSlip')} accept="image/jpeg,image/png,image/webp,application/pdf" onChange={(e) => handleUploadSlip(inv.id, e)} disabled={uploadingSlipId !== null} className="sr-only" />
@@ -523,6 +535,12 @@ function ClientDashboardContent() {
               {/* Files Section */}
               <div className="space-y-4">
                 <h3 className="text-[10px] font-black text-neutral-400 uppercase tracking-widest">{t('deliverables')}</h3>
+                {!loadingFiles && invoices.some(invoice => invoice.payment_mode === 'provider')
+                  && invoices.every(invoice => invoice.is_paid)
+                  && invoices.reduce((total, invoice) => total + Math.round(invoice.amount * 100), 0)
+                    >= Math.round((selectedOrder.agreed_price ?? Infinity) * 100)
+                  && !files.some(file => file.file_type === 'FINAL')
+                  && <p role="status" className="text-sm">{tPayments('awaitingFinalArtwork')}</p>}
                 {loadingFiles ? (
                   <Loader2 className="w-6 h-6 animate-spin text-blue-500" />
                 ) : files.length === 0 ? (

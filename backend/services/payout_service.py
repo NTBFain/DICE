@@ -3,10 +3,21 @@ import json
 from fastapi import HTTPException
 from sqlmodel import Session, select
 from models import Order, OrderStatus, MilestoneInvoice, User
+from models.checkout import REFUND_HOLD_STATUSES, PromptPayCheckout, StripeRefund
 from models.payment import CollectionReceipt, PayoutItem, ArtistPayout
 from models.payout_request import PayoutReservation, PayoutRequest
 from services.promptpay import to_satang, order_fee
 from services.payment_service import lock_order
+
+
+def has_refund_hold(session: Session, order_ids: list[int]) -> bool:
+    refund = session.exec(select(StripeRefund.id).join(
+        PromptPayCheckout, (PromptPayCheckout.provider_payment_id == StripeRefund.provider_payment_id)
+        & (PromptPayCheckout.live == StripeRefund.live),
+    ).join(MilestoneInvoice, PromptPayCheckout.invoice_id == MilestoneInvoice.id).where(
+        MilestoneInvoice.order_id.in_(order_ids), StripeRefund.status.in_(REFUND_HOLD_STATUSES)
+    ).limit(1)).first()
+    return refund is not None
 
 
 def settlement_row(session: Session, order: Order, *, request_id=None) -> dict:
@@ -14,13 +25,19 @@ def settlement_row(session: Session, order: Order, *, request_id=None) -> dict:
                             .order_by(CollectionReceipt.id)).all()
     invoices = session.exec(select(MilestoneInvoice).where(MilestoneInvoice.order_id == order.id)
                             .order_by(MilestoneInvoice.id)).all()
-    gross = sum(r.amount_satang for r in receipts)
+    provider_receipts = session.exec(select(PromptPayCheckout).join(
+        MilestoneInvoice, MilestoneInvoice.id == PromptPayCheckout.invoice_id
+    ).where(MilestoneInvoice.order_id == order.id, PromptPayCheckout.status == "CONFIRMED")
+      .order_by(PromptPayCheckout.id)).all()
+    gross = sum(r.amount_satang for r in receipts) + sum(r.amount_satang for r in provider_receipts)
     fee = order_fee(gross, order.platform_fee_bps_snapshot)
     paid_total = sum(to_satang(i.amount) for i in invoices if i.is_paid)
     fully_paid = bool(invoices) and all(i.is_paid for i in invoices) and order.agreed_price is not None and paid_total >= to_satang(order.agreed_price)
     settled = session.exec(select(PayoutItem.id).where(PayoutItem.order_id == order.id)).first() is not None
     reservation = session.get(PayoutReservation, order.id)
-    if settled:
+    if provider_receipts and has_refund_hold(session, [order.id]):
+        state = 'REFUND_PAYOUT_REVIEW' if settled else 'REFUND_HOLD'
+    elif settled:
         state = 'SETTLED'
     elif reservation and reservation.request_id != request_id:
         request = session.get(PayoutRequest, reservation.request_id)
@@ -39,6 +56,8 @@ def settlement_row(session: Session, order: Order, *, request_id=None) -> dict:
     basis = [order.id, order.artist_id, order.status.value, order.agreed_price,
              order.platform_fee_bps_snapshot, [(i.id, i.amount, i.is_paid) for i in invoices],
              [(r.id, r.amount_satang, r.instruction_id) for r in receipts], settled]
+    if provider_receipts:
+        basis.append([(row.provider_payment_id, row.amount_satang) for row in provider_receipts])
     fingerprint = hashlib.sha256(json.dumps(basis, separators=(',', ':')).encode()).hexdigest()
     return dict(order_id=order.id, artist_id=order.artist_id, title=order.title,
                 status=state, gross_satang=gross, fee_bps=order.platform_fee_bps_snapshot,

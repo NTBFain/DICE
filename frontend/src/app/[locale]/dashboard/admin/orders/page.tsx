@@ -564,7 +564,7 @@ function OrdersAdminModuleContent() {
                           <span className={`text-[10px] font-extrabold px-2.5 py-1 rounded-full border uppercase ${
                             inv.is_paid ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30' : 'bg-amber-500/20 text-amber-300 border-amber-500/30'
                           }`}>
-                            {inv.is_paid ? w('paid') : w('unpaid')}
+                            {inv.is_paid ? w(inv.payment_mode === 'provider' ? 'stripePaid' : 'paid') : w('unpaid')}
                           </span>
 
                           {!inv.is_paid && (

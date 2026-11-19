@@ -25,7 +25,8 @@ from schemas import (
     FileResponse
 )
 from services.system_service import get_setting
-from services.payment_service import lock_order, assert_unsettled
+from services.payment_service import lock_order, assert_unsettled, uses_provider_checkout
+from models.checkout import PromptPayCheckout
 from models.payment import PaymentInstruction, CollectionReceipt
 from core.time import utcnow
 from services.promptpay import to_satang
@@ -195,6 +196,14 @@ def update_order(
     if request.status is not None or request.agreed_price is not None:
         assert_unsettled(session, order_id)
 
+    if request.agreed_price is not None or request.status == OrderStatus.CANCELLED.value:
+        active = session.exec(select(PromptPayCheckout.id).join(
+            MilestoneInvoice, MilestoneInvoice.id == PromptPayCheckout.invoice_id
+        ).where(MilestoneInvoice.order_id == order_id,
+                PromptPayCheckout.status.in_(("CREATING", "PENDING", "REVIEW")))).first()
+        if active:
+            raise HTTPException(409, "Resolve the active checkout before changing the price or cancelling.")
+
     # 1. State Machine Transitions
     if request.status is not None:
         if not (current_user.is_admin or (current_user.is_artist and order.artist_id == current_user.id)):
@@ -342,7 +351,9 @@ def get_order_invoices(order_id: int, session: Session = Depends(get_session), c
         raise HTTPException(status_code=403, detail="Not authorized to view invoices for this order")
         
     invoices = session.exec(select(MilestoneInvoice).where(MilestoneInvoice.order_id == order_id)).all()
-    return invoices
+    return [invoice.model_dump() | {
+        "payment_mode": "provider" if uses_provider_checkout(session, invoice) else "manual"
+    } for invoice in invoices]
 
 @router.post("/invoices/{invoice_id}/pay", response_model=MilestoneInvoiceResponse)
 def pay_invoice(
@@ -369,6 +380,8 @@ def pay_invoice(
     if order.status == OrderStatus.CANCELLED:
         raise HTTPException(status_code=409, detail="Cannot upload payment proof for a cancelled order.")
         
+    if uses_provider_checkout(session, invoice):
+        raise HTTPException(409, "This invoice is confirmed by the payment provider")
     os.makedirs("uploads/slips", exist_ok=True)
     file_ext = os.path.splitext(slip.filename or "")[1].lower()
     if file_ext not in [".jpg", ".jpeg", ".png", ".webp", ".pdf"]:
@@ -459,6 +472,8 @@ def approve_invoice_payment(
     if order.status == OrderStatus.CANCELLED:
         raise HTTPException(409, 'Cannot approve payment for a cancelled order')
     assert_unsettled(session, order.id)
+    if uses_provider_checkout(session, invoice):
+        raise HTTPException(409, "This invoice is confirmed by the payment provider")
     instruction = session.exec(select(PaymentInstruction).where(PaymentInstruction.invoice_id == invoice_id)).first()
     if instruction:
         if not invoice.slip_image_url or not glob.glob(os.path.join('uploads/slips', f'slip_{invoice_id}_*')):
