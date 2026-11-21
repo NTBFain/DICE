@@ -30,6 +30,8 @@ import {
 export default function WatermarkPanel({ readOnly = false }: { readOnly?: boolean }) {
   const studio = useTranslations('Studio');
   const locale = useLocale();
+  const [tryingPreview, setTryingPreview] = useState(false);
+  const showControls = !readOnly || tryingPreview;
   const [notice, setNotice] = useState('');
   const [saveError, setSaveError] = useState('');
   const { apiClient } = useAuth();
@@ -58,7 +60,7 @@ export default function WatermarkPanel({ readOnly = false }: { readOnly?: boolea
 
   // Load fetched settings into state
   useEffect(() => {
-    if (settings) {
+    if (settings && !(readOnly && tryingPreview)) {
       setWType(settings.type || 'text');
       setWText(settings.text || 'WIP DICE #{order_id}');
       setWPattern(settings.pattern || 'tiled');
@@ -67,11 +69,11 @@ export default function WatermarkPanel({ readOnly = false }: { readOnly?: boolea
       setWTileDensity(settings.tile_density || 'medium');
       setWAntiAiGrid(settings.include_anti_ai_grid ?? false);
       
-      if (settings.image_path) {
-        setLogoPreviewUrl(settings.image_path.startsWith('http') ? settings.image_path : (settings.image_path.startsWith('/') ? settings.image_path : `/${settings.image_path}`));
-      }
+      setLogoFile(null);
+      const path = settings.image_path;
+      setLogoPreviewUrl(path && !path.startsWith('http') && !path.startsWith('/') ? `/${path}` : path || '');
     }
-  }, [settings]);
+  }, [settings, readOnly, tryingPreview]);
 
   // Cleanup object URL
   useEffect(() => {
@@ -173,6 +175,10 @@ export default function WatermarkPanel({ readOnly = false }: { readOnly?: boolea
     );
   }
 
+  if (!settings) {
+    return <p role="alert">{studio('watermarkLoadError')}</p>;
+  }
+
   // Calculate repeat arrays for grid preview depending on density
   const gridRowsCount = wTileDensity === 'high' ? 5 : wTileDensity === 'low' ? 3 : 4;
   const gridColsCount = wTileDensity === 'high' ? 4 : wTileDensity === 'low' ? 2 : 3;
@@ -181,7 +187,6 @@ export default function WatermarkPanel({ readOnly = false }: { readOnly?: boolea
 
   return (
     <div className="w-full text-neutral-100">
-      {readOnly && <p role="note" className="mb-4 rounded-xl border border-blue-700 p-3">{locale === 'th' ? studio('watermark_181_0') : 'These are global watermark settings. Only administrators can save them; artists can explore the preview.'}</p>}
       {notice && <p role="status" className="mb-4 text-emerald-300">{notice}</p>}
       {saveError && <p role="alert" className="mb-4 text-red-300">{saveError}</p>}
       <div className="max-w-6xl mx-auto space-y-8">
@@ -193,14 +198,19 @@ export default function WatermarkPanel({ readOnly = false }: { readOnly?: boolea
               <ShieldCheck className="w-3.5 h-3.5" /> Engine v2.0 & Dynamic Tags
             </div>
             <h1 className="text-3xl font-black tracking-tight flex items-center gap-3 text-white">
-              <Settings className="w-8 h-8 text-blue-500" /> {' '}{studio('watermark_193_0')}{' '}</h1>
+              <Settings className="w-8 h-8 text-blue-500" /> {' '}{studio(readOnly ? 'watermarkActiveTitle' : 'watermark_193_0')}{' '}</h1>
             <p className="text-neutral-400 text-sm mt-1">
-              {' '}{studio('watermark_196_0')}{' '}</p>
+              {' '}{studio(readOnly ? (tryingPreview ? 'watermarkPreviewOnly' : 'watermarkManaged') : 'watermark_196_0')}{' '}</p>
           </div>
+          {readOnly && <button type="button" aria-expanded={tryingPreview}
+            onClick={() => setTryingPreview(value => !value)}
+            className="studio-primary shrink-0 rounded-xl px-4 py-2 text-sm font-semibold">
+            {studio(tryingPreview ? 'watermarkExitPreview' : 'watermarkTryPreview')}
+          </button>}
         </div>
 
         {/* Quick Presets Bar (ใช้ง่ายใน 1 คลิก!) */}
-        <div className="bg-neutral-900/80 border border-neutral-800 p-4 rounded-2xl">
+        {showControls && <div className="bg-neutral-900/80 border border-neutral-800 p-4 rounded-2xl">
           <div className="flex items-center justify-between mb-3">
             <span className="text-xs font-extrabold uppercase tracking-wider text-neutral-400 flex items-center gap-1.5">
               <Sparkles className="w-4 h-4 text-amber-400" /> {' '}{studio('watermark_205_0')}{' '}</span>
@@ -264,13 +274,13 @@ export default function WatermarkPanel({ readOnly = false }: { readOnly?: boolea
               </div>
             </button>
           </div>
-        </div>
+        </div>}
 
         {/* Main Settings Studio Grid */}
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start pb-16">
           
           {/* Settings Form Column (7 Cols) */}
-          <form onSubmit={handleSave} className="lg:col-span-7 bg-neutral-900/60 border border-neutral-800 p-6 md:p-7 rounded-3xl space-y-6 shadow-2xl">
+          {showControls && <form onSubmit={handleSave} className="lg:col-span-7 bg-neutral-900/60 border border-neutral-800 p-6 md:p-7 rounded-3xl space-y-6 shadow-2xl">
             
             {/* 1. Watermark Mode (Text / Image / Hybrid) */}
             <div className="space-y-2.5">
@@ -548,10 +558,10 @@ export default function WatermarkPanel({ readOnly = false }: { readOnly?: boolea
             </div>
 
             {/* Save Action Button */}
-            <button
+            {!readOnly && <button
               type="submit"
               disabled={saving || readOnly}
-              className="w-full bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white font-black py-4 rounded-2xl transition-all cursor-pointer disabled:opacity-50 flex items-center justify-center gap-2 text-sm shadow-xl shadow-blue-600/20"
+              className="studio-primary flex w-full items-center justify-center gap-2 rounded-xl border px-4 py-3 text-sm font-semibold transition-colors disabled:cursor-not-allowed disabled:opacity-50"
             >
               {saving ? (
                 <>
@@ -561,38 +571,27 @@ export default function WatermarkPanel({ readOnly = false }: { readOnly?: boolea
                 <>
                   <Sparkles className="w-5 h-5" /> {' '}{studio('watermark_577_0')}{' '}</>
               )}
-            </button>
+            </button>}
 
-          </form>
+          </form>}
 
           {/* Real-time Interactive Studio Preview (5 Cols) */}
-          <div className="lg:col-span-5 space-y-4 sticky top-6">
+          <div className={`min-w-0 space-y-4 self-start ${showControls ? "lg:col-span-5" : "lg:col-span-8 lg:col-start-3"}`}>
             <div className="flex items-center justify-between">
               <h3 className="text-xs font-extrabold text-neutral-400 uppercase tracking-widest flex items-center gap-1.5">
                 <Sparkles className="w-4 h-4 text-blue-400" /> {' '}{studio('watermark_588_0')}{' '}</h3>
               <span className="text-[10px] text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-2 py-0.5 rounded-full font-mono">
-                Interactive Canvas
+                {studio(readOnly && !tryingPreview ? 'watermarkSavedSettings' : 'watermarkSamplePreview')}
               </span>
             </div>
 
             {/* Canvas Preview Container */}
-            <div className="relative aspect-[4/3] w-full rounded-3xl overflow-hidden border border-neutral-800 shadow-2xl bg-neutral-900 select-none group">
+            <div className="relative aspect-[4/3] w-full rounded-2xl overflow-hidden border border-[var(--border-subtle)] select-none">
               
-              {/* Artwork Background simulation */}
-              <div className="w-full h-full bg-gradient-to-br from-neutral-950 via-indigo-950 to-purple-950 flex flex-col items-center justify-center relative overflow-hidden">
-                <div className="absolute inset-0 bg-[linear-gradient(to_right,#ffffff08_1px,transparent_1px),linear-gradient(to_bottom,#ffffff08_1px,transparent_1px)] bg-[size:28px_28px]"></div>
-                <div className="absolute w-72 h-72 rounded-full bg-purple-600/15 blur-3xl -top-16 -left-16 animate-pulse"></div>
-                <div className="absolute w-80 h-80 rounded-full bg-blue-600/15 blur-3xl -bottom-20 -right-20 animate-pulse"></div>
-
-                {/* Mock artwork illustration placeholder */}
-                <div className="relative z-10 flex flex-col items-center gap-2 text-center p-6">
-                  <div className="w-16 h-16 rounded-2xl bg-white/10 border border-white/15 flex items-center justify-center shadow-2xl backdrop-blur-md">
-                    <ImageIcon className="w-8 h-8 text-neutral-200" />
-                  </div>
-                  <p className="text-xs font-bold text-neutral-200">SAMPLE ARTWORK PREVIEW</p>
-                  <p className="text-[10px] text-neutral-400 max-w-[200px]">
-                    {' '}{studio('watermark_611_0')}{' '}</p>
-                </div>
+              <div aria-hidden="true" className="absolute inset-0 bg-[#263449]">
+                <div className="absolute -left-[12%] top-[18%] size-[72%] rounded-full bg-[#536c80]" />
+                <div className="absolute -bottom-[40%] right-[-12%] size-[95%] rounded-full bg-[#936b65]" />
+                <div className="absolute inset-0 bg-[#182438]/30" />
               </div>
 
               {/* Anti-AI Protection Overlay Layer */}
@@ -653,9 +652,9 @@ export default function WatermarkPanel({ readOnly = false }: { readOnly?: boolea
               </div>
 
               {/* Status Header Badge */}
-              <div className="absolute top-3 left-3 z-30 bg-black/75 border border-neutral-700/60 backdrop-blur-md px-3 py-1 rounded-full text-[10px] font-bold text-neutral-300 flex items-center gap-1.5">
-                <div className="w-2 h-2 rounded-full bg-blue-500 animate-ping"></div>
-                WIP Watermarked Preview
+              <div className="absolute top-3 left-3 z-30 bg-[var(--bg-surface)] border border-[var(--border-subtle)] px-3 py-1 rounded-full text-[10px] font-semibold text-[var(--text-primary)] flex items-center gap-1.5">
+                <div className="w-2 h-2 rounded-full bg-[var(--accent-primary)]"></div>
+                {studio('watermarkSamplePreview')}
               </div>
 
             </div>
@@ -691,7 +690,7 @@ function renderStampContent(type: 'text' | 'image' | 'hybrid', text: string, log
     return (
       <div className="flex flex-col items-center gap-1 bg-black/20 p-1.5 rounded-lg border border-white/20 backdrop-blur-[1px]">
         {logoUrl && <img src={logoUrl} alt="Logo" className="w-8 h-8 object-contain" />}
-        <span className="text-[11px] font-black text-white whitespace-nowrap tracking-wider">
+        <span className="text-[11px] font-semibold text-[#fff] whitespace-nowrap tracking-wide">
           {displayText}
         </span>
       </div>
@@ -699,7 +698,7 @@ function renderStampContent(type: 'text' | 'image' | 'hybrid', text: string, log
   }
 
   return (
-    <span className="text-[11px] md:text-xs font-black text-white whitespace-nowrap bg-black/30 px-2.5 py-1 rounded-md border border-white/30 drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)]">
+    <span className="text-[10px] md:text-xs font-semibold text-[#fff] whitespace-nowrap tracking-wide drop-shadow-sm">
       {displayText || 'WIP DICE'}
     </span>
   );

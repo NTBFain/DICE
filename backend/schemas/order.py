@@ -34,6 +34,7 @@ class CommissionBriefResponse(BaseModel):
     tos_version: int
 
 class OrderResponse(BaseModel):
+    receipt_acknowledged_at: Optional[datetime] = None
     platform_fee_bps_snapshot: int = 0
     id: int
     title: str
@@ -45,6 +46,7 @@ class OrderResponse(BaseModel):
     client_name: Optional[str] = None
     artist_id: int
     auction_id: Optional[int] = None
+    auction_type: Optional[str] = None
     artist_name: Optional[str] = None
     commission_brief: Optional[CommissionBriefResponse] = None
     start_date: Optional[datetime] = None
@@ -62,6 +64,7 @@ class MilestoneInvoiceResponse(BaseModel):
     amount: float
     is_paid: bool
     payment_mode: str = "manual"
+    stripe_checkout_pending: bool = False
     slip_image_url: Optional[str] = None
     approved_by: Optional[int] = None
     approved_at: Optional[datetime] = None
@@ -78,6 +81,7 @@ class RevisionResponse(BaseModel):
     created_at: datetime
 
 class FileResponse(BaseModel):
+    original_available: bool = False
     id: int
     order_id: int
     filename: str

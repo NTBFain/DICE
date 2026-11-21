@@ -4,6 +4,7 @@ from pathlib import Path
 from datetime import datetime,timedelta
 from concurrent.futures import ThreadPoolExecutor
 from unittest.mock import patch
+from fastapi import HTTPException
 from sqlmodel import SQLModel,Session,create_engine,select
 from models import User,ArtistProfile,Auction,AuctionType,AuctionStatus,Bid,Order,MilestoneInvoice
 from services.auction_service import check_and_close_auction,finalize_auto_buy
@@ -69,6 +70,22 @@ class AuctionAtomicTests(unittest.TestCase):
             other.add(Bid(auction_id=self.auction_id,bidder_id=self.client_id,amount=55.50))
             self.assertFalse(asyncio.run(finalize_auto_buy(stale,self.client_id,55.50,other)))
         self.assertEqual(self.counts(),(AuctionStatus.ENDED,self.client_id,1,1,1))
+    def test_explicit_auto_buy_accepts_leader_and_requires_the_current_price(self):
+        self.auction.end_time = datetime.utcnow() + timedelta(hours=1)
+        self.session.add(self.auction)
+        self.bid()
+        client = self.session.get(User, self.client_id)
+        for amount, auto_buy, status in [(50, True, 409), (14, False, 400)]:
+            with self.assertRaises(HTTPException) as failure:
+                asyncio.run(api_place_bid(self.auction_id, BidCreateRequest(amount=amount, auto_buy=auto_buy), self.session, client))
+            self.assertEqual(failure.exception.status_code, status)
+        self.assertEqual(self.counts(), (AuctionStatus.ACTIVE, None, 0, 0, 1))
+        request = BidCreateRequest(amount=50.25, auto_buy=True)
+        result = asyncio.run(api_place_bid(self.auction_id, request, self.session, client))
+        self.assertEqual((result.winner_id, result.winning_bid), (self.client_id, 50.25))
+        with self.assertRaises(HTTPException):
+            asyncio.run(api_place_bid(self.auction_id, request, self.session, client))
+        self.assertEqual(self.counts(), (AuctionStatus.ENDED, self.client_id, 1, 1, 2))
     def test_stale_expiry_does_not_override_a_committed_time_extension(self):
         self.bid()
         with Session(self.engine) as other:

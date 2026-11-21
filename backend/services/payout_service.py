@@ -8,6 +8,7 @@ from models.payment import CollectionReceipt, PayoutItem, ArtistPayout
 from models.payout_request import PayoutReservation, PayoutRequest
 from services.promptpay import to_satang, order_fee
 from services.payment_service import lock_order
+from services.order_service import has_final_artwork
 
 
 def has_refund_hold(session: Session, order_ids: list[int]) -> bool:
@@ -50,6 +51,8 @@ def settlement_row(session: Session, order: Order, *, request_id=None) -> dict:
         state = 'NOT_ELIGIBLE'
     elif gross - fee == 0:
         state = 'NO_PAYOUT_DUE'
+    elif not has_final_artwork(order.id, session):
+        state = 'FINAL_ARTWORK_REQUIRED'
     else:
         state = 'ELIGIBLE'
     # Includes inputs as well as totals so a stale quote cannot settle changed records.

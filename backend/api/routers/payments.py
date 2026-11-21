@@ -12,7 +12,7 @@ from core.auth import get_current_user, get_admin_user, get_artist_user
 from core.db import get_session
 from core.config import settings
 from models.checkout import PromptPayCheckout
-from services.stripe_checkout import start_checkout, verify_event, apply_event
+from services.stripe_checkout import start_checkout, refresh_checkout, verify_event, apply_event
 from starlette.concurrency import run_in_threadpool
 from models import User, SystemSetting, OrderStatus
 from models.payment import PaymentInstruction, CollectionReceipt, ArtistPayout, PayoutItem
@@ -70,6 +70,13 @@ def invoice_checkout(invoice_id: int, response: Response, locale: str = 'en',
                      session: Session = Depends(get_session), user: User = Depends(get_current_user)):
     response.headers.update(PRIVATE)
     return start_checkout(session, invoice_id, user, 'th' if locale == 'th' else 'en')
+
+
+@router.post('/invoices/{invoice_id}/checkout/status')
+def invoice_checkout_status(invoice_id: int, response: Response,
+                            session: Session = Depends(get_session), user: User = Depends(get_current_user)):
+    response.headers.update(PRIVATE)
+    return refresh_checkout(session, invoice_id, user)
 
 
 def process_stripe_event(event):

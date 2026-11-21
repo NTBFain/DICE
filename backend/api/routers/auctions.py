@@ -1,4 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks, UploadFile, File as FormFile, Form
+from pydantic import ValidationError
 from fastapi.responses import FileResponse as SecureFileResponse
 from sqlmodel import Session, select
 from sqlalchemy.orm import selectinload
@@ -10,7 +11,7 @@ import math
 
 from core.db import get_session
 from core.auth import get_current_user, get_admin_user, get_artist_user
-from core.security_file import validate_and_save_upload
+from core.security_file import validate_and_save_upload, MAX_DELIVERABLE_SIZE
 from models import Auction, AuctionStatus, AuctionType, Bid, User, Notification, NotificationType, AuctionMessage, ArtistProfile
 from schemas import (
     AuctionCreateRequest, AuctionUpdateRequest, AuctionResponse, 
@@ -202,6 +203,39 @@ def api_create_auction(
     session: Session = Depends(get_session), 
     artist_user: User = Depends(get_artist_user)
 ):
+    return _create_auction(request, session, artist_user)
+
+
+@router.post("/with-original", response_model=AuctionResponse)
+def create_auction_with_original(
+    listing: str = Form(...),
+    original: UploadFile = FormFile(...),
+    session: Session = Depends(get_session),
+    artist_user: User = Depends(get_artist_user),
+):
+    try:
+        request = AuctionCreateRequest.model_validate_json(listing)
+    except ValidationError as exc:
+        raise HTTPException(422, detail=exc.errors(include_context=False, include_input=False)) from exc
+    if request.auction_type != AuctionType.ADOPTABLE.value:
+        raise HTTPException(400, detail="Only finished-art auctions accept a private original")
+    filename = os.path.basename((original.filename or "").replace("\\", "/"))
+    extension = os.path.splitext(filename)[1].lower()
+    if extension not in ALLOWED_AUCTION_IMAGE_EXTENSIONS | {".psd", ".clip", ".pdf", ".zip", ".rar"}:
+        raise HTTPException(400, detail="Unsupported original artwork format")
+    key = f"auction_final_{secrets.token_hex(16)}{extension}"
+    path = os.path.join("uploads", "originals", key)
+    validate_and_save_upload(original, path, max_size=MAX_DELIVERABLE_SIZE, is_deliverable=True)
+    try:
+        return _create_auction(request, session, artist_user, original_key=key, original_filename=filename)
+    except Exception:
+        session.rollback()
+        if not session.exec(select(Auction.id).where(Auction.original_key == key)).first():
+            os.unlink(path)
+        raise
+
+
+def _create_auction(request, session, artist_user, *, original_key=None, original_filename=None):
     profile = session.exec(select(ArtistProfile).where(ArtistProfile.user_id == artist_user.id)).first()
     if not profile and not artist_user.is_admin:
         raise HTTPException(status_code=400, detail="You must register an artist profile before creating auctions")
@@ -218,9 +252,13 @@ def api_create_auction(
         auc_type = AuctionType(request.auction_type)
     except ValueError:
         raise HTTPException(status_code=400, detail="Invalid auction_type. Allowed: COMMISSION_SLOT, ADOPTABLE")
+    if auc_type == AuctionType.ADOPTABLE and not original_key:
+        raise HTTPException(422, detail="Upload a private original before launching a finished-art auction")
 
     auction = Auction(
         title=request.title.strip(),
+        original_key=original_key,
+        original_filename=original_filename,
         description=request.description.strip(),
         image_url=request.image_url,
         auction_type=auc_type,
@@ -274,7 +312,10 @@ async def api_place_bid(
         select(Bid).where(Bid.auction_id == auction_id).order_by(Bid.amount.desc()).with_for_update()
     ).first()
     
-    if highest_bid and highest_bid.bidder_id == current_user.id:
+    if request.auto_buy is True and (auction.auto_buy is None or request.amount != auction.auto_buy):
+        raise HTTPException(status_code=409, detail="The Auto Buy price has changed or is no longer available")
+
+    if request.auto_buy is not True and highest_bid and highest_bid.bidder_id == current_user.id:
         raise HTTPException(status_code=400, detail="You currently hold the highest bid on this auction")
         
     previous_highest = highest_bid
@@ -283,7 +324,13 @@ async def api_place_bid(
     if highest_bid:
         min_required_bid = round(highest_bid.amount + auction.bid_increment, 2)
         
-    if bid_amount < min_required_bid:
+    if request.auto_buy is False and auction.auto_buy is not None and bid_amount >= auction.auto_buy:
+        raise HTTPException(status_code=400, detail="Use Auto Buy to confirm a purchase at this price")
+
+    if request.auto_buy is True:
+        if bid_amount < auction.starting_bid or (highest_bid and bid_amount <= highest_bid.amount):
+            raise HTTPException(status_code=409, detail="This Auto Buy price is no longer available")
+    elif bid_amount < min_required_bid:
         raise HTTPException(status_code=400, detail=f"Bid amount must be at least ฿{min_required_bid:.2f}")
         
     new_bid = Bid(
@@ -303,9 +350,10 @@ async def api_place_bid(
             session.add(auction)
             
     # An auto-buy bid and its complete winning result form one transaction.
-    if auction.auto_buy is not None and bid_amount >= auction.auto_buy:
-        if not await finalize_auto_buy(auction, current_user.id, bid_amount, session):
-            raise HTTPException(status_code=409, detail="Auction was finalized by another bidder")
+    if request.auto_buy is True or (request.auto_buy is None and auction.auto_buy is not None and bid_amount >= auction.auto_buy):
+        expected_price = request.amount if request.auto_buy is True else None
+        if not await finalize_auto_buy(auction, current_user.id, bid_amount, session, expected_price=expected_price):
+            raise HTTPException(status_code=409, detail="The auction closed or the Auto Buy price changed")
     else:
         session.commit()
     session.refresh(new_bid)

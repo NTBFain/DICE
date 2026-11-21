@@ -8,15 +8,12 @@ import { getAnalytics } from '@/lib/api';
 import LedgerPanel from '@/components/payments/LedgerPanel';
 import {
   DollarSign,
-  TrendingUp,
   Briefcase,
   Gavel,
   Loader2,
-  Users,
   CheckCircle2,
   PieChart as PieIcon,
   BarChart2,
-  Calendar,
 } from 'lucide-react';
 import {
   BarChart,
@@ -44,7 +41,7 @@ export default function ArtistAnalyticsPage() {
     return (
       <div className="flex flex-col items-center justify-center py-24 space-y-3">
         <Loader2 className="w-8 h-8 text-blue-500 animate-spin" />
-        <p className="text-xs text-neutral-400 font-bold uppercase tracking-wider">
+        <p className="text-xs text-[var(--text-muted)] font-bold tracking-normal">
           Loading Earnings & Financial Stats...
         </p>
       </div>
@@ -59,36 +56,38 @@ export default function ArtistAnalyticsPage() {
     { name: studio('analytics_55_0'), value: analytics.adoptable_revenue },
   ];
 
-  const COLORS = ['#3b82f6', '#8b5cf6'];
+  const colors = ['var(--accent-primary)', 'var(--text-muted)'];
+  const tooltipStyle = {
+    backgroundColor: 'var(--bg-surface)',
+    border: '1px solid var(--border-subtle)',
+    borderRadius: 12,
+    color: 'var(--text-primary)',
+    boxShadow: 'var(--shadow-soft)',
+  };
+  const hasRevenueSources = pieData.some(({value}) => value > 0);
 
   return (
-    <div className="space-y-8">
-      <LedgerPanel />
+    <div className="space-y-6 text-[var(--text-primary)]">
       {/* Header Banner */}
-      <div className="bg-gradient-to-r from-blue-900/40 via-neutral-900 to-indigo-900/40 border border-blue-800/40 p-6 rounded-2xl relative overflow-hidden shadow-xl">
-        <div className="relative z-10 flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+      <div className="rounded-2xl border border-[var(--border-subtle)] bg-[var(--bg-surface)] p-5 sm:p-6">
+        <div className="flex flex-wrap items-center justify-between gap-4">
           <div>
-            <div className="flex items-center gap-2 mb-1">
-              <TrendingUp className="w-5 h-5 text-emerald-400" />
-              <span className="text-xs font-extrabold uppercase tracking-widest text-emerald-400">
-                Atelier Financial Analytics
-              </span>
-            </div>
-            <h1 className="text-2xl sm:text-3xl font-extrabold text-white">{studio('analytics_72_0')}</h1>
-            <p className="text-neutral-400 text-xs sm:text-sm mt-1">
+            <h1 className="text-2xl sm:text-3xl font-semibold text-[var(--text-primary)]">{studio('analytics_72_0')}</h1>
+            <p className="text-[var(--text-muted)] text-xs sm:text-sm mt-1">
               {' '}{studio('analytics_74_0')}{' '}</p>
           </div>
 
           {/* Time Filter Tabs */}
-          <div className="flex items-center bg-neutral-950/80 p-1.5 rounded-xl border border-neutral-800 shrink-0">
+          <div className="flex flex-wrap items-center gap-1 rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-primary)] p-1">
             {(['week', 'month', 'quarter', 'year'] as const).map((p) => (
               <button
                 key={p}
                 onClick={() => setPeriod(p)}
-                className={`px-3 py-1.5 text-xs font-bold rounded-lg capitalize transition-all cursor-pointer ${
+                aria-pressed={period === p}
+                className={`px-3 py-1.5 text-xs font-bold rounded-lg capitalize transition-colors cursor-pointer focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--accent-primary)] ${
                   period === p
-                    ? 'bg-blue-600 text-white shadow-md'
-                    : 'text-neutral-400 hover:text-white'
+                    ? 'bg-[var(--accent-solid)] text-[var(--accent-contrast)]'
+                    : 'text-[var(--text-muted)] hover:bg-[var(--bg-surface-hover)] hover:text-[var(--text-primary)]'
                 }`}
               >
                 {p === 'week' ? studio('analytics_90_1') : p === 'month' ? studio('analytics_90_2') : p === 'quarter' ? studio('analytics_90_3') : studio('analytics_90_4')}
@@ -101,47 +100,47 @@ export default function ArtistAnalyticsPage() {
       {/* KPI Cards Grid */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
         {/* Total Revenue */}
-        <div className="bg-neutral-900/60 border border-neutral-800 p-5 rounded-2xl flex items-center gap-4 shadow-md hover:border-blue-500/40 transition-colors">
-          <div className="w-12 h-12 bg-blue-500/10 rounded-2xl border border-blue-500/20 flex items-center justify-center shrink-0">
-            <DollarSign className="w-6 h-6 text-blue-400" />
+        <div className="bg-[var(--bg-surface)] border border-[var(--border-subtle)] p-4 rounded-2xl flex items-center gap-3 hover:border-[var(--border-hover)] transition-colors">
+          <div className="w-12 h-12 bg-[var(--accent-soft)] rounded-2xl border border-[var(--border-subtle)] flex items-center justify-center shrink-0">
+            <DollarSign className="w-6 h-6 text-[var(--accent-primary)]" />
           </div>
           <div>
-            <span className="text-[11px] text-neutral-400 font-bold uppercase tracking-wider block">{studio('analytics_105_0')}</span>
-            <span className="text-2xl font-black text-white">฿{totalRevenue.toLocaleString()}</span>
+            <span className="text-[11px] text-[var(--text-muted)] font-bold tracking-normal block">{studio('analytics_105_0')}</span>
+            <span className="text-2xl font-semibold text-[var(--text-primary)]">฿{totalRevenue.toLocaleString()}</span>
           </div>
         </div>
 
         {/* Commission Revenue */}
-        <div className="bg-neutral-900/60 border border-neutral-800 p-5 rounded-2xl flex items-center gap-4 shadow-md hover:border-blue-500/40 transition-colors">
-          <div className="w-12 h-12 bg-indigo-500/10 rounded-2xl border border-indigo-500/20 flex items-center justify-center shrink-0">
-            <Briefcase className="w-6 h-6 text-indigo-400" />
+        <div className="bg-[var(--bg-surface)] border border-[var(--border-subtle)] p-4 rounded-2xl flex items-center gap-3 hover:border-[var(--border-hover)] transition-colors">
+          <div className="w-12 h-12 bg-[var(--accent-soft)] rounded-2xl border border-[var(--border-subtle)] flex items-center justify-center shrink-0">
+            <Briefcase className="w-6 h-6 text-[var(--accent-primary)]" />
           </div>
           <div>
-            <span className="text-[11px] text-neutral-400 font-bold uppercase tracking-wider block">{studio('analytics_116_0')}</span>
-            <span className="text-2xl font-black text-white">฿{analytics.commission_revenue.toLocaleString()}</span>
+            <span className="text-[11px] text-[var(--text-muted)] font-bold tracking-normal block">{studio('analytics_116_0')}</span>
+            <span className="text-2xl font-semibold text-[var(--text-primary)]">฿{analytics.commission_revenue.toLocaleString()}</span>
           </div>
         </div>
 
         {/* Adoptable Auctions Revenue */}
-        <div className="bg-neutral-900/60 border border-neutral-800 p-5 rounded-2xl flex items-center gap-4 shadow-md hover:border-purple-500/40 transition-colors">
-          <div className="w-12 h-12 bg-purple-500/10 rounded-2xl border border-purple-500/20 flex items-center justify-center shrink-0">
-            <Gavel className="w-6 h-6 text-purple-400" />
+        <div className="bg-[var(--bg-surface)] border border-[var(--border-subtle)] p-4 rounded-2xl flex items-center gap-3 hover:border-[var(--border-hover)] transition-colors">
+          <div className="w-12 h-12 bg-[var(--accent-soft)] rounded-2xl border border-[var(--border-subtle)] flex items-center justify-center shrink-0">
+            <Gavel className="w-6 h-6 text-[var(--accent-primary)]" />
           </div>
           <div>
-            <span className="text-[11px] text-neutral-400 font-bold uppercase tracking-wider block">{studio('analytics_127_0')}</span>
-            <span className="text-2xl font-black text-white">฿{analytics.adoptable_revenue.toLocaleString()}</span>
+            <span className="text-[11px] text-[var(--text-muted)] font-bold tracking-normal block">{studio('analytics_127_0')}</span>
+            <span className="text-2xl font-semibold text-[var(--text-primary)]">฿{analytics.adoptable_revenue.toLocaleString()}</span>
           </div>
         </div>
 
         {/* Completed Orders & Clients */}
-        <div className="bg-neutral-900/60 border border-neutral-800 p-5 rounded-2xl flex items-center gap-4 shadow-md hover:border-emerald-500/40 transition-colors">
-          <div className="w-12 h-12 bg-emerald-500/10 rounded-2xl border border-emerald-500/20 flex items-center justify-center shrink-0">
-            <CheckCircle2 className="w-6 h-6 text-emerald-400" />
+        <div className="bg-[var(--bg-surface)] border border-[var(--border-subtle)] p-4 rounded-2xl flex items-center gap-3 hover:border-[var(--border-hover)] transition-colors">
+          <div className="w-12 h-12 bg-[var(--accent-soft)] rounded-2xl border border-[var(--border-subtle)] flex items-center justify-center shrink-0">
+            <CheckCircle2 className="w-6 h-6 text-[var(--accent-primary)]" />
           </div>
           <div>
-            <span className="text-[11px] text-neutral-400 font-bold uppercase tracking-wider block">{studio('analytics_138_0')}</span>
-            <span className="text-2xl font-black text-white">
-              {analytics.completed_orders_count || 0} <span className="text-xs font-normal text-neutral-400">{studio('analytics_140_0')}</span>
+            <span className="text-[11px] text-[var(--text-muted)] font-bold tracking-normal block">{studio('analytics_138_0')}</span>
+            <span className="text-2xl font-semibold text-[var(--text-primary)]">
+              {analytics.completed_orders_count || 0} <span className="text-xs font-normal text-[var(--text-muted)]">{studio('analytics_140_0')}</span>
             </span>
           </div>
         </div>
@@ -150,41 +149,42 @@ export default function ArtistAnalyticsPage() {
       {/* Visual Charts */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Revenue Bar Chart */}
-        <div className="lg:col-span-2 bg-neutral-900/60 border border-neutral-800 p-6 rounded-2xl shadow-xl">
-          <div className="flex items-center justify-between mb-6">
+        <div className="lg:col-span-2 min-w-0 bg-[var(--bg-surface)] border border-[var(--border-subtle)] p-4 sm:p-6 rounded-2xl">
+          <div className="flex flex-wrap items-center justify-between gap-2 mb-4">
             <div className="flex items-center gap-2">
-              <BarChart2 className="w-5 h-5 text-blue-400" />
-              <h3 className="text-sm font-extrabold text-white uppercase tracking-wider">{studio('analytics_153_0')}</h3>
+              <BarChart2 className="w-5 h-5 text-[var(--accent-primary)]" />
+              <h3 className="text-sm font-semibold text-[var(--text-primary)] tracking-normal">{studio('analytics_153_0')}</h3>
             </div>
-            <span className="text-xs text-neutral-400 font-mono">{studio('analytics_155_0')}</span>
+            <span className="text-xs text-[var(--text-muted)] font-mono">{studio('analytics_155_0')}</span>
           </div>
 
           <div className="h-72 w-full">
             <ResponsiveContainer width="100%" height="100%">
               <BarChart data={analytics.revenue_data} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#262626" vertical={false} />
-                <XAxis dataKey="period" stroke="#737373" fontSize={12} tickLine={false} axisLine={false} />
-                <YAxis stroke="#737373" fontSize={12} tickLine={false} axisLine={false} tickFormatter={(val) => `฿${val}`} />
+                <CartesianGrid strokeDasharray="3 3" stroke="var(--border-subtle)" vertical={false} />
+                <XAxis dataKey="period" stroke="var(--text-muted)" fontSize={12} tickLine={false} axisLine={false} />
+                <YAxis stroke="var(--text-muted)" fontSize={12} tickLine={false} axisLine={false} tickFormatter={(val) => `฿${val}`} />
                 <Tooltip
-                  cursor={{ fill: '#262626' }}
-                  contentStyle={{ backgroundColor: '#09090b', border: '1px solid #27272a', borderRadius: '12px' }}
+                  cursor={{ fill: 'var(--accent-primary)', fillOpacity: 0.10, radius: 6 }}
+                  contentStyle={tooltipStyle}
+                  itemStyle={{ color: 'var(--text-primary)' }}
                   formatter={(val) => [`฿${Number(val ?? 0).toLocaleString()}`, studio('analytics_167_0')]}
                 />
-                <Bar dataKey="revenue" fill="#3b82f6" radius={[6, 6, 0, 0]} />
+                <Bar dataKey="revenue" fill="var(--accent-primary)" activeBar={{ fill: "var(--accent-solid)" }} radius={[6, 6, 0, 0]} />
               </BarChart>
             </ResponsiveContainer>
           </div>
         </div>
 
         {/* Revenue Sources Pie Chart */}
-        <div className="bg-neutral-900/60 border border-neutral-800 p-6 rounded-2xl shadow-xl flex flex-col">
+        <div className="min-w-0 bg-[var(--bg-surface)] border border-[var(--border-subtle)] p-4 sm:p-6 rounded-2xl flex flex-col">
           <div className="flex items-center gap-2 mb-6">
-            <PieIcon className="w-5 h-5 text-purple-400" />
-            <h3 className="text-sm font-extrabold text-white uppercase tracking-wider">{studio('analytics_179_0')}</h3>
+            <PieIcon className="w-5 h-5 text-[var(--accent-primary)]" />
+            <h3 className="text-sm font-semibold text-[var(--text-primary)] tracking-normal">{studio('analytics_179_0')}</h3>
           </div>
 
-          <div className="h-64 w-full flex flex-col items-center justify-center relative my-auto">
-            <ResponsiveContainer width="100%" height="100%">
+          <div className="h-64 w-full grid place-items-center my-auto">
+            {hasRevenueSources ? <ResponsiveContainer width="100%" height="100%">
               <PieChart>
                 <Pie
                   data={pieData}
@@ -197,30 +197,37 @@ export default function ArtistAnalyticsPage() {
                   stroke="none"
                 >
                   {pieData.map((entry, index) => (
-                    <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                    <Cell key={`cell-${index}`} fill={colors[index]} />
                   ))}
                 </Pie>
                 <Tooltip
-                  contentStyle={{ backgroundColor: '#09090b', border: '1px solid #27272a', borderRadius: '12px' }}
+                  contentStyle={tooltipStyle}
+                  itemStyle={{ color: 'var(--text-primary)' }}
                   formatter={(val) => [`฿${Number(val ?? 0).toLocaleString()}`, studio('analytics_201_0')]}
                 />
               </PieChart>
-            </ResponsiveContainer>
+            </ResponsiveContainer> : (
+              <div className="flex flex-col items-center gap-3 text-center text-sm text-[var(--text-muted)]">
+                <PieIcon aria-hidden="true" className="size-8 text-[var(--accent-primary)]" />
+                <p>{studio('analyticsNoRevenue')}</p>
+              </div>
+            )}
           </div>
 
-          <div className="space-y-2 mt-4 pt-4 border-t border-neutral-800/80">
+          <div className="space-y-2 mt-4 pt-4 border-t border-[var(--border-subtle)]">
             {pieData.map((entry, index) => (
               <div key={entry.name} className="flex items-center justify-between text-xs">
                 <div className="flex items-center gap-2">
-                  <div className="w-3 h-3 rounded-full" style={{ backgroundColor: COLORS[index] }}></div>
-                  <span className="text-neutral-300 font-medium">{entry.name}</span>
+                  <div className="w-3 h-3 rounded-full" style={{ backgroundColor: colors[index] }}></div>
+                  <span className="text-[var(--text-muted)] font-medium">{entry.name}</span>
                 </div>
-                <span className="font-bold text-white">฿{entry.value.toLocaleString()}</span>
+                <span className="font-bold text-[var(--text-primary)]">฿{entry.value.toLocaleString()}</span>
               </div>
             ))}
           </div>
         </div>
       </div>
+      <LedgerPanel />
     </div>
   );
 }

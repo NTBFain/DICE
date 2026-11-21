@@ -19,6 +19,11 @@ const STYLE_CATEGORIES = [
   { id: 'Environment', key: 'Environment' },
 ];
 
+const ROLE_MANUALS: { label: 'artistManual' | 'clientManual'; href: string | null }[] = [
+  { label: 'artistManual', href: null },
+  { label: 'clientManual', href: null },
+];
+
 export default function Home() {
   const { user } = useAuth();
   const tHome = useTranslations('Home');
@@ -75,7 +80,7 @@ export default function Home() {
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 lg:gap-6 items-center">
           
           {/* Left Column: Hero Text & Controls */}
-          <div className="lg:col-span-7 xl:col-span-8 space-y-3.5">
+          <div className="min-w-0 lg:col-span-7 xl:col-span-8 space-y-3.5">
             <div className="space-y-2">
               <span className="inline-flex items-center gap-1.5 text-[10px] font-mono font-bold text-[var(--accent-primary,#3b82f6)] uppercase tracking-wider bg-[var(--accent-primary,#3b82f6)]/10 px-2.5 py-0.5 rounded-full border border-[var(--accent-primary,#3b82f6)]/30 max-w-full truncate">
                 <Compass className="w-3.5 h-3.5 shrink-0 text-[var(--accent-primary,#3b82f6)]" />
@@ -93,7 +98,7 @@ export default function Home() {
                 <div className="pt-0.5">
                   <Link
                     href="/artists/register"
-                    className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-4 py-2 rounded-xl bg-[var(--accent-primary,#3b82f6)] hover:opacity-90 text-white font-extrabold text-xs transition-all shadow-md text-center"
+                    className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-4 py-2 rounded-xl studio-primary font-extrabold text-xs transition-all shadow-md text-center"
                   >
                     {tHome('artistRegisterCta')}
                   </Link>
@@ -129,14 +134,20 @@ export default function Home() {
             </div>
 
             {/* STYLE CATEGORY PILLS */}
-            <div className="flex gap-2 overflow-x-auto no-scrollbar py-1 -mx-4 px-4 sm:mx-0 sm:px-0 scroll-smooth">
+            <div
+              role="region"
+              aria-label={tHome('styleFilters')}
+              tabIndex={0}
+              className="flex w-full gap-2 overflow-x-auto overscroll-x-contain rounded-lg px-1 pb-2 pt-1 [scrollbar-color:var(--text-muted)_var(--bg-primary)] [scrollbar-width:thin] focus-visible:outline-2 focus-visible:outline-[var(--accent-primary)]"
+            >
               {STYLE_CATEGORIES.map((cat) => (
                 <button
                   key={cat.id}
+                  aria-pressed={selectedStyle === cat.id}
                   onClick={() => setSelectedStyle(cat.id)}
                   className={`px-3 sm:px-4 py-1.5 sm:py-2 rounded-xl text-xs font-bold transition-all cursor-pointer whitespace-nowrap border shrink-0 ${
                     selectedStyle === cat.id
-                      ? 'bg-[var(--accent-primary,#3b82f6)] text-white border-[var(--accent-primary,#3b82f6)] shadow-md'
+                      ? 'studio-primary shadow-sm'
                       : 'bg-[var(--bg-primary,#09090b)] text-[var(--text-muted,#a1a1aa)] border-[var(--border-subtle,#27272a)] hover:text-[var(--text-primary,#f4f4f5)]'
                   }`}
                 >
@@ -146,29 +157,39 @@ export default function Home() {
             </div>
           </div>
 
-          {/* Right Column (Visible on Ultrawide & Desktop): Platform Live Stats & Trust Badge Widget */}
-          <div className="hidden lg:flex lg:col-span-5 xl:col-span-4 flex-col gap-3">
+          <div className="lg:col-span-5 xl:col-span-4">
             <div className="bg-[var(--bg-primary,#09090b)]/80 border border-[var(--border-subtle,#27272a)] rounded-2xl p-5 space-y-4 backdrop-blur-md relative overflow-hidden shadow-inner">
-              <div className="flex items-center justify-between border-b border-[var(--border-subtle,#27272a)] pb-3">
+              <div className="hidden lg:flex items-center border-b border-[var(--border-subtle,#27272a)] pb-3">
                 <span className="text-xs font-extrabold text-[var(--text-primary,#f4f4f5)] flex items-center gap-2">
                   <span className="w-2 h-2 rounded-full bg-emerald-500 animate-ping" />
                   {tHome('liveStatsTitle')}
                 </span>
-                <span className="text-[10px] font-mono text-[var(--accent-primary,#3b82f6)] bg-[var(--accent-primary,#3b82f6)]/10 px-2 py-0.5 rounded border border-[var(--accent-primary,#3b82f6)]/30">{tHome('directArtists')}</span>
               </div>
 
-              <div className="grid grid-cols-2 gap-3">
-                <div className="bg-[var(--bg-surface,#121215)] p-3.5 rounded-xl border border-[var(--border-subtle,#27272a)]">
+              <div className="grid lg:grid-cols-2 gap-3">
+                <div className="hidden lg:block bg-[var(--bg-surface,#121215)] p-3.5 rounded-xl border border-[var(--border-subtle,#27272a)]">
                   <span className="text-[10px] font-mono text-[var(--text-muted,#a1a1aa)] block">{tHome('activeArtists')}</span>
                   <span className="text-xl font-black text-[var(--text-primary,#f4f4f5)] font-mono">{artists.length}</span>
                 </div>
-                <div className="bg-[var(--bg-surface,#121215)] p-3.5 rounded-xl border border-[var(--border-subtle,#27272a)]">
-                  <span className="text-[10px] font-mono text-[var(--text-muted,#a1a1aa)] block">{tHome('commissionFee')}</span>
-                  <span className="text-xl font-black text-emerald-400 font-mono">{tHome('directFee')}</span>
+                <div className="grid content-center gap-2">
+                  {ROLE_MANUALS.map(({ label, href }) => {
+                    const style = 'inline-flex min-h-11 items-center justify-center rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-surface)] px-3 py-2 text-center text-sm font-semibold';
+                    return href ? (
+                      <a key={label} href={href} download className={style}>{tHome(label)}</a>
+                    ) : (
+                      <button key={label} type="button" disabled aria-describedby="manual-download-status"
+                        className={`${style} cursor-not-allowed text-[var(--text-muted)]`}>
+                        {tHome(label)}
+                      </button>
+                    );
+                  })}
+                  {ROLE_MANUALS.some(({ href }) => !href) && (
+                    <p id="manual-download-status" className="text-center text-xs text-[var(--text-muted)]">{tHome('manualsComingSoon')}</p>
+                  )}
                 </div>
               </div>
 
-              <div className="bg-gradient-to-r from-blue-900/30 to-purple-900/30 p-3.5 rounded-xl border border-blue-500/20 flex items-center justify-between">
+              <div className="bg-[var(--accent-soft)] p-3.5 rounded-xl border border-[var(--border-subtle)] hidden lg:flex items-center justify-between gap-3">
                 <div className="space-y-0.5">
                   <span className="text-xs font-bold text-[var(--text-primary,#f4f4f5)] block">{tHome('safeSystemTitle')}</span>
                   <span className="text-[10px] text-[var(--text-muted,#a1a1aa)] block">{tHome('safeSystemDesc')}</span>

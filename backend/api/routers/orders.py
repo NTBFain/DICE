@@ -31,7 +31,8 @@ from models.payment import PaymentInstruction, CollectionReceipt
 from core.time import utcnow
 from services.promptpay import to_satang
 from services.payment_proof import save_payment_proof
-from services.order_service import is_order_fully_paid
+from services.order_service import auction_type_for_order, complete_paid_adoptable, final_artwork_available, has_final_artwork, is_order_fully_paid
+from models import AuctionType
 from services.commission_brief import get_commission_brief
 from services.notification_service import background_create_notification
 
@@ -155,6 +156,7 @@ def get_orders(session: Session = Depends(get_session), current_user: User = Dep
     for o in orders:
         artist = session.get(User, o.artist_id)
         d = o.model_dump()
+        d['auction_type'] = auction_type_for_order(o, session)
         d['commission_brief'] = get_commission_brief(o, session)
         d['client_name'] = o.client.full_name if o.client else "Unknown"
         d['artist_name'] = artist.full_name if artist else "Unknown"
@@ -172,6 +174,7 @@ def get_order_by_id(order_id: int, session: Session = Depends(get_session), curr
             
     artist = session.get(User, order.artist_id)
     d = order.model_dump()
+    d['auction_type'] = auction_type_for_order(order, session)
     d['commission_brief'] = get_commission_brief(order, session)
     d['client_name'] = order.client.full_name if order.client else "Unknown"
     d['artist_name'] = artist.full_name if artist else "Unknown"
@@ -195,6 +198,8 @@ def update_order(
     order = lock_order(session, order_id)
     if request.status is not None or request.agreed_price is not None:
         assert_unsettled(session, order_id)
+    if request.agreed_price is not None and auction_type_for_order(order, session) == AuctionType.ADOPTABLE:
+        raise HTTPException(400, "The winning price of a finished-art auction is fixed")
 
     if request.agreed_price is not None or request.status == OrderStatus.CANCELLED.value:
         active = session.exec(select(PromptPayCheckout.id).join(
@@ -215,6 +220,8 @@ def update_order(
             raise HTTPException(status_code=400, detail=f"Invalid status. Allowed: {[s.value for s in OrderStatus]}")
             
         if target_status != order.status:
+            if auction_type_for_order(order, session) == AuctionType.ADOPTABLE and target_status != OrderStatus.CANCELLED:
+                raise HTTPException(400, "Finished-art purchases complete automatically after payment and delivery")
             allowed = VALID_TRANSITIONS.get(order.status, set())
             if not current_user.is_admin and target_status not in allowed:
                 raise HTTPException(
@@ -226,6 +233,8 @@ def update_order(
                     status_code=400,
                     detail="Cannot complete order: All invoices must be issued and fully paid before completion."
                 )
+            if target_status == OrderStatus.COMPLETED and not has_final_artwork(order_id, session):
+                raise HTTPException(400, "Upload a downloadable final artwork before completing this order.")
             order.status = target_status
             
         background_tasks.add_task(
@@ -258,6 +267,8 @@ def update_order(
         ).all()
         if paid_invoices and not current_user.is_admin:
             raise HTTPException(status_code=400, detail="Cannot modify agreed price after payment has already been collected")
+        if order.status == OrderStatus.COMPLETED and new_price > round(invoices_sum, 2):
+            raise HTTPException(400, "The agreed price of a completed order must be covered by paid invoices.")
             
         order.agreed_price = new_price
         
@@ -290,6 +301,25 @@ def update_order(
 
 # --- Milestone Invoices ---
 
+@router.post("/orders/{order_id}/acknowledge-receipt")
+def acknowledge_order_receipt(order_id: int, session: Session = Depends(get_session),
+                              current_user: User = Depends(get_current_user)):
+    order = session.get(Order, order_id)
+    if not order:
+        raise HTTPException(404, "Order not found")
+    if order.client_id != current_user.id:
+        raise HTTPException(403, "Only the purchasing client can acknowledge receipt.")
+    order = lock_order(session, order_id)
+    if order.receipt_acknowledged_at is None:
+        if (order.status != OrderStatus.COMPLETED or not is_order_fully_paid(order_id, session)
+                or not has_final_artwork(order_id, session)):
+            raise HTTPException(409, "A completed, paid order with final artwork is required.")
+        order.receipt_acknowledged_at = utcnow()
+        session.commit()
+        session.refresh(order)
+    return {"receipt_acknowledged_at": order.receipt_acknowledged_at}
+
+
 @router.post("/orders/{order_id}/invoices", response_model=MilestoneInvoiceResponse)
 def create_invoice(
     order_id: int, 
@@ -310,6 +340,8 @@ def create_invoice(
     assert_unsettled(session, order_id)
     if order.status in [OrderStatus.COMPLETED, OrderStatus.CANCELLED]:
         raise HTTPException(status_code=400, detail=f"Cannot issue invoices for {order.status.value} orders")
+    if auction_type_for_order(order, session) == AuctionType.ADOPTABLE:
+        raise HTTPException(400, "The finished-art auction already issued its full-payment invoice")
         
     existing_sum = session.exec(
         select(func.coalesce(func.sum(MilestoneInvoice.amount), 0.0))
@@ -351,8 +383,13 @@ def get_order_invoices(order_id: int, session: Session = Depends(get_session), c
         raise HTTPException(status_code=403, detail="Not authorized to view invoices for this order")
         
     invoices = session.exec(select(MilestoneInvoice).where(MilestoneInvoice.order_id == order_id)).all()
+    pending_checkout_ids = set(session.exec(select(PromptPayCheckout.invoice_id).where(
+        PromptPayCheckout.invoice_id.in_([invoice.id for invoice in invoices]),
+        PromptPayCheckout.status == "PENDING", PromptPayCheckout.provider_session_id.is_not(None),
+    )).all())
     return [invoice.model_dump() | {
-        "payment_mode": "provider" if uses_provider_checkout(session, invoice) else "manual"
+        "payment_mode": "provider" if uses_provider_checkout(session, invoice) else "manual",
+        "stripe_checkout_pending": not invoice.is_paid and invoice.id in pending_checkout_ids,
     } for invoice in invoices]
 
 @router.post("/invoices/{invoice_id}/pay", response_model=MilestoneInvoiceResponse)
@@ -492,6 +529,9 @@ def approve_invoice_payment(
             session.add(CollectionReceipt(invoice_id=invoice_id, instruction_id=instruction.id,
                 order_id=order.id, amount_satang=instruction.amount_satang,
                 approved_by=artist_user.id, approved_at=approved_at))
+        if changed:
+            session.refresh(invoice)
+            complete_paid_adoptable(order, session)
         session.commit()
         session.refresh(invoice)
     except Exception:
@@ -742,6 +782,10 @@ def upload_order_file(
         
     if file_type not in ["WIP", "FINAL", "REFERENCE"]:
         raise HTTPException(status_code=400, detail="Invalid file type. Must be WIP, FINAL, or REFERENCE")
+    if auction_type_for_order(order, session) == AuctionType.ADOPTABLE:
+        order = lock_order(session, order_id)
+        if file_type != "FINAL" or order.status == OrderStatus.CANCELLED:
+            raise HTTPException(400, "Upload a final artwork for an active finished-art purchase")
         
     os.makedirs("uploads/originals", exist_ok=True)
     os.makedirs("uploads/watermarked", exist_ok=True)
@@ -752,7 +796,7 @@ def upload_order_file(
     unique_name = f"{order_id}_{secrets.token_hex(6)}{file_ext}"
     
     original_path = os.path.join("uploads/originals", unique_name)
-    watermarked_path = os.path.join("uploads/watermarked", unique_name)
+    watermarked_path = os.path.join("uploads/watermarked", f"v2_{unique_name}")
     
     # Enforce magic bytes verification and 200MB size limit
     validate_and_save_upload(file, original_path, max_size=200 * 1024 * 1024, is_deliverable=True)
@@ -780,7 +824,15 @@ def upload_order_file(
         order_id=order_id
     )
     session.add(db_file)
-    session.commit()
+    try:
+        complete_paid_adoptable(order, session)
+        session.commit()
+    except Exception:
+        session.rollback()
+        for path in (original_path, watermarked_path):
+            if os.path.exists(path):
+                os.unlink(path)
+        raise
     session.refresh(db_file)
     
     background_tasks.add_task(
@@ -808,6 +860,7 @@ def get_order_files(order_id: int, session: Session = Depends(get_session), curr
     result = []
     for file in files:
         item = file.model_dump()
+        item['original_available'] = final_artwork_available(file)
         if file.file_type == 'REFERENCE' and not os.path.splitext(file.filename)[1]:
             item['filename'] = sanitize_filename(re.sub(r'^[0-9a-f]{32}_\d+_', '', os.path.basename(file.s3_key)))
         # Describe the version served now; retain the stored preview for unpaid access.
@@ -831,7 +884,7 @@ def download_order_file(order_id: int, file_id: int, session: Session = Depends(
         
     safe_filename = sanitize_filename(db_file.filename)
     original_path = os.path.join("uploads/originals", db_file.s3_key)
-    watermarked_path = os.path.join("uploads/watermarked", db_file.s3_key)
+    watermarked_path = os.path.join("uploads/watermarked", f"v2_{db_file.s3_key}")
     if db_file.file_type == "REFERENCE" and not os.path.exists(original_path):
         auction_prefix = "/api/auctions/images/"
         stored_name = db_file.s3_key.removeprefix(auction_prefix)
@@ -853,19 +906,27 @@ def download_order_file(order_id: int, file_id: int, session: Session = Depends(
     
     if db_file.file_type == "WIP":
         if not os.path.exists(watermarked_path) and os.path.exists(original_path):
-            _apply_configured_watermark(original_path, watermarked_path, session)
+            _apply_configured_watermark(original_path, watermarked_path, session, order_context={
+                "order_id": order.id, "client_name": current_user.full_name,
+                "artist_name": session.get(User, order.artist_id).full_name, "status": "WIP",
+            })
         if os.path.exists(watermarked_path):
             return SecureFileResponse(watermarked_path, filename=f"PREVIEW_{safe_filename}")
         raise HTTPException(status_code=403, detail="Preview unavailable for non-raster WIP format. Contact artist.")
         
     elif db_file.file_type == "FINAL":
+        if auction_type_for_order(order, session) == AuctionType.ADOPTABLE and (not fully_paid or order.status == OrderStatus.CANCELLED):
+            raise HTTPException(402, "Full payment is required to download the original artwork")
         if fully_paid:
             if os.path.exists(original_path):
                 return SecureFileResponse(original_path, filename=safe_filename)
             raise HTTPException(status_code=404, detail="Final deliverable not found on disk")
         else:
             if not os.path.exists(watermarked_path) and os.path.exists(original_path):
-                _apply_configured_watermark(original_path, watermarked_path, session, is_final_unpaid=True)
+                _apply_configured_watermark(original_path, watermarked_path, session, is_final_unpaid=True, order_context={
+                    "order_id": order.id, "client_name": current_user.full_name,
+                    "artist_name": session.get(User, order.artist_id).full_name, "status": "FINAL",
+                })
             if os.path.exists(watermarked_path):
                 return SecureFileResponse(watermarked_path, filename=f"UNPAID_PREVIEW_{safe_filename}")
             raise HTTPException(status_code=402, detail="Full payment required to unlock final deliverable.")
@@ -883,12 +944,18 @@ def delete_order_file(order_id: int, file_id: int, session: Session = Depends(ge
         raise HTTPException(status_code=404, detail="Order not found")
     if not artist_user.is_admin and order.artist_id != artist_user.id:
         raise HTTPException(status_code=403, detail="Not authorized to delete files from this order")
+    order = lock_order(session, order_id)
     db_file = session.get(DBFile, file_id)
     if not db_file or db_file.order_id != order_id:
         raise HTTPException(status_code=404, detail="File not found")
+    if db_file.file_type == "FINAL" and db_file.s3_key.startswith("auction_final_"):
+        raise HTTPException(409, "The original attached to this auction cannot be removed")
+    if (order.status == OrderStatus.COMPLETED and final_artwork_available(db_file)
+            and not has_final_artwork(order_id, session, excluding_file_id=file_id)):
+        raise HTTPException(409, "A completed order must keep at least one downloadable final artwork.")
         
     original_path = os.path.join("uploads/originals", db_file.s3_key)
-    watermarked_path = os.path.join("uploads/watermarked", db_file.s3_key)
+    watermarked_path = os.path.join("uploads/watermarked", f"v2_{db_file.s3_key}")
     
     # Delete DB record first within transaction
     session.delete(db_file)
@@ -900,10 +967,11 @@ def delete_order_file(order_id: int, file_id: int, session: Session = Depends(ge
             os.remove(original_path)
         except OSError:
             pass
-    if os.path.exists(watermarked_path):
-        try:
-            os.remove(watermarked_path)
-        except OSError:
-            pass
+    for preview_path in (watermarked_path, os.path.join("uploads/watermarked", db_file.s3_key)):
+        if os.path.exists(preview_path):
+            try:
+                os.remove(preview_path)
+            except OSError:
+                pass
             
     return {"message": "File deleted successfully"}

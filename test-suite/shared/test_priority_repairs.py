@@ -1,5 +1,7 @@
 """Isolated regressions for studio ownership and artist financial scoping."""
 import unittest
+from pathlib import Path
+from tempfile import NamedTemporaryFile
 from datetime import timedelta
 
 from fastapi import BackgroundTasks, HTTPException
@@ -9,7 +11,7 @@ from sqlmodel import SQLModel, Session, create_engine, select
 from api.routers.analytics import get_analytics
 from api.routers.orders import create_order, update_order
 from core.time import utcnow
-from models import User, ArtistProfile, Order, OrderStatus, MilestoneInvoice, Auction, AuctionType
+from models import User, ArtistProfile, Order, OrderStatus, MilestoneInvoice, Auction, AuctionType, File
 from schemas import OrderCreateRequest, OrderUpdateRequest
 
 
@@ -116,7 +118,12 @@ class PriorityRepairTests(unittest.TestCase):
         self.session.add(order)
         self.session.add(MilestoneInvoice(order_id=order_id, title='Paid', amount=100, is_paid=True))
         self.session.commit()
-        completed = update_order(order_id, OrderUpdateRequest(status='COMPLETED'), BackgroundTasks(), self.session, self.artist)
+        originals = Path('uploads/originals')
+        originals.mkdir(parents=True, exist_ok=True)
+        with NamedTemporaryFile(dir=originals, suffix='.png') as final:
+            self.session.add(File(order_id=order_id, s3_key=Path(final.name).name, filename='final.png', file_type='FINAL'))
+            self.session.commit()
+            completed = update_order(order_id, OrderUpdateRequest(status='COMPLETED'), BackgroundTasks(), self.session, self.artist)
         self.assertEqual(completed['status'], 'COMPLETED')
 
 

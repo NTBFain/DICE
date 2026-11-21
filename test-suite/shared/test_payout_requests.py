@@ -26,6 +26,7 @@ class PayoutRequestTests(unittest.TestCase):
     pay = fixtures.PromptPayTests.pay
     approve = fixtures.PromptPayTests.approve
     ready = fixtures.PromptPayTests.ready
+    add_final_file = fixtures.PromptPayTests.add_final_file
     quote = fixtures.PromptPayTests.quote
     payout = fixtures.PromptPayTests.payout
 
@@ -143,7 +144,7 @@ class PayoutRequestTests(unittest.TestCase):
         with Session(self.engine) as session:
             self.assertEqual(len(session.exec(select(PayoutRequest)).all()), 1)
             self.assertEqual(len(session.exec(select(PayoutRequestEvent)).all()), 1)
-            self.assertEqual(len(session.exec(select(Notification)).all()), 5)
+            self.assertEqual(len(session.exec(select(Notification).where(Notification.link.contains('?request='))).all()), 1)
 
     def test_concurrent_requests_reserve_once(self):
         self.ready(); self.profile(); quote = self.preview().json()
@@ -265,7 +266,8 @@ class PayoutRequestTests(unittest.TestCase):
             raise RuntimeError('offline')
         with patch('services.payout_request_service.manager.send_personal_message', side_effect=broadcast):
             self.assertEqual(self.submit().status_code, 200)
-        with Session(self.engine) as session: self.assertEqual(len(session.exec(select(Notification)).all()), 5)
+        with Session(self.engine) as session:
+            self.assertEqual(len(session.exec(select(Notification).where(Notification.link.contains('?request='))).all()), 1)
 
     def test_legacy_zero_fee_and_mixed_receipts_remain_exact(self):
         self.ready(); self.profile()
@@ -321,6 +323,7 @@ class PayoutRequestTests(unittest.TestCase):
             # The immutable receipt's independent approval fields mirror the original fixture.
             fields = receipt.model_dump(exclude={'id','invoice_id','order_id','instruction_id','amount_satang','created_at'})
             session.add(CollectionReceipt(invoice_id=other_invoice.id,order_id=other.id,instruction_id=instruction.id,amount_satang=10,**fields)); session.commit(); other_id=other.id
+        self.add_final_file(other_id)
         quote = self.preview(order_ids=[self.order_id, other_id]).json()
         self.assertEqual((quote['gross_satang'],quote['fee_satang'],quote['net_satang']), (20,2,18))
         body = {'order_ids':[self.order_id,other_id], 'quote_digest':quote['quote_digest'], 'profile_version':quote['profile_version'],'idempotency_key':'whole-order-batch-key-0001'}

@@ -133,12 +133,6 @@ export default function AuctionsPage() {
     placeBidMutation.mutate({ auctionId, amount });
   };
 
-  const handleAutoBuy = (auctionId: number, autoBuyAmount: number) => {
-    if (confirm(t('confirmAutoBuy',{amount:autoBuyAmount}))) {
-      placeBidMutation.mutate({ auctionId, amount: autoBuyAmount });
-    }
-  };
-
   return (
     <div data-page-surface className="min-h-screen bg-neutral-50 dark:bg-neutral-950 text-neutral-900 dark:text-white flex flex-col">
       <div className="flex-1 p-6 sm:p-10 max-w-7xl w-full mx-auto space-y-8">
@@ -341,14 +335,12 @@ export default function AuctionsPage() {
                           </form>
                           
                           {auction.auto_buy && (
-                            <button
-                              type="button"
-                              onClick={() => handleAutoBuy(auction.id, auction.auto_buy!)}
-                              disabled={placeBidMutation.isPending}
+                            <Link
+                              href={`/auctions/${auction.id}?autoBuy=1`}
                               className="w-full bg-blue-600 hover:bg-blue-500 text-white font-extrabold py-2 rounded-2xl text-xs transition-all cursor-pointer shadow-xs flex items-center justify-center gap-1"
                             >
                               {t('autoBuyFor', { amount: auction.auto_buy })}
-                            </button>
+                            </Link>
                           )}
 
                           {errorMessages[auction.id] && (

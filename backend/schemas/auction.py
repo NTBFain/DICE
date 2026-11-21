@@ -5,6 +5,7 @@ from .artist import ArtistBasicResponse
 
 class BidCreateRequest(BaseModel):
     amount: float = Field(..., gt=0, le=100_000_000, allow_inf_nan=False)
+    auto_buy: Optional[bool] = None
 
 class BidResponse(BaseModel):
     id: int

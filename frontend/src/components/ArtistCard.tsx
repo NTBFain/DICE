@@ -22,7 +22,7 @@ export default function ArtistCard({ artist }: { artist: ArtistProfile }) {
               className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700"
             />
           ) : (
-            <div className="w-full h-full bg-gradient-to-r from-blue-900 via-indigo-900 to-purple-900" />
+            <div className="w-full h-full bg-[var(--accent-soft)]" />
           )}
 
           {/* Status Badge */}
@@ -39,9 +39,9 @@ export default function ArtistCard({ artist }: { artist: ArtistProfile }) {
         </div>
 
         {/* Avatar & Core Profile Info */}
-        <div className="px-4 sm:px-6 pt-0 pb-3 sm:pb-4 relative">
-          <div className="-mt-8 sm:-mt-10 mb-2 sm:mb-3 flex items-end justify-between gap-2">
-            <div className="relative shrink-0">
+        <div className="px-4 sm:px-6 pt-3 pb-3 sm:pb-4 relative">
+          <div className="mb-2 sm:mb-3 flex items-center justify-between gap-2">
+            <div className="relative -mt-10 sm:-mt-12 shrink-0">
               <img
                 src={artist.avatar_url || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=300&q=80'}
                 alt={artist.display_name}
@@ -98,7 +98,7 @@ export default function ArtistCard({ artist }: { artist: ArtistProfile }) {
 
         <Link
           href={`/artists/${artist.handle}`}
-          className="px-3.5 sm:px-4 py-1.5 sm:py-2 bg-[var(--accent-primary,#3b82f6)] hover:opacity-90 text-white rounded-lg sm:rounded-xl text-xs font-extrabold transition-all shadow-md flex items-center gap-1 shrink-0"
+          className="px-3.5 sm:px-4 py-1.5 sm:py-2 studio-primary rounded-lg sm:rounded-xl text-xs font-extrabold transition-all shadow-md flex items-center gap-1 shrink-0"
         >
           {t('viewProfile')} <ArrowRight className="w-3.5 h-3.5 shrink-0" />
         </Link>

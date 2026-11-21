@@ -82,6 +82,10 @@ async def check_and_close_auction(auction: Auction, session: Session) -> bool:
             )
             session.add(invoice)
 
+            if auction.auction_type == AuctionType.ADOPTABLE and auction.original_key:
+                session.add(DBFile(filename=auction.original_filename or "Artwork", s3_key=auction.original_key,
+                                   file_type="FINAL", is_watermarked=False, order_id=new_order.id))
+
             if auction.image_url:
                 db_file = DBFile(
                     filename=f"{auction.title}_preview.png",
@@ -146,7 +150,9 @@ async def check_and_close_auction(auction: Auction, session: Session) -> bool:
         pass
     return True
 
-async def finalize_auto_buy(auction: Auction, bidder_id: int, amount: float, session: Session) -> bool:
+async def finalize_auto_buy(
+    auction: Auction, bidder_id: int, amount: float, session: Session, *, expected_price: float | None = None
+) -> bool:
     """Directly finalizes an auction when Auto-Buy (AB) is triggered with atomic status update."""
     try:
         stmt = (
@@ -154,6 +160,8 @@ async def finalize_auto_buy(auction: Auction, bidder_id: int, amount: float, ses
             .where(Auction.id == auction.id, Auction.status == AuctionStatus.ACTIVE)
             .values(status=AuctionStatus.ENDED, winner_id=bidder_id, winning_bid=amount)
         )
+        if expected_price is not None:
+            stmt = stmt.where(Auction.auto_buy == expected_price)
         res = session.execute(stmt)
         if res.rowcount == 0:
             session.rollback()
@@ -195,6 +203,10 @@ async def finalize_auto_buy(auction: Auction, bidder_id: int, amount: float, ses
             order_id=new_order.id
         )
         session.add(invoice)
+
+        if auction.auction_type == AuctionType.ADOPTABLE and auction.original_key:
+            session.add(DBFile(filename=auction.original_filename or "Artwork", s3_key=auction.original_key,
+                               file_type="FINAL", is_watermarked=False, order_id=new_order.id))
 
         if auction.image_url:
             db_file = DBFile(

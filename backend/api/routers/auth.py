@@ -118,7 +118,7 @@ def get_my_collection(session: Session = Depends(get_session), current_user: Use
             })
             
     for auction in auctions:
-        if auction.image_url:
+        if auction.image_url and auction.auction_type.value != "ADOPTABLE":
             profile = session.get(ArtistProfile, auction.artist_id) if auction.artist_id else None
             linked_order = session.exec(select(Order).where(Order.auction_id == auction.id, Order.client_id == current_user.id)).first()
             collection.append({

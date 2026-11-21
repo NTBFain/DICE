@@ -6,6 +6,7 @@ import StudioDialog from '@/components/StudioDialog';
 import SecureReference from '@/components/SecureReference';
 import CommissionBriefView from '@/components/commission/CommissionBriefView';
 import { useLocale, useTranslations } from 'next-intl';
+import StripeInvoiceSync from '@/components/payments/StripeInvoiceSync';
 
 import { useState, Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
@@ -58,6 +59,7 @@ function OrdersAdminModuleContent() {
   const locale = useLocale();
   const w = useTranslations('OrderWorkspace');
   const stageText = useTranslations('ClientDashboard.statuses');
+  const purchase = useTranslations('AdoptablePurchase');
   const revisionText = useTranslations('OrderWorkspaceRevisions');
   const workspaceText = useTranslations('OrderWorkspaceNavigation');
   const { user } = useAuth();
@@ -118,12 +120,14 @@ function OrdersAdminModuleContent() {
   });
 
   const activeOrder = selectedOrderValue === null ? orders[0] : orders.find(order => order.id === selectedOrderId);
+  const isAdoptable = activeOrder?.auction_type === 'ADOPTABLE';
 
   // Invoices query
   const { data: invoices = [], refetch: refetchInvoices } = useQuery({
     queryKey: ['invoices', activeOrder?.id],
     queryFn: () => getInvoices(activeOrder!.id),
     enabled: !!activeOrder?.id,
+    refetchInterval: query => query.state.data?.some(invoice => invoice.payment_mode === 'provider' && !invoice.is_paid) ? 5000 : false,
   });
 
   // Revisions query
@@ -141,6 +145,13 @@ function OrdersAdminModuleContent() {
   });
 
   // Mutations
+  const completionRequirement = !activeOrder?.agreed_price || !invoices.length
+    || invoices.some(invoice => !invoice.is_paid)
+    || invoices.reduce((total, invoice) => total + Math.round(invoice.amount * 100), 0)
+       < Math.round(activeOrder.agreed_price * 100)
+    ? 'completionRequiresPayment'
+    : files.some(file => file.original_available) ? null : 'completionRequiresFinal';
+
   const updateOrderMutation = useMutation({
     onMutate: () => setActionError(''),
     onError: (error) => setActionError(getErrorMessage(error, w('updateError'))),
@@ -186,8 +197,9 @@ function OrdersAdminModuleContent() {
     onError: (error) => setActionError(getErrorMessage(error, w('actionError'))),
     mutationFn: ({ orderId, file, type }: { orderId: number; file: File; type: 'WIP' | 'FINAL' | 'REFERENCE' }) =>
       uploadOrderFile(orderId, type, file),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['files', activeOrder?.id] });
+    onSuccess: (_file, { orderId }) => {
+      queryClient.invalidateQueries({ queryKey: ['files', orderId] });
+      queryClient.invalidateQueries({ queryKey: ['orders'] });
       setUploadFile(null);
     },
   });
@@ -246,7 +258,7 @@ function OrdersAdminModuleContent() {
     uploadFileMutation.mutate({
       orderId: activeOrder.id,
       file: uploadFile,
-      type: uploadFileType,
+      type: isAdoptable ? 'FINAL' : uploadFileType,
     });
   };
 
@@ -359,7 +371,7 @@ function OrdersAdminModuleContent() {
 
                 {/* Status Switcher Dropdown */}
                 <div className="flex items-center gap-2">
-                  <span className="text-[10px] text-neutral-400 uppercase font-bold">{w('stagePrefix')}</span>
+                  <span className="text-[10px] text-neutral-400 uppercase font-bold">{isAdoptable ? purchase('purchaseStatus') : w('stagePrefix')}</span>
                   <select
                     aria-label={w('stageLabel')}
                     value={activeOrder.status}
@@ -367,12 +379,26 @@ function OrdersAdminModuleContent() {
                     onChange={(e) => handleUpdateStatus(e.target.value)}
                     className="bg-neutral-950 border border-neutral-800 text-white rounded-xl px-3 py-1.5 text-xs font-bold focus:outline-none focus:border-blue-500 cursor-pointer"
                   >
-                    {ORDER_STAGES.filter((stage) => user?.is_admin || stage === activeOrder.status || NEXT_STAGES[activeOrder.status]?.includes(stage)).map((stage) => (
-                      <option key={stage} value={stage}>{stageText(stage)}</option>
+                    {ORDER_STAGES.filter((stage) => (!isAdoptable || stage === activeOrder.status || stage === 'CANCELLED')
+                      && (user?.is_admin || stage === activeOrder.status || NEXT_STAGES[activeOrder.status]?.includes(stage))).map((stage) => (
+                      <option key={stage} value={stage} disabled={stage === 'COMPLETED' && stage !== activeOrder.status && Boolean(completionRequirement)}>{stageText(stage)}</option>
                     ))}
                   </select>
                 </div>
               </div>
+
+              {isAdoptable && activeOrder.status !== 'COMPLETED' && activeOrder.status !== 'CANCELLED' && (
+                <p className="text-xs text-[var(--text-muted)]">{purchase('automaticCompletion')}</p>
+              )}
+              {!isAdoptable && activeOrder.status !== 'COMPLETED' && activeOrder.status !== 'CANCELLED' && completionRequirement && (
+                <p className="text-xs text-[var(--text-muted)]">{w(completionRequirement)}</p>
+              )}
+              {activeOrder.status === 'COMPLETED' && completionRequirement === 'completionRequiresFinal' && (
+                <p className="text-xs text-[var(--status-warning)]">{w('deliveryMissing')}</p>
+              )}
+              {activeOrder.receipt_acknowledged_at && (
+                <p className="text-sm text-[var(--status-success)]">{w('receiptAcknowledged')}</p>
+              )}
 
               {/* Navigation Tabs for Workspace */}
               <div className="flex flex-wrap items-center gap-2 border-b border-neutral-800 pb-3">
@@ -432,7 +458,7 @@ function OrdersAdminModuleContent() {
                       <strong className="text-lg text-white">฿{activeOrder.agreed_price || 0}</strong>
                     </div>
 
-                    <div className="flex items-center gap-2">
+                    {!isAdoptable && <div className="flex items-center gap-2">
                       <input
                         type="number" step="0.01"
                         placeholder={w('agreedPrice')}
@@ -446,7 +472,7 @@ function OrdersAdminModuleContent() {
                         className="px-3.5 py-1.5 bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold rounded-xl transition-all cursor-pointer"
                       >
                         {' '}{w('setPrice')}{' '}</button>
-                    </div>
+                    </div>}
                   </div>
 
                   {/* File Deliverables Workspace Section */}
@@ -458,7 +484,7 @@ function OrdersAdminModuleContent() {
                     {/* Upload File Form */}
                     <form onSubmit={handleFileUploadSubmit} className="p-4 bg-neutral-950 border border-neutral-800 rounded-2xl space-y-3">
                       <div className="grid grid-cols-1 sm:grid-cols-12 gap-3">
-                        <select
+                        {isAdoptable ? <span className="sm:col-span-4 text-xs">{purchase('privateOriginal')}</span> : <select
                           aria-label={w('fileType')} value={uploadFileType}
                           onChange={(e) => setUploadFileType(e.target.value as 'WIP' | 'FINAL' | 'REFERENCE')}
                           className="sm:col-span-4 bg-neutral-900 border border-neutral-800 text-white text-xs rounded-xl p-2 focus:outline-none focus:border-blue-500"
@@ -466,7 +492,7 @@ function OrdersAdminModuleContent() {
                           <option value="WIP">{w('wipOption')}</option>
                           <option value="FINAL">{w('finalOption')}</option>
                           <option value="REFERENCE">{w('referenceOption')}</option>
-                        </select>
+                        </select>}
 
                         <input
                           type="file" aria-label={w('uploadFile')}
@@ -515,7 +541,7 @@ function OrdersAdminModuleContent() {
               {activeWorkspaceTab === 'finances' && (
                 <div className="space-y-6">
                   {/* Create Invoice Milestone Form */}
-                  <form onSubmit={handleCreateInvoiceSubmit} className="p-4 bg-neutral-950 border border-neutral-800 rounded-2xl space-y-3">
+                  {!isAdoptable && <form onSubmit={handleCreateInvoiceSubmit} className="p-4 bg-neutral-950 border border-neutral-800 rounded-2xl space-y-3">
                     <span className="text-[10px] font-mono font-bold uppercase tracking-wider text-neutral-400 block">{w('issueHeading')}</span>
                     <div className="grid grid-cols-1 sm:grid-cols-12 gap-3">
                       <input
@@ -541,7 +567,7 @@ function OrdersAdminModuleContent() {
                       >
                         <Receipt className="w-4 h-4" /> {' '}{w('issue')}{' '}</button>
                     </div>
-                  </form>
+                  </form>}
 
                   {/* Invoices List */}
                   <div className="space-y-2">
@@ -567,11 +593,12 @@ function OrdersAdminModuleContent() {
                             {inv.is_paid ? w(inv.payment_mode === 'provider' ? 'stripePaid' : 'paid') : w('unpaid')}
                           </span>
 
-                          {!inv.is_paid && (
+                          {inv.stripe_checkout_pending && <StripeInvoiceSync invoiceId={inv.id} orderId={activeOrder.id} />}
+                          {!inv.is_paid && inv.payment_mode !== 'provider' && (
                             <button
                               onClick={() => { if (!approveInvoiceMutation.isPending) approveInvoiceMutation.mutate(inv.id); }}
                               disabled={approveInvoiceMutation.isPending}
-                              className="px-3 py-1 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-xl text-xs transition-colors cursor-pointer"
+                              className="studio-primary px-3 py-1 font-bold rounded-xl text-xs transition-colors cursor-pointer"
                             >
                               {' '}{w('approve')}{' '}</button>
                           )}
