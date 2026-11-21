@@ -27,6 +27,7 @@ class Order(OrderBase, table=True):
     client_id: int = Field(foreign_key="user.id", ondelete="CASCADE")
     artist_id: int = Field(default=1, foreign_key="user.id", ondelete="CASCADE")
     created_at: datetime = Field(default_factory=utcnow)
+    receipt_acknowledged_at: Optional[datetime] = None
     
     client: "User" = Relationship(
         back_populates="orders",

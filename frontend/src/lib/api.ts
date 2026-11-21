@@ -85,9 +85,11 @@ export type User = {
 };
 
 export type Order = {
+  receipt_acknowledged_at?: string | null;
   commission_brief?: CommissionBrief | null;
   id: number;
   auction_id?: number;
+  auction_type?: 'COMMISSION_SLOT' | 'ADOPTABLE' | null;
   title: string;
   description: string;
   status: 'PENDING' | 'ACCEPTED' | 'SKETCHING' | 'COLORING' | 'COMPLETED' | 'CANCELLED';
@@ -104,6 +106,7 @@ export type Order = {
 
 export type MilestoneInvoice = {
   payment_mode?: "manual" | "provider";
+  stripe_checkout_pending?: boolean;
   id: number;
   order_id: number;
   title: string;
@@ -122,6 +125,7 @@ export type Revision = {
 };
 
 export type OrderFile = {
+  original_available?: boolean;
   id: number;
   order_id: number;
   filename: string;
@@ -515,9 +519,13 @@ export const uploadOrderFile = async (orderId: number, fileType: 'WIP' | 'FINAL'
   return response.data;
 };
 
+export const acknowledgeOrderReceipt = async (orderId: number) =>
+  (await apiClient.post<{receipt_acknowledged_at: string}>(`/orders/${orderId}/acknowledge-receipt`)).data;
+
 export const downloadOrderFile = async (orderId: number, fileId: number, filename: string) => {
   const response = await apiClient.get(`/orders/${orderId}/files/${fileId}/download`, {
     responseType: 'blob',
+    timeout: 60_000,
   });
   const url = window.URL.createObjectURL(response.data);
   const link = document.createElement('a');
@@ -526,7 +534,7 @@ export const downloadOrderFile = async (orderId: number, fileId: number, filenam
   document.body.appendChild(link);
   link.click();
   link.remove();
-  window.URL.revokeObjectURL(url);
+  window.setTimeout(() => window.URL.revokeObjectURL(url), 1000);
 };
 
 export const deleteOrderFile = async (orderId: number, fileId: number) => {
@@ -565,6 +573,16 @@ export const createAuction = async (data: {
   return response.data;
 };
 
+export const createAuctionWithOriginal = async (listing: Parameters<typeof createAuction>[0], original: File) => {
+  const form = new FormData();
+  form.append('listing', JSON.stringify(listing));
+  form.append('original', original);
+  const { data } = await apiClient.post<Auction>('/auctions/with-original', form, {
+    headers: { 'Content-Type': 'multipart/form-data' },
+  });
+  return data;
+};
+
 export const uploadAuctionImage = async (file: File) => {
   const formData = new FormData();
   formData.append('file', file);
@@ -574,8 +592,8 @@ export const uploadAuctionImage = async (file: File) => {
   return response.data;
 };
 
-export const placeBid = async (auctionId: number, amount: number) => {
-  const response = await apiClient.post<Auction>(`/auctions/${auctionId}/bid`, { amount });
+export const placeBid = async (auctionId: number, amount: number, autoBuy = false) => {
+  const response = await apiClient.post<Auction>(`/auctions/${auctionId}/bid`, { amount, auto_buy: autoBuy });
   return response.data;
 };
 

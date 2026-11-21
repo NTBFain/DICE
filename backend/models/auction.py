@@ -18,6 +18,8 @@ class AuctionBase(SQLModel):
     artist_id: Optional[int] = Field(default=None, foreign_key="artistprofile.id", index=True)
 
 class Auction(AuctionBase, table=True):
+    original_key: Optional[str] = None
+    original_filename: Optional[str] = None
     id: Optional[int] = Field(default=None, primary_key=True)
     winner_id: Optional[int] = Field(default=None, foreign_key="user.id", index=True)
     created_at: datetime = Field(default_factory=datetime.utcnow)

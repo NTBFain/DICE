@@ -27,12 +27,13 @@ function PageTransitionLoaderContent() {
       const target = e.target as HTMLElement;
       const anchor = target.closest('a');
 
-      if (anchor && anchor.href) {
+      if (anchor?.href && !anchor.hasAttribute('download')) {
         try {
           const targetUrl = new URL(anchor.href, window.location.href);
           const currentUrl = new URL(window.location.href);
 
           if (
+            targetUrl.protocol === currentUrl.protocol &&
             targetUrl.origin === currentUrl.origin &&
             (targetUrl.pathname !== currentUrl.pathname || targetUrl.search !== currentUrl.search) &&
             !anchor.target &&

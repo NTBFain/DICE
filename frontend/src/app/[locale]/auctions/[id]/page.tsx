@@ -20,6 +20,7 @@ import {
 } from '@/lib/api';
 import { useAuth } from '@/components/AuthContext';
 import { getErrorMessage } from '@/lib/errorMessage';
+import StudioDialog, { StudioOverlay } from '@/components/StudioDialog';
 import {
   Loader2,
   Gavel,
@@ -37,7 +38,7 @@ import {
   User as UserIcon
 } from 'lucide-react';
 import { Link, useRouter } from '@/i18n/routing';
-import { useTranslations } from 'next-intl';
+import { useLocale, useTranslations } from 'next-intl';
 
 const getAuctionImageUrl = (url?: string) => {
   if (!url) return '';
@@ -97,11 +98,17 @@ export default function AuctionDetailPage() {
   const queryClient = useQueryClient();
   const t = useTranslations('Auctions');
   const router = useRouter();
+  const locale = useLocale();
+  const formatAmount = (amount: number) => amount.toLocaleString(locale, { maximumFractionDigits: 2 });
 
   const [bidInput, setBidInput] = useState('');
   const [chatInput, setChatInput] = useState('');
   const [errorMessage, setErrorMessage] = useState('');
   const [successMessage, setSuccessMessage] = useState('');
+  const [autoBuyPrice, setAutoBuyPrice] = useState<number | null>(null);
+  const [autoBuyError, setAutoBuyError] = useState('');
+  const [autoBuyWonId, setAutoBuyWonId] = useState<number | null>(null);
+  const [autoBuyUnavailable, setAutoBuyUnavailable] = useState(false);
   const [rightPanelTab, setRightPanelTab] = useState<'bids' | 'chat'>('bids');
 
   // Fetch auction data
@@ -126,6 +133,22 @@ export default function AuctionDetailPage() {
   }, [auction?.start_time, auction?.end_time]);
   const phase = auction ? getAuctionPhase(auction.status, Number(parseApiDate(auction.start_time)), Number(parseApiDate(auction.end_time)), auctionClock) : 'closed';
   const biddingOpen = phase === 'open' && !auctionFailed;
+  const publishedAutoBuyPrice = auction?.auto_buy;
+  const auctionLoaded = !!auction && !fetchingAuction;
+  useEffect(() => {
+    if (!user || !auctionLoaded) return;
+    const url = new URL(window.location.href);
+    if (url.searchParams.get('autoBuy') !== '1') return;
+
+    url.searchParams.delete('autoBuy');
+    window.history.replaceState(window.history.state, '', url);
+    if (publishedAutoBuyPrice == null) {
+      setAutoBuyUnavailable(true);
+      return;
+    }
+    setAutoBuyError('');
+    setAutoBuyPrice(publishedAutoBuyPrice);
+  }, [auctionId, auctionLoaded, publishedAutoBuyPrice, user]);
   const unavailable = auctionFailed && (auctionError as { response?: { status?: number } })?.response?.status !== 404;
   const { data: orders = [] } = useQuery({ queryKey: ['client-orders'], queryFn: getOrders, enabled: !!user && auction?.winner_id === user.id });
   const winningOrder = orders.find(order => order.auction_id === auctionId);
@@ -163,8 +186,8 @@ export default function AuctionDetailPage() {
   // {t('placeBid')} Mutation
   const placeBidMutation = useMutation({
     mutationFn: (amount: number) => placeBid(auctionId, amount),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['auction', auctionId] });
+    onSuccess: (updatedAuction) => {
+      queryClient.setQueryData(['auction', auctionId], updatedAuction);
       queryClient.invalidateQueries({ queryKey: ['auctions'] });
       setSuccessMessage(t('bidSuccess'));
       setErrorMessage('');
@@ -175,6 +198,23 @@ export default function AuctionDetailPage() {
       const msg = getErrorMessage(err, t('bidError'));
       setErrorMessage(msg);
       setSuccessMessage('');
+    },
+  });
+
+  const autoBuyMutation = useMutation({
+    mutationFn: (price: number) => placeBid(auctionId, price, true),
+    onSuccess: (updatedAuction) => {
+      void queryClient.invalidateQueries({ queryKey: ['client-orders'] });
+      queryClient.setQueryData(['auction', auctionId], updatedAuction);
+      void queryClient.invalidateQueries({ queryKey: ['auctions'] });
+      setAutoBuyWonId(updatedAuction.id);
+      setAutoBuyPrice(null);
+      setBidInput('');
+      setSuccessMessage('');
+    },
+    onError: (error) => {
+      setAutoBuyError(getErrorMessage(error, t('autoBuyFailed')));
+      void retryAuction();
     },
   });
 
@@ -259,12 +299,16 @@ export default function AuctionDetailPage() {
   const bids = auction.bids || [];
   const highestBid = bids.length > 0 ? bids[0].amount : null;
   const currentPrice = highestBid ?? auction.starting_bid;
-  const minNextBid = highestBid ? highestBid + auction.bid_increment : auction.starting_bid;
+  const minNextBid = highestBid === null ? auction.starting_bid : Number((highestBid + auction.bid_increment).toFixed(2));
+  const higherBid = Number((minNextBid + auction.bid_increment).toFixed(2));
+  const alreadyLeading = !!user && bids[0]?.bidder_id === user.id;
+  const belowAutoBuy = (amount: number) => auction.auto_buy == null || amount < auction.auto_buy;
+  const canPlaceBid = !alreadyLeading && belowAutoBuy(minNextBid);
   const isEnded = phase === 'closed' || phase === 'finalizing';
 
   const handleBidSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (placeBidMutation.isPending || !biddingOpen) return;
+    if (placeBidMutation.isPending || autoBuyMutation.isPending || !biddingOpen || !canPlaceBid) return;
     const amount = parseFloat(bidInput);
     if (!Number.isNaN(amount) && (!Number.isFinite(amount) || amount > 100000000)) {
       setErrorMessage(t('maximumBid')); return;
@@ -273,18 +317,18 @@ export default function AuctionDetailPage() {
       setErrorMessage(t('minimumBid',{amount:minNextBid}));
       return;
     }
+    if (!belowAutoBuy(amount)) {
+      setErrorMessage(t('useAutoBuyInstead'));
+      return;
+    }
     placeBidMutation.mutate(amount);
-  };
-
-  const handleQuickBidAdd = (increment: number) => {
-    const target = currentPrice + increment;
-    setBidInput(target.toString());
   };
 
   const handleAutoBuy = () => {
     if (placeBidMutation.isPending || !biddingOpen) return;
-    if (auction.auto_buy && confirm(t('confirmAutoBuy',{amount:auction.auto_buy}))) {
-      placeBidMutation.mutate(auction.auto_buy);
+    if (auction.auto_buy != null) {
+      setAutoBuyError('');
+      setAutoBuyPrice(auction.auto_buy);
     }
   };
 
@@ -426,16 +470,16 @@ export default function AuctionDetailPage() {
             {/* Winner Badge if ended */}
             {auction.winner_id && (
               <div className="bg-gradient-to-r from-emerald-500/10 to-teal-500/10 border border-emerald-500/30 p-4 rounded-2xl space-y-1">
-                <div className="flex items-center gap-2 text-emerald-500 font-extrabold text-xs">
-                  <Trophy className="w-4 h-4" /> {t('winnerHeading')}
+                <div role="status" className="flex items-center gap-2 text-emerald-500 font-extrabold text-xs">
+                  <Trophy className="w-4 h-4" /> {autoBuyWonId === auction.id && user?.id === auction.winner_id ? t('autoBuyWon') : t('winnerHeading')}
                 </div>
                 <div className="text-sm text-[var(--text-primary,#f4f4f5)] font-bold">
                   {auction.winner_name || t('anonymous')}
                 </div>
                 <div className="text-xs text-emerald-500 font-mono">
-                  {t('winningBid')} <strong>฿{auction.winning_bid}</strong>
+                  {t('winningBid')} <strong>฿{formatAmount(auction.winning_bid ?? currentPrice)}</strong>
                 </div>
-                {user?.id === auction.winner_id && <Link className="mt-3 inline-block rounded-xl bg-blue-600 px-4 py-2 text-sm font-bold text-white" href={winningOrder ? `/dashboard/client?order=${winningOrder.id}` : '/dashboard/client'}>{t('viewWinningOrder')}</Link>}
+                {user?.id === auction.winner_id && winningOrder && <Link className="mt-3 inline-block rounded-xl bg-blue-600 px-4 py-2 text-sm font-bold text-white" href={`/dashboard/client?order=${winningOrder.id}`}>{t('viewWinningOrder')}</Link>}
               </div>
             )}
           </div>
@@ -561,44 +605,30 @@ export default function AuctionDetailPage() {
                         <Zap className="w-4 h-4 text-[var(--accent-primary,#3b82f6)]" /> {t('quickBid')}
                       </span>
                       <span className="text-[11px] text-[var(--text-muted,#a1a1aa)]">
-                        {t('minimumNext')} <strong className="text-emerald-500 font-mono">฿{minNextBid}</strong>
+                        {t('minimumNext')} <strong className="text-emerald-500 font-mono">฿{formatAmount(minNextBid)}</strong>
                       </span>
                     </div>
 
                     <div className="flex flex-wrap gap-2 pt-1">
-                      <button
-                        type="button"
-                        onClick={() => handleQuickBidAdd(50)}
-                        className="px-3 py-1.5 bg-[var(--bg-primary,#09090b)] hover:opacity-80 text-[var(--text-primary,#f4f4f5)] rounded-xl text-xs font-bold border border-[var(--border-subtle,#27272a)] transition-all cursor-pointer"
-                      >
-                        + ฿50
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => handleQuickBidAdd(100)}
-                        className="px-3 py-1.5 bg-[var(--bg-primary,#09090b)] hover:opacity-80 text-[var(--text-primary,#f4f4f5)] rounded-lg text-xs font-bold border border-[var(--border-subtle,#27272a)] transition-all cursor-pointer"
-                      >
-                        + ฿100
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => handleQuickBidAdd(500)}
-                        className="px-3 py-1.5 bg-[var(--bg-primary,#09090b)] hover:opacity-80 text-[var(--text-primary,#f4f4f5)] rounded-lg text-xs font-bold border border-[var(--border-subtle,#27272a)] transition-all cursor-pointer"
-                      >
-                        + ฿500
-                      </button>
+                      {canPlaceBid && [minNextBid, higherBid].filter(belowAutoBuy).map((amount) => (
+                        <button key={amount} type="button" onClick={() => { setBidInput(String(amount)); setErrorMessage(''); }}
+                          className="rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-primary)] px-3 py-2 text-xs font-bold">
+                          {t(amount === minNextBid ? 'useMinimumBid' : 'useHigherBid', { amount: formatAmount(amount) })}
+                        </button>
+                      ))}
                       {auction.auto_buy && (
                         <button
                           type="button"
                           onClick={handleAutoBuy}
                           className="px-3.5 py-1.5 bg-[var(--accent-primary,#3b82f6)] hover:opacity-90 text-white rounded-xl text-xs font-extrabold transition-all cursor-pointer shadow-md ml-auto"
                         >
-                          {t('quickAutoBuy',{amount:auction.auto_buy})}
+                          {t('quickAutoBuy',{amount:formatAmount(auction.auto_buy)})}
                         </button>
                       )}
                     </div>
 
-                    <form onSubmit={handleBidSubmit} className="flex gap-3 pt-1">
+                    {!canPlaceBid && <p className="text-sm">{t(alreadyLeading ? 'alreadyLeadingBid' : 'useAutoBuyInstead')}</p>}
+                    {canPlaceBid && <form onSubmit={handleBidSubmit} className="flex gap-3 pt-1">
                       <div className="relative flex-1">
                         <span className="absolute inset-y-0 left-0 pl-3.5 flex items-center text-[var(--text-muted,#a1a1aa)] text-xs font-bold">
                           ฿
@@ -622,7 +652,7 @@ export default function AuctionDetailPage() {
                         {placeBidMutation.isPending && <Loader2 className="w-4 h-4 animate-spin" />}
                         {t('placeBid')}
                       </button>
-                    </form>
+                    </form>}
                   </div>
                 ) : (
                   <div className="bg-[var(--bg-surface,#121215)] border border-[var(--border-subtle,#27272a)] rounded-3xl p-6 text-center space-y-3">
@@ -760,6 +790,34 @@ export default function AuctionDetailPage() {
 
       </div>
       </div>
+      {autoBuyUnavailable && (
+        <p role="alert" className="mx-auto mt-4 max-w-xl rounded-lg bg-rose-500/10 p-3 text-sm">{t('autoBuyOfferChanged')}</p>
+      )}
+      {autoBuyPrice !== null && (
+        <StudioOverlay className="fixed inset-0 z-50 flex items-center justify-center p-4 motion-safe:animate-fade-in-scale">
+          <StudioDialog label={t('autoBuyDialogTitle')} onClose={() => {
+            if (!autoBuyMutation.isPending) setAutoBuyPrice(null);
+          }} className="w-full max-w-md space-y-4 rounded-2xl p-6">
+            <h2 className="text-xl font-bold">{t('autoBuyDialogTitle')}</h2>
+            <p className="font-semibold">{auction.title} · ฿{formatAmount(autoBuyPrice)}</p>
+            <p className="text-sm">{t('autoBuyDialogDescription')}</p>
+            {(autoBuyError || !biddingOpen || auction.auto_buy !== autoBuyPrice) && (
+              <p role="alert" className="rounded-lg bg-rose-500/10 p-3 text-sm">
+                {autoBuyError || t('autoBuyOfferChanged')}
+              </p>
+            )}
+            <div className="flex flex-wrap justify-end gap-2">
+              <button type="button" disabled={autoBuyMutation.isPending} onClick={() => setAutoBuyPrice(null)}
+                className="min-h-11 rounded-xl border border-[var(--border-subtle)] px-4 text-sm font-semibold">{t('autoBuyCancel')}</button>
+              <button type="button" disabled={autoBuyMutation.isPending || !biddingOpen || auction.auto_buy !== autoBuyPrice}
+                aria-busy={autoBuyMutation.isPending} onClick={() => { setAutoBuyError(''); autoBuyMutation.mutate(autoBuyPrice); }}
+                className="studio-primary min-h-11 rounded-xl border px-4 text-sm font-bold disabled:opacity-50">
+                {t(autoBuyMutation.isPending ? 'autoBuyConfirming' : 'autoBuyConfirm')}
+              </button>
+            </div>
+          </StudioDialog>
+        </StudioOverlay>
+      )}
     </div>
   );
 }

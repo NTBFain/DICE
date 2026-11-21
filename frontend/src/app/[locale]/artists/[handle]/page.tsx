@@ -25,7 +25,7 @@ import {
 } from 'lucide-react';
 import { Link, useRouter } from '@/i18n/routing';
 import { useAuth } from '@/components/AuthContext';
-import { useMutation } from '@tanstack/react-query';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { createOrder } from '@/lib/api';
 import PriceCalculator, { type EstimateSelection } from '@/components/PriceCalculator';
 import QueueRoadmap from '@/components/QueueRoadmap';
@@ -48,6 +48,7 @@ export default function ArtistDedicatedProfilePage() {
   const [inquirySent, setInquirySent] = useState(false);
 
   const { user } = useAuth();
+  const queryClient = useQueryClient();
   const router = useRouter();
   const [showOrderModal, setShowOrderModal] = useState(false);
   const [orderTitle, setOrderTitle] = useState('');
@@ -67,6 +68,7 @@ export default function ArtistDedicatedProfilePage() {
       setInquirySent(true);
       setInquiryText('');
       setTimeout(() => setInquirySent(false), 5000);
+      void queryClient.invalidateQueries({ queryKey: ['client-orders'] });
       router.push(`/dashboard/client?order=${order.id}`);
     },
     onError: (error, variables) => {
@@ -215,9 +217,9 @@ export default function ArtistDedicatedProfilePage() {
         <div className="absolute top-4 left-4 sm:left-6 z-10">
           <Link
             href="/"
-            className="flex items-center gap-1.5 text-xs font-bold text-white bg-black/60 backdrop-blur-md px-3.5 py-1.5 rounded-xl border border-white/20 hover:bg-black/80 transition-all shadow-md"
+            className="studio-primary inline-flex min-h-9 items-center gap-2 rounded-xl border px-3.5 text-xs font-semibold shadow-md ring-1 ring-white/80 transition-colors focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-white"
           >
-            <ArrowLeft className="w-3.5 h-3.5 text-blue-400" /> {c('back')}
+            <ArrowLeft aria-hidden="true" className="size-4 shrink-0" /> {c('back')}
           </Link>
         </div>
       </div>

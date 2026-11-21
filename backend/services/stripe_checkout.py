@@ -19,6 +19,7 @@ from models.checkout import REFUND_HOLD_STATUSES, PromptPayCheckout, StripeRefun
 from models.payment import PayoutItem
 from services.payment_service import assert_unsettled, invoice_and_order, lock_order, uses_provider_checkout
 from services.promptpay import to_satang
+from services.order_service import complete_paid_adoptable
 
 logger = logging.getLogger(__name__)
 
@@ -120,6 +121,48 @@ def start_checkout(session, invoice_id, user, locale):
     if saved.status == "PENDING" and saved.provider_session_id == checkout["id"]:
         return {"url": saved.checkout_url}
     raise HTTPException(409, "Checkout changed. Refresh the invoice before paying.")
+
+
+def fetch_stripe(resource):
+    request = Request(f"https://api.stripe.com/v1/{resource}",
+                      headers={"Authorization": f"Bearer {settings.STRIPE_SECRET_KEY}"})
+    try:
+        with urlopen(request, timeout=10) as response:
+            return json.load(response)
+    except (URLError, TimeoutError, ValueError):
+        raise HTTPException(503, "Could not check Stripe. Try again shortly.") from None
+
+
+def refresh_checkout(session, invoice_id, user):
+    invoice, _ = invoice_and_order(session, invoice_id, user)
+    if invoice.is_paid:
+        return {"is_paid": True}
+    attempt = session.exec(select(PromptPayCheckout).where(
+        PromptPayCheckout.invoice_id == invoice_id, PromptPayCheckout.status == "PENDING"
+    )).first()
+    if not attempt or not attempt.provider_session_id:
+        return {"is_paid": False}
+    provider_id, attempt_id, live = attempt.provider_session_id, attempt.id, attempt.live
+    prefix = "sk_live_" if live else "sk_test_"
+    if not settings.STRIPE_SECRET_KEY.startswith(prefix):
+        raise HTTPException(503, "Stripe credentials do not match this checkout.")
+    session.rollback()
+    checkout = fetch_stripe(f"checkout/sessions/{provider_id}")
+    if (checkout.get("id") != provider_id or checkout.get("client_reference_id") != attempt_id
+            or checkout.get("livemode") is not live):
+        raise HTTPException(502, "Stripe returned a different checkout.")
+    if checkout.get("payment_status") == "paid":
+        payment_id = checkout.get("payment_intent")
+        if not isinstance(payment_id, str) or not payment_id.startswith("pi_"):
+            raise HTTPException(502, "Stripe did not return a payment reference.")
+        refunds = fetch_stripe("refunds?" + urlencode({"payment_intent": payment_id, "limit": 100}))
+        if refunds.get("has_more") or any(
+            row.get("status") not in ("failed", "canceled") for row in refunds.get("data", [])
+        ):
+            raise HTTPException(409, "A Stripe refund requires review before confirming this invoice.")
+    event_type = "checkout.session.expired" if checkout.get("status") == "expired" else "checkout.session.completed"
+    apply_event(session, {"type": event_type, "livemode": live, "data": {"object": checkout}})
+    return {"is_paid": session.get(MilestoneInvoice, invoice_id).is_paid}
 
 
 def verify_event(body, signature, secret):
@@ -230,6 +273,7 @@ def apply_event(session, event):
     attempt.status = "CONFIRMED"
     invoice.is_paid = True
     invoice.approved_at = attempt.confirmed_at
+    complete_paid_adoptable(order, session)
     for recipient in {order.client_id, order.artist_id}:
         session.add(Notification(
             user_id=recipient, type=NotificationType.ORDER,

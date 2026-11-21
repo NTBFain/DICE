@@ -4,11 +4,13 @@ import hmac
 import json
 import time
 from pathlib import Path
+from datetime import datetime, timedelta, timezone
 from unittest import TestCase
 from unittest.mock import patch
 from urllib.parse import parse_qs
 
 from sqlmodel import Session, select
+from api.routers.auctions import router as auction_router
 
 import test_promptpay_payments as payment_tests
 import test_payout_requests as payout_tests
@@ -93,6 +95,36 @@ class StripeCheckoutTests(TestCase):
     def is_paid(self):
         with Session(self.engine) as session:
             return session.get(MilestoneInvoice, self.invoice_id).is_paid
+
+    def test_signed_promptpay_completes_finished_art_purchase(self):
+        self.client.app.include_router(auction_router)
+        now = datetime.now(timezone.utc)
+        listing = {
+            "title": "Private artwork", "description": "Personal display rights",
+            "auction_type": "ADOPTABLE", "starting_bid": 100, "bid_increment": 50, "auto_buy": 200,
+            "start_time": (now - timedelta(minutes=1)).isoformat(),
+            "end_time": (now + timedelta(hours=1)).isoformat(),
+        }
+        launched = self.request("POST", "/api/auctions/with-original", "artist", data={"listing": json.dumps(listing)},
+                                files={"original": ("private.png", self.png, "image/png")})
+        self.assertEqual(launched.status_code, 200, launched.text)
+        auction_id = launched.json()["id"]
+        won = self.request("POST", f"/api/auctions/{auction_id}/bid", "client",
+                           json={"amount": 200, "auto_buy": True})
+        self.assertEqual(won.status_code, 200, won.text)
+        order = next(order for order in self.request("GET", "/api/orders", "client").json() if order["auction_id"] == auction_id)
+        path = f"/api/orders/{order['id']}"
+        invoice, = self.request("GET", f"{path}/invoices", "client").json()
+        self.invoice_id = invoice["id"]
+        original, = self.request("GET", f"{path}/files", "client").json()
+        download = f"{path}/files/{original['id']}/download"
+        self.assertEqual(self.request("GET", download, "client").status_code, 402)
+        self.assertEqual(self.open_checkout().status_code, 200)
+        self.assertEqual(self.send_event().status_code, 200)
+        self.assertEqual(self.send_event().status_code, 200)
+        self.assertEqual(self.request("GET", path, "client").json()["status"], "COMPLETED")
+        self.assertEqual(self.request("GET", download, "otherclient").status_code, 403)
+        self.assertEqual(self.request("GET", download, "client").content, self.png)
 
     def test_client_only_checkout_and_manual_bypass_is_blocked(self):
         for role in ("artist", "admin", "otherclient"):
@@ -258,3 +290,22 @@ class StripeCheckoutTests(TestCase):
             self.assertEqual(response.status_code, 503)
             self.assertEqual(response.json()["detail"], "Live checkout creation is disabled")
         self.assertFalse(self.provider.called)
+
+    def test_check_status_recovers_a_missed_webhook_without_approving_refunds(self):
+        self.assertEqual(self.open_checkout().status_code, 200)
+        attempt = self.attempt()
+        path = f"/api/payments/invoices/{self.invoice_id}/checkout/status"
+        response = self.provider_response(attempt) | {
+            "mode": "payment", "status": "complete", "payment_status": "paid",
+            "payment_intent": "pi_" + attempt.id,
+        }
+        with patch("services.stripe_checkout.fetch_stripe", side_effect=[
+            response, {"data": [{"status": "pending"}]}, response, {"data": []},
+        ]) as provider:
+            self.assertEqual(self.request("POST", path, "otherclient").status_code, 403)
+            self.assertEqual(self.request("POST", path, "client").status_code, 409)
+            self.assertFalse(self.is_paid())
+            self.assertEqual(self.request("POST", path, "artist").json(), {"is_paid": True})
+            self.assertEqual(self.request("POST", path, "client").json(), {"is_paid": True})
+            self.assertEqual(provider.call_count, 4)
+        self.assertTrue(self.is_paid())

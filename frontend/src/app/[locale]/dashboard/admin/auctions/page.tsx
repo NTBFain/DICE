@@ -8,11 +8,13 @@ import { StudioOverlay } from '@/components/StudioDialog';
 
 import StudioDialog from '@/components/StudioDialog';
 
-import { useState } from 'react';
+import { useRef, useState } from 'react';
+import { getErrorMessage } from '@/lib/errorMessage';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { 
   getAdminAuctions, 
   createAuction, 
+  createAuctionWithOriginal,
   closeAuction, 
   getAuctionMessages, 
   sendAuctionMessage,
@@ -48,11 +50,17 @@ export default function AuctionsAdminModule() {
   const [bidIncrement, setBidIncrement] = useState('50');
   const [autoBuy, setAutoBuy] = useState('');
   const [imageFile, setImageFile] = useState<File | null>(null);
+  const [originalFile, setOriginalFile] = useState<File | null>(null);
+  const purchase = useTranslations('AdoptablePurchase');
   const [durationHours, setDurationHours] = useState('24');
   const [isUploading, setIsUploading] = useState(false);
+  const [launchError, setLaunchError] = useState<{ message: string; terms?: boolean } | null>(null);
+  const [launchedAuction, setLaunchedAuction] = useState<Auction | null>(null);
+  const submitting = useRef(false);
+  const termsInput = useRef<HTMLTextAreaElement>(null);
 
   const { data: auctions = [], isLoading: loadingAuctions } = useQuery({
-    queryKey: ['auctions'],
+    queryKey: ['auctions', 'management'],
     queryFn: getAdminAuctions,
   });
 
@@ -78,16 +86,13 @@ export default function AuctionsAdminModule() {
   });
 
   const createAuctionMutation = useMutation({
-    mutationFn: (data: Parameters<typeof createAuction>[0]) => createAuction(data),
-    onSuccess: () => {
+    mutationFn: (data: Parameters<typeof createAuction>[0]) =>
+      data.auction_type === 'ADOPTABLE' && originalFile ? createAuctionWithOriginal(data, originalFile) : createAuction(data),
+    onSuccess: (auction) => {
       queryClient.invalidateQueries({ queryKey: ['auctions'] });
+      setLaunchedAuction(auction);
       setShowModal(false);
       resetForm();
-      alert(copy('auctionsCopy1'));
-    },
-    onError: (err: any) => {
-      const msg = err.response?.data?.detail || copy('auctionsCopy2');
-      alert(msg);
     }
   });
 
@@ -106,8 +111,10 @@ export default function AuctionsAdminModule() {
     setBidIncrement('50');
     setAutoBuy('');
     setImageFile(null);
+    setOriginalFile(null);
     setDurationHours('24');
     setIsUploading(false);
+    setLaunchError(null);
   };
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -119,44 +126,54 @@ export default function AuctionsAdminModule() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (submitting.current) return;
+    setLaunchError(null);
+    const terms = description.trim();
+    if (!terms) {
+      setLaunchError({ message: copy('auctionTermsRequired'), terms: true });
+      termsInput.current?.focus();
+      return;
+    }
     if (!startingBid || parseFloat(startingBid) <= 0) {
-      alert(copy('auctionsCopy3'));
+      setLaunchError({ message: copy('auctionsCopy3') });
       return;
     }
 
-    let finalImageUrl = '';
-
-    if (imageFile) {
+    if (!imageFile) {
+      setLaunchError({ message: copy('auctionsCopy6') });
+      return;
+    }
+    if (auctionType === 'ADOPTABLE' && !originalFile) {
+      setLaunchError({ message: purchase('originalRequired') });
+      return;
+    }
+    submitting.current = true;
+    let phase: 'upload' | 'create' = 'upload';
+    try {
       setIsUploading(true);
-      try {
-        const uploaded = await uploadAuctionImage(imageFile);
-        finalImageUrl = uploaded.image_url;
-      } catch (err: any) {
-        setIsUploading(false);
-        alert(copy('auctionsCopy4') + (err.response?.data?.detail || copy('auctionsCopy5')));
-        return;
-      }
+      const uploaded = await uploadAuctionImage(imageFile);
+      phase = 'create';
+      const start = Date.now();
+      const hours = parseFloat(durationHours) || 24;
+      await createAuctionMutation.mutateAsync({
+        title: title.trim(),
+        description: terms,
+        auction_type: auctionType,
+        starting_bid: parseFloat(startingBid),
+        bid_increment: parseFloat(bidIncrement) || 50,
+        auto_buy: autoBuy ? parseFloat(autoBuy) : undefined,
+        image_url: uploaded.image_url,
+        start_time: new Date(start).toISOString(),
+        end_time: new Date(start + hours * 3600 * 1000).toISOString(),
+      });
+    } catch (error) {
+      const summary = phase === 'upload' ? copy('auctionImageUploadFailed') : copy('auctionsCopy2');
+      const detail = getErrorMessage(error, '');
+      setLaunchError({ message: detail ? `${summary} ${detail}` : summary });
+    } finally {
+      submitting.current = false;
       setIsUploading(false);
-    } else {
-      alert(copy('auctionsCopy6'));
-      return;
     }
-
-    const hours = parseFloat(durationHours) || 24;
-    const startTime = new Date().toISOString();
-    const endTime = new Date(Date.now() + hours * 3600 * 1000).toISOString();
-
-    createAuctionMutation.mutate({
-      title,
-      description,
-      auction_type: auctionType,
-      starting_bid: parseFloat(startingBid),
-      bid_increment: parseFloat(bidIncrement) || 50,
-      auto_buy: autoBuy ? parseFloat(autoBuy) : undefined,
-      image_url: finalImageUrl || undefined,
-      start_time: startTime,
-      end_time: endTime,
-    });
   };
 
   const handleSendReply = (e: React.FormEvent) => {
@@ -195,6 +212,15 @@ export default function AuctionsAdminModule() {
       </div>
 
       {/* Auctions List */}
+      {launchedAuction && (
+        <div className="flex flex-wrap items-center gap-3 rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-surface)] p-4 text-[var(--text-primary)]">
+          <CheckCircle className="h-5 w-5 text-[var(--accent-primary)]" aria-hidden="true" />
+          <p role="status" className="font-semibold">{copy('auctionsCopy1')} {launchedAuction.title}</p>
+          <Link href={`/auctions/${launchedAuction.id}`} className="font-semibold underline underline-offset-4">
+            {copy('auctionViewLaunched')}
+          </Link>
+        </div>
+      )}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         {auctions.map((auc) => (
           <div key={auc.id} className="bg-neutral-900 border border-neutral-800 rounded-3xl overflow-hidden shadow-xs flex flex-col justify-between">
@@ -333,8 +359,9 @@ export default function AuctionsAdminModule() {
       {/* Host New Auction Modal */}
       {showModal && (
         <StudioOverlay className="fixed inset-0 z-50 bg-black/80 backdrop-blur-md flex items-center justify-center p-4">
-          <StudioDialog label={copy('auctionsCopy24')} onClose={() => setShowModal(false)} className="bg-neutral-900 border border-neutral-800 rounded-3xl max-w-md w-full p-6 space-y-4 shadow-2xl relative text-white max-h-[90vh] overflow-y-auto no-scrollbar">
+          <StudioDialog label={copy('auctionsCopy24')} onClose={() => { if (!submitting.current) setShowModal(false); }} className="bg-neutral-900 border border-neutral-800 rounded-3xl max-w-md w-full p-6 space-y-4 shadow-2xl relative text-white max-h-[90vh] overflow-y-auto no-scrollbar">
             <button aria-label={copy('auctionsCopy19')}
+              disabled={isUploading || createAuctionMutation.isPending}
               onClick={() => setShowModal(false)}
               className="absolute top-4 right-4 text-neutral-400 hover:text-white transition-colors"
             >
@@ -349,6 +376,7 @@ export default function AuctionsAdminModule() {
                 <input
                   type="text"
                   required
+                  maxLength={120}
                   placeholder={copy('auctionsCopy27')}
                   aria-label={copy('auctionsCopy26')}
                   value={title}
@@ -437,14 +465,20 @@ export default function AuctionsAdminModule() {
                     <span className="text-xs text-neutral-300 truncate">
                       {imageFile ? imageFile.name : copy('auctionsCopy37')}
                     </span>
-                    <input aria-label={copy('auctionsCopy36')} type="file" accept="image/*" required onChange={handleFileSelect} className="hidden" />
+                    <input aria-label={copy('auctionsCopy36')} type="file" accept="image/*" onChange={handleFileSelect} className="hidden" />
                   </label>
                 </div>
               </div>
 
               <div>
-                <label className="text-neutral-400 font-bold uppercase block mb-1">{copy('auctionsCopy38')}</label>
+                <label htmlFor="auction-terms" className="text-neutral-400 font-bold uppercase block mb-1">{copy('auctionsCopy38')} *</label>
                 <textarea
+                  id="auction-terms"
+                  ref={termsInput}
+                  aria-required="true"
+                  aria-invalid={launchError?.terms || undefined}
+                  aria-describedby={launchError?.terms ? 'auction-launch-error' : undefined}
+                  maxLength={3000}
                   rows={3}
                   placeholder={copy('auctionsCopy39')}
                   aria-label={copy('auctionsCopy38')}
@@ -454,6 +488,21 @@ export default function AuctionsAdminModule() {
                 />
               </div>
 
+              {auctionType === 'ADOPTABLE' && (
+                <div className="space-y-2 rounded-xl border border-[var(--border-subtle)] p-3">
+                  <label className="block font-bold" htmlFor="auction-original">{purchase('privateOriginal')} *</label>
+                  <p id="auction-original-help">{purchase('privateOriginalHelp')}</p>
+                  <input id="auction-original" type="file" className="max-w-full" aria-required="true"
+                    aria-describedby="auction-original-help" accept="image/png,image/jpeg,image/webp,image/gif,.psd,.clip,.pdf,.zip,.rar"
+                    onChange={(event) => setOriginalFile(event.target.files?.[0] || null)} />
+                </div>
+              )}
+
+              {launchError && (
+                <p id="auction-launch-error" role="alert" className="rounded-lg border border-rose-500/30 bg-rose-500/10 px-3 py-2 text-sm text-[var(--text-primary)]">
+                  {launchError.message}
+                </p>
+              )}
               <button
                 type="submit"
                 disabled={createAuctionMutation.isPending || isUploading}

@@ -5,9 +5,10 @@ import { parseApiDate } from '@/lib/apiDate';
 import { useState, useEffect, Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { isAxiosError } from 'axios';
 import {
-  getOrders, getInvoices, payInvoice, getRevisions, requestRevision,
-  getFiles, downloadOrderFile, getCommissionStatus, Order, OrderFile,
+  getOrders, getOrderById, getInvoices, payInvoice, getRevisions, requestRevision,
+  getFiles, downloadOrderFile, acknowledgeOrderReceipt, getCommissionStatus, Order, OrderFile,
   updateMe, uploadAvatar, getMyCollection
 } from '@/lib/api';
 import { getMyCommissionRequests, withdrawCommissionRequest } from '@/lib/commissionApi';
@@ -23,10 +24,11 @@ import {
 } from 'lucide-react';
 import SecureImage from '@/components/SecureImage';
 import ProviderPromptPayButton from '@/components/payments/ProviderPromptPayButton';
+import StripeInvoiceSync from '@/components/payments/StripeInvoiceSync';
 import PromptPayButton from '@/components/payments/PromptPayButton';
 import CommissionBriefView from '@/components/commission/CommissionBriefView';
 import ChatBox from '@/components/ChatBox';
-import { getDownloadErrorMessage } from '@/lib/errorMessage';
+import { getDownloadErrorMessage, getErrorMessage } from '@/lib/errorMessage';
 
 function ClientDashboardContent() {
   const { user, loading: authLoading, fetchUser } = useAuth();
@@ -34,6 +36,7 @@ function ClientDashboardContent() {
   const searchParams = useSearchParams();
   const tPayments = useTranslations('Payments');
   const t = useTranslations('ClientDashboard');
+  const purchase = useTranslations('AdoptablePurchase');
   const queryClient = useQueryClient();
   const locale = useLocale();
   
@@ -60,6 +63,7 @@ function ClientDashboardContent() {
   };
   const [uploadingSlipId, setUploadingSlipId] = useState<number | null>(null);
   const [slipError, setSlipError] = useState<{ invoiceId: number; message: string } | null>(null);
+  const [downloadingId, setDownloadingId] = useState<number | null>(null);
   const [downloadError, setDownloadError] = useState<{ fileId: number; message: string; paymentVersion: string } | null>(null);
   const [revisionSubmittedId, setRevisionSubmittedId] = useState<number | null>(null);
   const revisionSubmitted = selectedOrderId !== null && revisionSubmittedId === selectedOrderId;
@@ -80,7 +84,7 @@ function ClientDashboardContent() {
     queryFn: getCommissionStatus,
   });
 
-  const { data: orders = [], isLoading: loadingOrders, refetch: refetchOrders } = useQuery({
+  const { data: orders = [], isLoading: loadingOrders } = useQuery({
     queryKey: ['client-orders'],
     queryFn: getOrders,
     enabled: !!user,
@@ -92,36 +96,62 @@ function ClientDashboardContent() {
     enabled: !!user,
   });
 
-  const selectedOrder = orders.find((o) => o.id === selectedOrderId);
+  const orderDetail = useQuery({
+    queryKey: ['order', selectedOrderId, user?.id],
+    queryFn: () => getOrderById(selectedOrderId!),
+    enabled: !!user && selectedOrderId !== null,
+    retry: false,
+  });
+  const selectedOrder = user && !orderDetail.isError ? orderDetail.data : undefined;
+  const orderErrorStatus = isAxiosError(orderDetail.error) ? orderDetail.error.response?.status : undefined;
+  const orderUnavailable = orderErrorStatus === 403 || orderErrorStatus === 404;
 
   const { data: invoices = [], isLoading: loadingInvoices } = useQuery({
     queryKey: ['order-invoices', selectedOrderId],
     queryFn: () => getInvoices(selectedOrderId!),
-    enabled: !!selectedOrderId,
+    enabled: !!selectedOrder,
     refetchInterval: query => query.state.data?.some(invoice => invoice.payment_mode === 'provider' && !invoice.is_paid) ? 5000 : false,
   });
   const paymentVersion = invoices.map(invoice => `${invoice.id}:${invoice.is_paid}`).join('|');
+  const isAdoptable = selectedOrder?.auction_type === 'ADOPTABLE';
+  const purchasePaid = invoices.length > 0 && invoices.every(invoice => invoice.is_paid)
+    && invoices.reduce((sum, invoice) => sum + Math.round(invoice.amount * 100), 0) >= Math.round((selectedOrder?.agreed_price ?? Infinity) * 100);
 
   const { data: revisions = [] } = useQuery({
     queryKey: ['order-revisions', selectedOrderId],
     queryFn: () => getRevisions(selectedOrderId!),
-    enabled: !!selectedOrderId,
+    enabled: !!selectedOrder,
   });
 
   const { data: files = [], isLoading: loadingFiles } = useQuery({
     queryKey: ['order-files', selectedOrderId],
     queryFn: () => getFiles(selectedOrderId!),
-    enabled: !!selectedOrderId,
+    enabled: !!selectedOrder,
     refetchInterval: invoices.some(invoice => invoice.payment_mode === 'provider') ? 5000 : false,
   });
+  const visibleFiles = isAdoptable
+    ? files.filter(file => file.file_type === 'REFERENCE' || (purchasePaid && selectedOrder?.status !== 'CANCELLED' && file.original_available))
+    : files;
+  const purchaseStatus = !purchasePaid ? purchase('awaitingPayment')
+    : files.some(file => file.original_available) ? purchase('readyToDownload') : purchase('awaitingArtwork');
 
   useEffect(() => {
     if (selectedOrderId && paymentVersion) {
       void queryClient.invalidateQueries({ queryKey: ['order-files', selectedOrderId] });
+      void queryClient.invalidateQueries({ queryKey: ['order', selectedOrderId] });
+      void queryClient.invalidateQueries({ queryKey: ['client-collection'] });
     }
   }, [paymentVersion, queryClient, selectedOrderId]);
 
   // Mutations
+  const acknowledgeReceipt = useMutation({
+    mutationFn: acknowledgeOrderReceipt,
+    onSuccess: (_result, orderId) => Promise.all([
+      queryClient.invalidateQueries({ queryKey: ['client-orders'] }),
+      queryClient.invalidateQueries({ queryKey: ['order', orderId] }),
+    ]),
+  });
+
   const submitRevisionMutation = useMutation({
     mutationFn: ({ orderId, feedback }: { orderId: number; feedback: string }) => requestRevision(orderId, feedback),
     onSuccess: (_result, variables) => {
@@ -176,11 +206,15 @@ function ClientDashboardContent() {
   };
 
   const handleDownload = async (file: OrderFile) => {
+    if (downloadingId !== null) return;
+    setDownloadingId(file.id);
     setDownloadError(null);
     try {
       await downloadOrderFile(selectedOrderId!, file.id, file.filename);
     } catch (error) {
       setDownloadError({ fileId: file.id, paymentVersion, message: await getDownloadErrorMessage(error, t('downloadError')) });
+    } finally {
+      setDownloadingId(null);
     }
   };
 
@@ -408,19 +442,27 @@ function ClientDashboardContent() {
         )}
 
         {/* LOADING ORDER STATE */}
-        {activeTab === 'commissions' && selectedOrderId !== null && loadingOrders && (
+        {selectedOrderId !== null && (authLoading || (!!user && orderDetail.isPending)) && (
           <div className="flex-1 flex flex-col items-center justify-center py-20 gap-3">
             <Loader2 className="w-8 h-8 animate-spin text-blue-500" />
             <p className="text-sm text-neutral-400">{t('loadingDetails')}</p>
           </div>
         )}
 
-        {/* ORDER NOT FOUND STATE */}
-        {activeTab === 'commissions' && selectedOrderId !== null && !loadingOrders && !selectedOrder && (
+        {/* ORDER ERROR STATE */}
+        {selectedOrderId !== null && user && !authLoading && orderDetail.isError && (
           <div className="p-6 md:p-10 max-w-md mx-auto text-center space-y-4 my-auto">
             <AlertCircle className="w-12 h-12 text-neutral-500 mx-auto" />
-            <h2 className="text-xl font-bold text-neutral-900 dark:text-white">{t('orderNotFound')}</h2>
-            <p className="text-sm text-neutral-500">{t('orderNotFoundDescription', { id: selectedOrderId })}</p>
+            <h2 className="text-xl font-bold text-neutral-900 dark:text-white" role="alert">
+              {orderUnavailable ? t('orderNotFound') : t('orderLoadError')}
+            </h2>
+            {orderUnavailable ? (
+              <p className="text-sm text-neutral-500">{t('orderNotFoundDescription', { id: selectedOrderId })}</p>
+            ) : (
+              <button type="button" onClick={() => void orderDetail.refetch()} className="btn-primary px-4 py-2 rounded-xl text-sm font-semibold">
+                {t('retryOrder')}
+              </button>
+            )}
             <button
               onClick={() => navigateDashboard('commissions')}
               className="px-4 py-2 bg-neutral-200 dark:bg-neutral-800 hover:bg-neutral-300 dark:hover:bg-neutral-700 text-neutral-900 dark:text-white rounded-xl text-sm font-semibold transition-colors"
@@ -435,7 +477,7 @@ function ClientDashboardContent() {
           <div className="flex-1 flex flex-col overflow-y-auto bg-white dark:bg-neutral-950">
             <div className="p-4 sm:p-8 max-w-4xl w-full mx-auto space-y-6 sm:space-y-8 animate-fade-in-up">
               <button onClick={() => navigateDashboard('commissions')} className="text-xs font-bold text-neutral-500 hover:text-neutral-900 dark:hover:text-white flex items-center gap-2 bg-neutral-100 dark:bg-neutral-900 px-4 py-2 rounded-xl transition-colors w-fit">
-                <ArrowLeft className="w-4 h-4 text-blue-500" /> {t('backToCommissions')}
+                <ArrowLeft className="w-4 h-4 text-blue-500" /> {isAdoptable ? purchase('backToOrders') : t('backToCommissions')}
               </button>
 
               <div className="flex flex-col md:flex-row justify-between gap-4 bg-neutral-50 dark:bg-neutral-900/30 p-6 sm:p-8 rounded-[2rem] border border-neutral-200 dark:border-neutral-800">
@@ -445,7 +487,9 @@ function ClientDashboardContent() {
                   <CommissionBriefView brief={selectedOrder.commission_brief} fallback={selectedOrder.description} />
                 </div>
                 <div className="flex flex-col gap-3 items-end min-w-[140px]">
-                  <span className={`text-xs font-black px-4 py-1.5 rounded-full border w-fit ${getStatusBadgeClass(selectedOrder.status)}`}>{statusLabel(selectedOrder.status)}</span>
+                  <span role={isAdoptable ? 'status' : undefined} className={`text-xs font-black px-4 py-1.5 rounded-full border w-fit ${getStatusBadgeClass(selectedOrder.status)}`}>
+                    {isAdoptable && selectedOrder.status !== 'CANCELLED' ? purchaseStatus : statusLabel(selectedOrder.status)}
+                  </span>
                   {selectedOrder.agreed_price ? (
                     <span className="text-2xl font-black text-neutral-900 dark:text-white">฿{selectedOrder.agreed_price}</span>
                   ) : (
@@ -454,7 +498,7 @@ function ClientDashboardContent() {
                 </div>
               </div>
 
-              {selectedOrder.status !== 'CANCELLED' && (
+              {!isAdoptable && selectedOrder.status !== 'CANCELLED' && (
                 <div className="space-y-4">
                   <h3 className="text-[10px] font-black text-neutral-400 uppercase tracking-widest">{t('workflowProgress')}</h3>
                   <div className="bg-white dark:bg-neutral-900/40 border border-neutral-200 dark:border-neutral-800 p-6 rounded-3xl">
@@ -479,7 +523,7 @@ function ClientDashboardContent() {
 
               {/* Invoices Section */}
               <div className="space-y-4">
-                <h3 className="text-[10px] font-black text-neutral-400 uppercase tracking-widest">{t('financialMilestones')}</h3>
+                <h3 className="text-[10px] font-black text-neutral-400 uppercase tracking-widest">{isAdoptable ? purchase('payment') : t('financialMilestones')}</h3>
                 {loadingInvoices ? (
                   <Loader2 className="w-6 h-6 animate-spin text-blue-500" />
                 ) : invoices.length === 0 ? (
@@ -503,7 +547,11 @@ function ClientDashboardContent() {
                           ) : selectedOrder.status === 'CANCELLED' ? (
                             <p className="text-sm text-neutral-500">{t('cancelledPaymentUnavailable')}</p>
                           ) : inv.payment_mode === 'provider' ? (
-                            <ProviderPromptPayButton invoiceId={inv.id} />
+                            <div className="space-y-2">
+                              <p className="text-xs font-semibold text-[var(--status-warning)]">{t('unpaid')}</p>
+                              <ProviderPromptPayButton invoiceId={inv.id} />
+                              {inv.stripe_checkout_pending && <StripeInvoiceSync invoiceId={inv.id} orderId={selectedOrder.id} />}
+                            </div>
                           ) : inv.slip_image_url ? (
                             <span className="flex items-center justify-center gap-1.5 text-xs text-amber-600 dark:text-amber-400 font-black bg-amber-50 dark:bg-amber-500/10 px-4 py-2.5 rounded-xl border border-amber-200 dark:border-amber-500/20 w-full">
                               <FileCheck className="w-4 h-4" /> {t('slipUnderReview')}
@@ -534,8 +582,23 @@ function ClientDashboardContent() {
 
               {/* Files Section */}
               <div className="space-y-4">
-                <h3 className="text-[10px] font-black text-neutral-400 uppercase tracking-widest">{t('deliverables')}</h3>
-                {!loadingFiles && invoices.some(invoice => invoice.payment_mode === 'provider')
+                <h3 className="text-[10px] font-black text-neutral-400 uppercase tracking-widest">{isAdoptable ? purchase('artwork') : t('deliverables')}</h3>
+                {!isAdoptable && (selectedOrder.receipt_acknowledged_at ? (
+                  <p className="text-sm text-[var(--status-success)]">{t('receiptAcknowledged')}</p>
+                ) : selectedOrder.status === 'COMPLETED' && files.some(file => file.original_available) && (
+                  <div className="space-y-2">
+                    <p className="text-sm text-[var(--text-muted)]">{t('receiptAcknowledgmentHelp')}</p>
+                    <button type="button" disabled={acknowledgeReceipt.isPending}
+                      onClick={() => acknowledgeReceipt.mutate(selectedOrder.id)}
+                      className="studio-primary rounded-xl px-4 py-2 text-sm font-semibold disabled:opacity-50">
+                      {t('acknowledgeReceipt')}
+                    </button>
+                    {acknowledgeReceipt.isError && acknowledgeReceipt.variables === selectedOrder.id && (
+                      <p role="alert">{getErrorMessage(acknowledgeReceipt.error, t('receiptAcknowledgmentError'))}</p>
+                    )}
+                  </div>
+                ))}
+                {!isAdoptable && !loadingFiles && invoices.some(invoice => invoice.payment_mode === 'provider')
                   && invoices.every(invoice => invoice.is_paid)
                   && invoices.reduce((total, invoice) => total + Math.round(invoice.amount * 100), 0)
                     >= Math.round((selectedOrder.agreed_price ?? Infinity) * 100)
@@ -543,11 +606,11 @@ function ClientDashboardContent() {
                   && <p role="status" className="text-sm">{tPayments('awaitingFinalArtwork')}</p>}
                 {loadingFiles ? (
                   <Loader2 className="w-6 h-6 animate-spin text-blue-500" />
-                ) : files.length === 0 ? (
-                  <div className="bg-neutral-50 dark:bg-neutral-900/40 border border-neutral-200 dark:border-neutral-800 rounded-3xl p-8 text-center text-neutral-500 text-sm font-bold">{t('noUploadedFiles')}</div>
+                ) : visibleFiles.length === 0 ? (
+                  <div className="bg-neutral-50 dark:bg-neutral-900/40 border border-neutral-200 dark:border-neutral-800 rounded-3xl p-8 text-center text-neutral-500 text-sm font-bold">{isAdoptable && selectedOrder.status !== 'CANCELLED' ? purchaseStatus : t('noUploadedFiles')}</div>
                 ) : (
                   <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-                    {files.map((file) => (
+                    {visibleFiles.map((file) => (
                       <div key={file.id} className="bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl overflow-hidden flex flex-col group shadow-sm">
                         {file.filename.match(/\.(jpeg|jpg|gif|png|webp)$/i) ? (
                           <div className="aspect-square w-full relative bg-neutral-100 dark:bg-neutral-950 overflow-hidden">
@@ -569,8 +632,16 @@ function ClientDashboardContent() {
                           <div>
                             <span className="text-[9px] font-black bg-neutral-200 dark:bg-neutral-800 text-neutral-700 dark:text-neutral-300 px-2 py-0.5 rounded uppercase tracking-widest mb-1 inline-block">{file.file_type}</span>
                           </div>
-                          <button aria-label={`${t('download')} ${file.filename}`} onClick={() => handleDownload(file)} className="p-2 bg-white dark:bg-neutral-950 hover:bg-blue-50 dark:hover:bg-blue-900/20 text-neutral-900 dark:text-white hover:text-blue-600 dark:hover:text-blue-400 rounded-lg border border-neutral-200 dark:border-neutral-800 transition-colors shadow-sm">
-                            <ArrowDownToLine className="w-4 h-4" />
+                          <button
+                            type="button"
+                            aria-label={`${t('download')} ${file.filename}`}
+                            aria-busy={downloadingId === file.id}
+                            disabled={downloadingId !== null}
+                            onClick={() => void handleDownload(file)}
+                            className="studio-primary inline-flex min-h-9 items-center gap-2 rounded-lg border px-3 py-2 text-xs font-semibold disabled:opacity-60 focus-visible:outline-2 focus-visible:outline-offset-2"
+                          >
+                            {downloadingId === file.id ? <Loader2 aria-hidden="true" className="size-4 animate-spin" /> : <ArrowDownToLine aria-hidden="true" className="size-4" />}
+                            {t(downloadingId === file.id ? 'downloadingFile' : 'download')}
                           </button>
                         </div>
                         {downloadError?.fileId === file.id && downloadError.paymentVersion === paymentVersion && <p role="alert" className="p-3 text-sm text-red-500">{downloadError.message}</p>}
@@ -580,7 +651,7 @@ function ClientDashboardContent() {
                 )}
               </div>
               
-              <section className="space-y-4 rounded-2xl border border-neutral-200 p-5 dark:border-neutral-800">
+              {!isAdoptable && <section className="space-y-4 rounded-2xl border border-neutral-200 p-5 dark:border-neutral-800">
                 <h3 className="font-bold">{t('revisionsFeedbacks')}</h3>
                 <p className="text-sm">{t('remainingQuota')} {Math.max(0, selectedOrder.revision_quota - revisions.length)} / {selectedOrder.revision_quota}</p>
                 {revisions.map(revision => (
@@ -598,13 +669,13 @@ function ClientDashboardContent() {
                 ) : <p className="text-sm text-neutral-500">{revisions.length >= selectedOrder.revision_quota ? t('revisionQuotaExhausted') : t('revisionStageUnavailable')}</p>}
                 {submitRevisionMutation.isError && submitRevisionMutation.variables?.orderId === selectedOrder.id && <p role="alert" className="text-sm text-red-500">{t('revisionError')}</p>}
                 {revisionSubmitted && <p role="status" className="text-sm text-emerald-600">{t('revisionSaved')}</p>}
-              </section>
+              </section>}
 
               {/* Messages */}
-              <div className="space-y-4 pt-4 border-t border-neutral-200 dark:border-neutral-800">
+              {!isAdoptable && <div className="space-y-4 pt-4 border-t border-neutral-200 dark:border-neutral-800">
                 <h3 className="text-[10px] font-black text-neutral-400 uppercase tracking-widest">{t('communication')}</h3>
                 <ChatBox orderId={selectedOrder.id} currentUserId={user.id} />
-              </div>
+              </div>}
 
             </div>
           </div>

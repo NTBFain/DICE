@@ -2,6 +2,7 @@ import os
 import math
 import re
 import logging
+import tempfile
 from datetime import datetime
 from typing import Optional
 from PIL import Image, ImageDraw, ImageFont, ImageSequence
@@ -127,7 +128,7 @@ def create_text_stamp(
     
     # Dual-layer rendering: crisp white text with dark outline for high contrast on any background
     draw.text(
-        (10, 10),
+        (10 - bbox[0], 10 - bbox[1]),
         text,
         font=font,
         fill=(255, 255, 255, alpha_val),
@@ -219,7 +220,7 @@ def apply_watermark(
         
         # 2. Build Watermark Stamp (Text / Image / Hybrid)
         base_scale = min(width, height)
-        font_size = max(14, int(base_scale / 22))
+        font_size = max(14, int(base_scale / 17))
         logo_target_w = max(60, int(width * 0.18))
         
         if watermark_type == "image" and logo_filename:
@@ -253,14 +254,14 @@ def apply_watermark(
         if pattern == "center":
             center_x = (width - s_w) // 2
             center_y = (height - s_h) // 2
-            watermark_layer.paste(stamp, (center_x, center_y), stamp)
+            watermark_layer.alpha_composite(stamp, (center_x, center_y))
             
         elif pattern == "corner":
             margin_x = int(width * 0.04)
             margin_y = int(height * 0.04)
             pos_x = max(10, width - s_w - margin_x)
             pos_y = max(10, height - s_h - margin_y)
-            watermark_layer.paste(stamp, (pos_x, pos_y), stamp)
+            watermark_layer.alpha_composite(stamp, (pos_x, pos_y))
             
         elif pattern == "cross":
             cross_draw = ImageDraw.Draw(watermark_layer)
@@ -270,7 +271,7 @@ def apply_watermark(
             
             center_x = (width - s_w) // 2
             center_y = (height - s_h) // 2
-            watermark_layer.paste(stamp, (center_x, center_y), stamp)
+            watermark_layer.alpha_composite(stamp, (center_x, center_y))
             
         else: # 'tiled' (default)
             density_multipliers = {"low": 3.2, "medium": 2.2, "high": 1.5}
@@ -280,25 +281,31 @@ def apply_watermark(
             step_y = max(int(s_h * mult), 100)
             
             row_index = 0
-            for y in range(-s_h // 2, height + s_h, step_y):
-                offset_x = (step_x // 2) if (row_index % 2 == 1) else 0
-                for x in range(-s_w // 2 + offset_x, width + s_w, step_x):
-                    watermark_layer.paste(stamp, (x, y), stamp)
+            for y in range(((height - s_h) // 2) % step_y - step_y, height, step_y):
+                offset_x = (step_x // 2) if height >= step_y * 2 and row_index % 2 == 1 else 0
+                for x in range((((width - s_w) // 2) + offset_x) % step_x - step_x, width, step_x):
+                    watermark_layer.alpha_composite(stamp, (x, y))
                 row_index += 1
         
         # Composite layers
         watermarked_im = Image.alpha_composite(rgba_im, watermark_layer)
-        save_image_securely(watermarked_im, output_image_path)
+        with tempfile.NamedTemporaryFile(
+            dir=os.path.dirname(output_image_path) or ".",
+            suffix=os.path.splitext(output_image_path)[1],
+            delete=False,
+        ) as temporary:
+            preview_path = temporary.name
+        try:
+            save_image_securely(watermarked_im, preview_path)
+            os.replace(preview_path, output_image_path)
+        finally:
+            if os.path.exists(preview_path):
+                os.remove(preview_path)
         return True
         
     except Exception as e:
         logger.error(f"Error in apply_watermark for {input_image_path}: {e}", exc_info=True)
-        # Fail closed: never leak unwatermarked original images into preview paths!
-        if os.path.exists(output_image_path):
-            try:
-                os.remove(output_image_path)
-            except OSError:
-                pass
+        # A failed render never publishes a partial preview or the original.
         return False
     finally:
         for img_obj in (src_im, rgba_im, watermark_layer, stamp, watermarked_im):

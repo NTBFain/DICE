@@ -34,7 +34,7 @@ export default function ProviderPromptPayButton({invoiceId}: {invoiceId: number}
   return <div className="space-y-2">
     <p className="text-sm">{t('automaticConfirmation')}</p>
     <button type="button" disabled={busy} onClick={() => void pay()}
-      className="rounded-xl bg-blue-700 px-4 py-3 font-bold disabled:opacity-50">
+      className="studio-primary rounded-xl px-4 py-3 font-bold disabled:opacity-50">
       {t(busy ? 'working' : 'payWithPromptPay')}
     </button>
     {error && <p role="alert" className="text-sm">{error}</p>}

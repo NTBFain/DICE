@@ -85,9 +85,16 @@ class PromptPayTests(unittest.TestCase):
     def approve(self,role='artist'):
         return self.request('POST',f'/api/invoices/{self.invoice_id}/approve',role)
 
+    def add_final_file(self, order_id=None, file_type='FINAL'):
+        response = self.request('POST', f'/api/orders/{order_id or self.order_id}/files', 'artist',
+                                data={'file_type': file_type}, files={'file': ('art.png', self.png, 'image/png')})
+        self.assertEqual(response.status_code, 200, response.text)
+        return response.json()
+
     def ready(self):
         self.assertEqual(self.config().status_code,200);self.assertEqual(self.instruction().status_code,200)
         self.assertEqual(self.pay().status_code,200);self.assertEqual(self.approve().status_code,200)
+        self.add_final_file()
         self.assertEqual(self.request('PATCH',f'/api/orders/{self.order_id}',json={'status':'COMPLETED'}).status_code,200)
 
     def quote(self):
@@ -338,8 +345,20 @@ class PromptPayTests(unittest.TestCase):
 
     def test_payout_eligibility_requires_completed_and_fully_paid(self):
         self.config();self.instruction();self.pay();self.approve();self.assertEqual(self.quote().status_code,409)
-        self.request('PATCH',f'/api/orders/{self.order_id}',json={'status':'COMPLETED'})
+        self.add_final_file(file_type='WIP')
+        self.add_final_file(file_type='REFERENCE')
+        path = f'/api/orders/{self.order_id}'
+        self.assertEqual(self.request('PATCH', path, json={'status':'COMPLETED'}).status_code, 400)
+        final = self.add_final_file()
+        self.assertEqual(self.request('PATCH', path, json={'status':'COMPLETED'}).status_code, 200)
         self.assertEqual(self.quote().status_code,200)
+        self.assertEqual(self.request('DELETE', f"{path}/files/{final['id']}", 'artist').status_code, 409)
+        ack = path + '/acknowledge-receipt'
+        self.assertEqual(self.request('POST', ack, 'artist').status_code, 403)
+        self.assertEqual(self.request('POST', ack, 'otherclient').status_code, 403)
+        first = self.request('POST', ack, 'client')
+        self.assertEqual(first.status_code, 200, first.text)
+        self.assertEqual(self.request('POST', ack, 'client').json(), first.json())
 
     def test_exact_payout_totals_and_immutable_settlement(self):
         self.ready();quote=self.quote().json();self.assertEqual([quote[x] for x in ('gross_satang','fee_satang','net_satang')],[100000,5000,95000])
@@ -347,6 +366,25 @@ class PromptPayTests(unittest.TestCase):
         self.assertEqual(self.request('PATCH',f'/api/orders/{self.order_id}',json={'status':'CANCELLED'}).status_code,409)
         self.assertEqual(self.request('PATCH',f'/api/orders/{self.order_id}',json={'agreed_price':1200}).status_code,409)
         self.assertEqual(self.quote().status_code,409)
+
+    def test_auction_completion_requires_existing_final_and_is_serialized_with_deletion(self):
+        self.config()
+        with Session(self.engine) as session:
+            auction = self.auction_fixture(session)
+            self.assertTrue(asyncio.run(finalize_auto_buy(auction, self.ids['client'], 200, session)))
+            self.order_id = session.exec(select(Order.id).where(Order.auction_id == auction.id)).one()
+            self.invoice_id = session.exec(select(MilestoneInvoice.id).where(MilestoneInvoice.order_id == self.order_id)).one()
+        self.instruction(); self.pay(); self.approve()
+        order_path = f'/api/orders/{self.order_id}'
+        final = self.add_final_file()
+        Path('uploads/originals', final['s3_key']).unlink()
+        self.assertEqual(self.request('PATCH', order_path, json={'status': 'COMPLETED'}).status_code, 400)
+        self.assertEqual(self.request('POST', order_path + '/acknowledge-receipt', 'client').status_code, 409)
+        final = self.add_final_file()
+        with ThreadPoolExecutor(max_workers=2) as pool:
+            complete = pool.submit(self.request, 'PATCH', order_path, json={'status': 'COMPLETED'})
+            delete = pool.submit(self.request, 'DELETE', f"{order_path}/files/{final['id']}", 'artist')
+            self.assertIn((complete.result().status_code, delete.result().status_code), [(200, 409), (400, 200)])
 
     def test_duplicate_payout_replay_creates_one_batch_item_and_proof(self):
         self.ready();quote=self.quote().json();first=self.payout(quote);second=self.payout(quote)

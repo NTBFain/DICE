@@ -4,6 +4,10 @@ from sqlalchemy import inspect, text
 logger = logging.getLogger(__name__)
 
 ADDED_COLUMNS = {
+    "auction": {
+        "original_key": "VARCHAR",
+        "original_filename": "VARCHAR",
+    },
     "artistservice": {
         "max_slots": "INTEGER NOT NULL DEFAULT 3",
         "is_form_open": "BOOLEAN NOT NULL DEFAULT 1",
@@ -13,6 +17,7 @@ ADDED_COLUMNS = {
         "form_schema": "JSON",
     },
     "order": {
+        "receipt_acknowledged_at": "TIMESTAMP",
         "platform_fee_bps_snapshot": "INTEGER NOT NULL DEFAULT 0",
         "service_id": "INTEGER",
         "commission_request_id": "INTEGER",
