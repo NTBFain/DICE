@@ -367,10 +367,11 @@ class PromptPayTests(unittest.TestCase):
         self.assertEqual(self.request('PATCH',f'/api/orders/{self.order_id}',json={'agreed_price':1200}).status_code,409)
         self.assertEqual(self.quote().status_code,409)
 
-    def test_auction_completion_requires_existing_final_and_is_serialized_with_deletion(self):
+    def test_auctioned_commission_completion_requires_existing_final_and_is_serialized_with_deletion(self):
         self.config()
         with Session(self.engine) as session:
             auction = self.auction_fixture(session)
+            auction.auction_type = AuctionType.COMMISSION_SLOT
             self.assertTrue(asyncio.run(finalize_auto_buy(auction, self.ids['client'], 200, session)))
             self.order_id = session.exec(select(Order.id).where(Order.auction_id == auction.id)).one()
             self.invoice_id = session.exec(select(MilestoneInvoice.id).where(MilestoneInvoice.order_id == self.order_id)).one()
