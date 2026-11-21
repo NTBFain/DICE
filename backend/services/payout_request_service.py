@@ -10,7 +10,7 @@ from models import User, Order, Notification, NotificationType
 from models.payment import ArtistPayout
 from models.payout_request import (ArtistPayoutProfile, PayoutRequest, PayoutRequestItem,
                                   PayoutReservation, PayoutRequestEvent)
-from services.payout_service import payout_quote, payout_response
+from services.payout_service import has_refund_hold, payout_quote, payout_response
 
 logger = logging.getLogger(__name__)
 
@@ -51,10 +51,13 @@ def request_response(session, request, *, detail=False):
     result['mobile_masked'] = '******' + request.mobile_number[-4:]
     artist = session.get(User, request.artist_id)
     result['artist_name'] = artist.full_name if artist else ''
+    items = request_items(session, request.id)
+    result['refund_hold'] = request.status in ('REQUESTED', 'PROCESSING', 'TRANSFER_RECORDED') and has_refund_hold(
+        session, [row.order_id for row in items])
     if detail:
         result['mobile_number'] = request.mobile_number
         result['items'] = [row.model_dump() | {'title': session.get(Order, row.order_id).title}
-                           for row in request_items(session, request.id)]
+                           for row in items]
         result['events'] = session.exec(select(PayoutRequestEvent).where(PayoutRequestEvent.request_id == request.id)
                                         .order_by(PayoutRequestEvent.id)).all()
         result['payout'] = payout_response(session, session.get(ArtistPayout, request.payout_id)) if request.payout_id else None
@@ -171,6 +174,8 @@ def act_on_request(session, request_id, user, action, body):
     elif request.artist_id != user.id:
         raise HTTPException(403, 'Only the owning artist can perform this action')
     if action == 'claim' and request.status == 'REQUESTED':
+        payout_quote(session, request.artist_id, [item.order_id for item in request_items(session, request.id)],
+                     lock=True, request_id=request.id)
         request.status = 'PROCESSING'
         request.claimed_by = user.id
     elif action == 'release' and request.status == 'PROCESSING' and request.claimed_by == user.id:

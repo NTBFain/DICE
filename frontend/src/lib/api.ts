@@ -103,6 +103,7 @@ export type Order = {
 };
 
 export type MilestoneInvoice = {
+  payment_mode?: "manual" | "provider";
   id: number;
   order_id: number;
   title: string;

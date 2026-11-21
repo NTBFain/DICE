@@ -3,13 +3,17 @@ import json
 import os
 import secrets
 from pathlib import Path
-from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form
+from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form, Request
 from fastapi.responses import Response, FileResponse
 from sqlalchemy import update
 from sqlalchemy.exc import IntegrityError
 from sqlmodel import Session, select
 from core.auth import get_current_user, get_admin_user, get_artist_user
 from core.db import get_session
+from core.config import settings
+from models.checkout import PromptPayCheckout
+from services.stripe_checkout import start_checkout, verify_event, apply_event
+from starlette.concurrency import run_in_threadpool
 from models import User, SystemSetting, OrderStatus
 from models.payment import PaymentInstruction, CollectionReceipt, ArtistPayout, PayoutItem
 from schemas.payment import PaymentSettingsRequest, PayoutSelection
@@ -61,6 +65,34 @@ def save_payment_settings(request: PaymentSettingsRequest, session: Session = De
     return value
 
 
+@router.post('/invoices/{invoice_id}/checkout')
+def invoice_checkout(invoice_id: int, response: Response, locale: str = 'en',
+                     session: Session = Depends(get_session), user: User = Depends(get_current_user)):
+    response.headers.update(PRIVATE)
+    return start_checkout(session, invoice_id, user, 'th' if locale == 'th' else 'en')
+
+
+def process_stripe_event(event):
+    from core.db import engine
+
+    with Session(engine) as session:
+        apply_event(session, event)
+
+
+@router.post('/stripe/webhook')
+async def stripe_webhook(request: Request):
+    if not settings.STRIPE_WEBHOOK_SECRET:
+        raise HTTPException(503, 'Stripe webhook is not configured')
+    body = bytearray()
+    async for chunk in request.stream():
+        body.extend(chunk)
+        if len(body) > 1024 * 1024:
+            raise HTTPException(413, 'Webhook body too large')
+    event = verify_event(bytes(body), request.headers.get('stripe-signature', ''), settings.STRIPE_WEBHOOK_SECRET)
+    await run_in_threadpool(process_stripe_event, event)
+    return {'received': True}
+
+
 @router.post('/invoices/{invoice_id}/instruction')
 def invoice_instruction(invoice_id: int, session: Session = Depends(get_session), user: User = Depends(get_current_user)):
     try:
@@ -89,7 +121,15 @@ def invoice_qr(invoice_id: int, session: Session = Depends(get_session), user: U
 def invoice_receipt(invoice_id: int, session: Session = Depends(get_session), user: User = Depends(get_current_user)):
     invoice_and_order(session, invoice_id, user)
     receipt = session.exec(select(CollectionReceipt).where(CollectionReceipt.invoice_id == invoice_id)).first()
-    return receipt
+    if receipt:
+        return receipt
+    checkout = session.exec(select(PromptPayCheckout).where(
+        PromptPayCheckout.invoice_id == invoice_id, PromptPayCheckout.status == "CONFIRMED"
+    )).first()
+    if checkout:
+        return {'invoice_id': invoice_id, 'amount_satang': checkout.amount_satang,
+                'approved_at': checkout.confirmed_at, 'approval_method': 'PROVIDER'}
+    return None
 
 
 @router.get('/ledger')
